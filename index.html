@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.1</title>
-<link rel="manifest" href="manifest.json?v=031">
+<title>Suivi des concours v0.3.2</title>
+<link rel="manifest" href="manifest.json?v=032">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -156,6 +156,7 @@ th{background:#f2ebf0}
     <h2>Ajout manuel d'un animal</h2>
     <div class="row">
       <div class="field"><label>Concours</label><select id="animalContest"></select></div>
+      <div class="field"><label>Département</label><input id="manualDept" placeholder="Ex. 32"></div>
       <div class="field"><label>Éleveur</label><input id="farmerName"></div>
       <div class="field"><label>N° cheptel</label><input id="herdNo"></div>
       <div class="field"><label>N° bovin</label><input id="animalNo"></div>
@@ -172,6 +173,7 @@ th{background:#f2ebf0}
     </div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="partnerContest"></select></div>
+      <div class="field"><label>Département</label><select id="partnerDept"></select></div>
       <div class="field"><label>Fichier CSV des inscrits</label><input id="partnerCsvFile" type="file" accept=".csv,text/csv"></div>
       <button class="action" onclick="importPartnerCSV()">Importer les inscrits</button>
     </div>
@@ -188,10 +190,21 @@ th{background:#f2ebf0}
     </div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="businessContest"></select></div>
+      <div class="field"><label>Département du fichier métier</label><select id="businessDept"></select></div>
       <div class="field"><label>Fichier CSV bovins métier</label><input id="businessCsvFile" type="file" accept=".csv,text/csv"></div>
       <button class="action" onclick="importBusinessCSV()">Contrôler / compléter</button>
     </div>
     <div id="businessImportSummary" class="muted" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Exporter les n° bovins pour extraction métier</h2>
+    <div class="row">
+      <div class="field"><label>Concours</label><select id="exportAnimalContest"></select></div>
+      <div class="field"><label>Département</label><select id="exportAnimalDept"><option value="">Tous les départements</option></select></div>
+      <button class="action" onclick="exportAnimalNumbers()">Exporter le CSV</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Le CSV contient uniquement une colonne <strong>bovin</strong>.</div>
   </div>
 
   <div class="card">
@@ -212,7 +225,7 @@ th{background:#f2ebf0}
   </div>
 
   <div class="card"><h2>Animaux inscrits</h2><div class="scroll"><table>
-    <thead><tr><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détenteur métier</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
+    <thead><tr><th>Dépt.</th><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détenteur métier</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
     <tbody id="animalTable"></tbody>
   </table></div></div>
 </section>
@@ -274,7 +287,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.1";
+const APP_VERSION = "0.3.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -286,9 +299,9 @@ const STATUS=[
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
-let db={contests:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
+let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.2");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -336,8 +349,9 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,rules,templateRules,demands,animals,results,certs]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,animals,results,certs]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
+    sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
     sb("concours_regles_catalogue?select=*&order=maladie.asc,age_min_mois.asc"),
     sb("concours_demandes?select=*&order=maladie.asc"),
@@ -345,7 +359,7 @@ async function loadAll(){
     sb("concours_resultats?select=*"),
     sb("concours_certificats?select=*")
   ]);
-  db.contests=contests||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.animals=animals||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.animals=animals||[];db.certificates={};
   (certs||[]).forEach(c=>db.certificates[c.concours_id+"|"+c.eleveur]=c);
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
@@ -374,8 +388,42 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","deptContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
+}
+
+function departmentsForContest(cid){
+  return db.departments.filter(d=>d.concours_id===cid).sort((a,b)=>String(a.departement).localeCompare(String(b.departement)));
+}
+function renderDepartmentSelectors(){
+  const pairs=[["partnerContest","partnerDept"],["businessContest","businessDept"],["exportAnimalContest","exportAnimalDept"]];
+  for(const [contestSel,deptSel] of pairs){
+    const cid=document.getElementById(contestSel)?.value;
+    const opts=departmentsForContest(cid).map(d=>({value:d.departement,label:d.departement}));
+    if(deptSel==="exportAnimalDept") opts.unshift({value:"",label:"Tous les départements"});
+    else if(!opts.length) opts.push({value:"",label:"— Aucun département —"});
+    optionize(deptSel,opts);
+  }
+}
+async function addDepartment(){
+  const concours_id=document.getElementById("deptContest").value;
+  const departement=document.getElementById("deptCode").value.trim();
+  if(!concours_id||!departement)return alert("Choisir un concours et saisir un département.");
+  await sb("concours_departements?on_conflict=concours_id,departement",{method:"POST",body:{concours_id,departement},prefer:"resolution=ignore-duplicates,return=minimal"});
+  document.getElementById("deptCode").value="";
+  await loadAll();
+}
+async function deleteDepartment(id){
+  if(!confirm("Retirer ce département du concours ?"))return;
+  await sb("concours_departements?id=eq."+id,{method:"DELETE"});
+  await loadAll();
+}
+function renderDepartments(){
+  const cid=document.getElementById("deptContest")?.value;
+  const rows=departmentsForContest(cid).map(d=>`<tr><td><strong>${escapeHtml(d.departement)}</strong></td><td><button class="danger" onclick="deleteDepartment('${d.id}')">Retirer</button></td></tr>`).join("");
+  document.getElementById("departmentList").innerHTML=rows
+    ? `<div class="scroll"><table><thead><tr><th>Département</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="muted">Aucun département ajouté.</div>`;
 }
 function renderFarmerSelectors(){
   [["analysisContest","analysisFarmer"],["certContest","certFarmer"]].forEach(([cid,fid])=>{
@@ -413,7 +461,7 @@ function renderRules(){
     : `<div class="muted" style="padding:12px 4px">Aucune règle sanitaire enregistrée pour ce concours.</div>`;
 }
 async function addAnimal(){
-  const body={concours_id:document.getElementById("animalContest").value,eleveur:document.getElementById("farmerName").value.trim(),
+  const body={concours_id:document.getElementById("animalContest").value,departement:document.getElementById("manualDept").value.trim()||null,eleveur:document.getElementById("farmerName").value.trim(),
     cheptel:document.getElementById("herdNo").value.trim(),bovin:document.getElementById("animalNo").value.trim(),
     naissance:document.getElementById("birthDate").value||null,origine:"Ajout manuel"};
   if(!body.concours_id||!body.eleveur||!body.bovin)return alert("Concours, éleveur et n° bovin obligatoires");
@@ -464,7 +512,9 @@ async function importPartnerCSV(){
   const f=document.getElementById("partnerCsvFile").files[0];
   if(!f)return alert("Choisir le fichier CSV des inscrits.");
   const cid=document.getElementById("partnerContest").value;
+  const dept=document.getElementById("partnerDept").value;
   if(!cid)return alert("Choisir un concours.");
+  if(!dept)return alert("Choisir le département.");
   const text=await f.text(), rows=[];
   parseCSV(text).forEach(o=>{
     const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","numero national","identifiant bovin"]));
@@ -473,7 +523,7 @@ async function importPartnerCSV(){
     const naissance=normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]));
     const commune=pick(o,["commune","ville"]);
     if(bovin)rows.push({
-      concours_id:cid,eleveur,cheptel:cheptel||null,bovin,naissance,
+      concours_id:cid,departement:dept,eleveur,cheptel:cheptel||null,bovin,naissance,
       origine:"Import liste inscrits",
       commune_partenaire:commune||null,
       controle_metier:"pending",
@@ -495,7 +545,9 @@ async function importBusinessCSV(){
   const f=document.getElementById("businessCsvFile").files[0];
   if(!f)return alert("Choisir le fichier CSV bovins métier.");
   const cid=document.getElementById("businessContest").value;
+  const dept=document.getElementById("businessDept").value;
   if(!cid)return alert("Choisir un concours.");
+  if(!dept)return alert("Choisir le département correspondant au fichier métier.");
   const text=await f.text();
   const source=parseCSV(text);
   const business=new Map();
@@ -509,7 +561,7 @@ async function importBusinessCSV(){
       naissance:normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]))
     });
   });
-  const inscrits=db.animals.filter(a=>a.concours_id===cid);
+  const inscrits=db.animals.filter(a=>a.concours_id===cid && a.departement===dept);
   if(!inscrits.length)return alert("Aucun animal inscrit pour ce concours.");
 
   let ok=0,completed=0,mismatch=0,notfound=0;
@@ -562,6 +614,7 @@ function renderAnimals(){
   const list=db.animals.filter(a=>a.concours_id===cid && (!filter || (a.controle_metier||"pending")===filter));
   const animalRows=list.map(a=>`
     <tr>
+      <td>${escapeHtml(a.departement||"")}</td>
       <td>${escapeHtml(a.eleveur)}</td>
       <td>${escapeHtml(a.cheptel||"")}</td>
       <td><strong>${escapeHtml(a.bovin)}</strong></td>
@@ -572,7 +625,7 @@ function renderAnimals(){
       <td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td>
       <td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td>
     </tr>`).join("");
-  document.getElementById("animalTable").innerHTML=animalRows || '<tr><td colspan="9" class="muted">Aucun animal pour ce filtre.</td></tr>';
+  document.getElementById("animalTable").innerHTML=animalRows || '<tr><td colspan="10" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
 function renderAnalysis(){
@@ -659,6 +712,22 @@ function renderExport(){
   const cid=document.getElementById("exportContest")?.value,s=stats(cid);
   document.getElementById("exportStats").innerHTML=allAnalyses().map(an=>`<div class="kpi"><span>${an}</span><strong>${s[an]}</strong></div>`).join("");
 }
+
+function exportAnimalNumbers(){
+  const cid=document.getElementById("exportAnimalContest").value;
+  const dept=document.getElementById("exportAnimalDept").value;
+  const c=contest(cid); if(!c)return alert("Aucun concours.");
+  let list=db.animals.filter(a=>a.concours_id===cid);
+  if(dept)list=list.filter(a=>a.departement===dept);
+  const nums=[...new Set(list.map(a=>a.bovin).filter(Boolean))];
+  if(!nums.length)return alert("Aucun bovin à exporter.");
+  const csv="bovin\n"+nums.map(n=>`"${String(n).replaceAll('"','""')}"`).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;
+  a.download=`bovins_${c.nom.replaceAll(" ","_")}${dept?"_"+dept:""}.csv`;
+  a.click();URL.revokeObjectURL(url);
+}
 function exportRecapCSV(){
   const cid=document.getElementById("exportContest").value,c=contest(cid);
   if(!c)return alert("Aucun concours.");
@@ -671,11 +740,11 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderTemplateRules();renderDemands();renderRules();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
+function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderRules();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","animalCheckFilter","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
-    if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors();renderAll();
+  if(["tplFilter","ruleContest","deptContest","demandContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
+    if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
 if(TOKEN)startApp();

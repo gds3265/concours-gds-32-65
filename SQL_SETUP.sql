@@ -150,3 +150,32 @@ alter table public.concours_animaux
   add column if not exists cheptel_metier text,
   add column if not exists naissance_metier date;
 
+
+
+-- ============================================================
+-- v0.3.2 - MULTI-DEPARTEMENTS
+-- ============================================================
+
+create table if not exists public.concours_departements (
+  id uuid primary key default gen_random_uuid(),
+  concours_id uuid not null references public.concours(id) on delete cascade,
+  departement text not null,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  unique(concours_id, departement)
+);
+
+alter table public.concours_departements enable row level security;
+
+drop policy if exists "concours_departements_authenticated_all" on public.concours_departements;
+create policy "concours_departements_authenticated_all"
+on public.concours_departements for all
+to authenticated
+using (true)
+with check (true);
+
+alter table public.concours_animaux
+  add column if not exists departement text;
+
+create index if not exists concours_animaux_departement_idx
+on public.concours_animaux(concours_id, departement);
