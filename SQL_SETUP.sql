@@ -179,3 +179,13 @@ alter table public.concours_animaux
 
 create index if not exists concours_animaux_departement_idx
 on public.concours_animaux(concours_id, departement);
+
+
+-- ============================================================
+-- v0.3.7 - SUIVI DE RECEPTION / VALIDATION DES CERTIFICATS
+-- ============================================================
+
+alter table public.concours_certificats
+  add column if not exists statut_certificat text not null default 'non_recu',
+  add column if not exists date_reception date;
+
