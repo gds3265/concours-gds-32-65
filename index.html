@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.2</title>
-<link rel="manifest" href="manifest.json?v=032">
+<title>Suivi des concours v0.3.4</title>
+<link rel="manifest" href="manifest.json?v=034">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -127,10 +127,25 @@ th{background:#f2ebf0}
       <button class="action" onclick="addContest()">Créer</button>
     </div>
   </div>
+
+  <div class="card">
+    <h2>Départements participants</h2>
+    <div class="muted">
+      Pour un concours géré, ajoute ici les départements de provenance concernés.
+      Chaque département peut ensuite avoir son propre fichier métier et ses validations.
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Concours</label><select id="deptContest"></select></div>
+      <div class="field"><label>Département</label><input id="deptCode" placeholder="Ex. 32, 65, 31"></div>
+      <button class="action" onclick="addDepartment()">Ajouter le département</button>
+    </div>
+    <div id="departmentList" style="margin-top:12px"></div>
+  </div>
+
   <div class="card"><h2>Demandes sanitaires du concours</h2><div class="muted">Choisir seulement les maladies demandées. Les règles détaillées sont reprises du paramétrage général.</div><div class="row" style="margin-top:10px">
     <div class="field"><label>Concours</label><select id="demandContest"></select></div>
     <div class="field"><label>Maladie</label><select id="demandDisease"><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div>
-    <div class="field"><label>Délai maxi avant concours (jours)</label><input id="demandDelay" type="number" min="0" value="30"></div>
+    <div class="field"><label>Délai maxi avant concours (jours)</label><input id="demandDelay" type="number" min="0" value="21"></div>
     <button class="action" onclick="addContestDemand()">Ajouter la demande</button></div><div id="demandList" style="margin-top:12px"></div></div>
   <div class="card">
     <h2>Exceptions propres au concours</h2>
@@ -143,7 +158,7 @@ th{background:#f2ebf0}
       </select></div>
       <div class="field"><label>Âge mini (mois)</label><input id="ruleMin" type="number" min="0" value="0"></div>
       <div class="field"><label>Âge maxi (mois, vide = aucun)</label><input id="ruleMax" type="number" min="0"></div>
-      <div class="field"><label>Délai maxi avant concours</label><input id="ruleDelay" type="number" min="0" value="30"></div>
+      <div class="field"><label>Délai maxi avant concours</label><input id="ruleDelay" type="number" min="0" value="21"></div>
       <button class="action" onclick="addRule()">Ajouter</button>
     </div>
     <div id="ruleList" style="margin-top:12px"></div>
@@ -287,7 +302,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.2";
+const APP_VERSION = "0.3.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -301,7 +316,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.4");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -345,7 +360,7 @@ async function startApp(){
     if(String(e.message).includes("JWT")||String(e.message).includes("401")){
       logout();return;
     }
-    alert("Erreur Supabase : "+e.message+"\n\nAs-tu exécuté le fichier SQL_SETUP.sql ?");
+    alert("Erreur au chargement : "+e.message+"\n\nSi le message mentionne une table ou une colonne inexistante, vérifie le SQL_SETUP.sql. Sinon, il s’agit d’un bug d’affichage de l’application.");
   }
 }
 async function loadAll(){
@@ -419,9 +434,11 @@ async function deleteDepartment(id){
   await loadAll();
 }
 function renderDepartments(){
+  const target=document.getElementById("departmentList");
+  if(!target)return;
   const cid=document.getElementById("deptContest")?.value;
   const rows=departmentsForContest(cid).map(d=>`<tr><td><strong>${escapeHtml(d.departement)}</strong></td><td><button class="danger" onclick="deleteDepartment('${d.id}')">Retirer</button></td></tr>`).join("");
-  document.getElementById("departmentList").innerHTML=rows
+  target.innerHTML=rows
     ? `<div class="scroll"><table><thead><tr><th>Département</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun département ajouté.</div>`;
 }
@@ -434,10 +451,10 @@ function renderFarmerSelectors(){
 
 async function addTemplateRule(){const body={maladie:tplDisease.value,libelle_analyse:tplAnalysis.value.trim(),matrice:tplMatrix.value||null,technique:tplTechnique.value.trim()||null,age_min_mois:Number(tplMin.value||0),age_max_mois:tplMax.value===""?null:Number(tplMax.value),recevable_validation:tplValid.value==="true",remboursable:tplRefund.value==="true",methode_reference_remboursement:tplPreferred.value==="true"};if(!body.libelle_analyse)return alert("Indique le libellé de l'analyse.");await sb("concours_regles_catalogue",{method:"POST",body,prefer:"return=representation"});tplAnalysis.value="";tplTechnique.value="";await loadAll()}
 async function deleteTemplateRule(id){if(!confirm("Supprimer cette règle générale ?"))return;await sb("concours_regles_catalogue?id=eq."+id,{method:"DELETE"});await loadAll()}
-function renderTemplateRules(){const f=document.getElementById("tplFilter")?.value||"";const rows=db.templateRules.filter(r=>!f||r.maladie===f).map(r=>`<tr><td><strong>${escapeHtml(r.maladie)}</strong></td><td>${escapeHtml(r.libelle_analyse)}</td><td>${escapeHtml(r.matrice||"—")}</td><td>${escapeHtml(r.technique||"—")}</td><td>${r.age_min_mois} m</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" m"}</td><td>${r.recevable_validation?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.remboursable?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.methode_reference_remboursement?'<span class="badge warn">Référence</span>':'—'}</td><td><button class="danger" onclick="deleteTemplateRule('${r.id}')">Supprimer</button></td></tr>`).join("");templateRules.innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Analyse</th><th>Matrice</th><th>Technique</th><th>Âge mini</th><th>Âge maxi</th><th>Validation</th><th>Remboursable</th><th>Référence remb.</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune règle enregistrée.</div>'}
+function renderTemplateRules(){const f=document.getElementById("tplFilter")?.value||"";const rows=db.templateRules.filter(r=>!f||r.maladie===f).map(r=>`<tr><td><strong>${escapeHtml(r.maladie)}</strong></td><td>${escapeHtml(r.libelle_analyse)}</td><td>${escapeHtml(r.matrice||"—")}</td><td>${escapeHtml(r.technique||"—")}</td><td>${r.age_min_mois} m</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" m"}</td><td>${r.recevable_validation?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.remboursable?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.methode_reference_remboursement?'<span class="badge warn">Référence</span>':'—'}</td><td><button class="danger" onclick="deleteTemplateRule('${r.id}')">Supprimer</button></td></tr>`).join("");document.getElementById("templateRules").innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Analyse</th><th>Matrice</th><th>Technique</th><th>Âge mini</th><th>Âge maxi</th><th>Validation</th><th>Remboursable</th><th>Référence remb.</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune règle enregistrée.</div>'}
 async function addContestDemand(){const body={concours_id:demandContest.value,maladie:demandDisease.value,delai_max_jours:Number(demandDelay.value||0)};if(!body.concours_id)return alert("Crée d’abord un concours.");await sb("concours_demandes?on_conflict=concours_id,maladie",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll()}
 async function deleteContestDemand(id){if(!confirm("Retirer cette maladie du concours ?"))return;await sb("concours_demandes?id=eq."+id,{method:"DELETE"});await loadAll()}
-function renderDemands(){const cid=document.getElementById("demandContest")?.value;const rows=db.demands.filter(d=>d.concours_id===cid).map(d=>`<tr><td><strong>${escapeHtml(d.maladie)}</strong></td><td>${d.delai_max_jours} j</td><td>${db.templateRules.filter(r=>r.maladie===d.maladie).length} règle(s)</td><td><button class="danger" onclick="deleteContestDemand('${d.id}')">Retirer</button></td></tr>`).join("");demandList.innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Délai</th><th>Règles générales</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune maladie demandée pour ce concours.</div>'}
+function renderDemands(){const cid=document.getElementById("demandContest")?.value;const rows=db.demands.filter(d=>d.concours_id===cid).map(d=>`<tr><td><strong>${escapeHtml(d.maladie)}</strong></td><td>${d.delai_max_jours} j</td><td>${db.templateRules.filter(r=>r.maladie===d.maladie).length} règle(s)</td><td><button class="danger" onclick="deleteContestDemand('${d.id}')">Retirer</button></td></tr>`).join("");document.getElementById("demandList").innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Délai</th><th>Règles générales</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune maladie demandée pour ce concours.</div>'}
 
 async function addContest(){
   const nom=document.getElementById("cName").value.trim(),date=document.getElementById("cDate").value;
