@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.7</title>
-<link rel="manifest" href="manifest.json?v=037">
+<title>Suivi des concours v0.3.8</title>
+<link rel="manifest" href="manifest.json?v=038">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -353,7 +353,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.7";
+const APP_VERSION = "0.3.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -367,7 +367,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.7");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.8");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -790,7 +790,7 @@ function renderAnalysis(){
   let html="<thead><tr><th>Bovin</th><th>Âge</th>"+allAnalyses().map(x=>`<th>${x}</th>`).join("")+"<th>Commentaire</th></tr></thead><tbody>";
   for(const a of list){
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);html+=`<tr><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${age==null?"?":age+" m"}</td>`;
-    for(const an of ANALYSES){
+    for(const an of allAnalyses()){
       const need=needed(a,an,cid),r=getResult(a.id,an);
       if(!need&&r.statut!=="inutile")html+=`<td class="analysis-cell na">Non nécessaire<br><button class="secondary" onclick="markUnneededDone('${a.id}','${an}')">Faite quand même</button></td>`;
       else html+=`<td class="analysis-cell"><select class="analysis-select" onchange="setResult('${a.id}','${an}',this.value)">${statusOptions(r.statut)}</select></td>`;
