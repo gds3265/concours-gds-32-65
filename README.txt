@@ -1,4 +1,4 @@
-SUIVI DES CONCOURS v0.2.3
+SUIVI DES CONCOURS v0.2.4
 
 Cette version utilise le projet Supabase :
 https://ckylznynqsefqkmtjcjf.supabase.co
@@ -7,7 +7,7 @@ NOUVEAUTÉS
 - Données partagées entre navigateurs / PC / téléphone
 - Connexion par compte Supabase
 - Concours, règles, animaux, résultats et certificats stockés dans Supabase
-- Cache PWA renouvelé (v0.2.3 affichée partout)
+- Cache PWA renouvelé (v0.2.4 affichée partout)
 - Ajout manuel et import CSV
 - Analyses nécessaires automatiquement selon l'âge
 - Tout conforme / Tout en cours labo / Tout en attente
@@ -31,14 +31,21 @@ IMPORTANT
 Les utilisateurs doivent exister dans Supabase Auth.
 Les tables ne sont PAS ouvertes au public : seuls les utilisateurs authentifiés peuvent y accéder.
 
-CORRECTION v0.2.3
+CORRECTION v0.2.4
 - Colonne SQL 'analyse' renommée 'analyse_type' pour éviter le conflit avec le mot-clé PostgreSQL ANALYSE/ANALYZE.
 
-CORRECTION v0.2.3
+CORRECTION v0.2.4
 - Configuration Supabase intégrée directement dans index.html.
 - Plus de fichier config.js nécessaire.
 - Cache PWA renouvelé.
 
-CORRECTION v0.2.3
+CORRECTION v0.2.4
 - Correction d'une erreur de syntaxe JavaScript qui bloquait l'application avant la connexion.
 - Syntaxe JavaScript vérifiée avec Node.js.
+
+CORRECTION v0.2.4
+- Formulaires passés en grille responsive pour éviter les champs/boutons hors écran.
+- Largeur des champs limitée au conteneur.
+- Navigation mobile améliorée.
+- Message explicite si aucun concours, aucune règle ou aucun animal.
+- Cache renouvelé.

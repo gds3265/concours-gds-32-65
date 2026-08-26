@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.2.3</title>
-<link rel="manifest" href="manifest.json?v=023">
+<title>Suivi des concours v0.2.4</title>
+<link rel="manifest" href="manifest.json?v=024">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -24,18 +24,20 @@ main{padding:16px;max-width:1450px;margin:auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
 h2{margin:0 0 12px;color:var(--accent)}
 h3{margin:12px 0 8px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
-.field{display:flex;flex-direction:column;gap:5px;min-width:165px;flex:1}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;width:100%}
+.row>button{width:100%;min-height:40px}
+.row>.muted{align-self:center}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0;width:100%}
 label{font-size:13px;font-weight:700}
 input,select,textarea,button{font:inherit}
-input,select,textarea{padding:9px 10px;border:1px solid #cfc4cc;border-radius:8px;background:white}
+input,select,textarea{padding:9px 10px;border:1px solid #cfc4cc;border-radius:8px;background:white;width:100%;min-width:0;max-width:100%}
 button.action{background:var(--accent);color:white;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
 button.secondary{background:var(--accent2);color:var(--accent);border:none;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointer}
 button.danger{background:#8c3030;color:white;border:none;border-radius:8px;padding:8px 10px;cursor:pointer}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{border-bottom:1px solid #e9e2e7;padding:8px;text-align:left;vertical-align:middle}
 th{background:#f2ebf0}
-.scroll{overflow:auto;max-height:65vh}
+.scroll{overflow:auto;max-width:100%;max-height:65vh}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
 .ok{background:var(--ok)} .warn{background:var(--warn)} .bad{background:var(--bad)}
 .lab{background:var(--lab)} .na{background:var(--na);color:#777}
@@ -52,7 +54,8 @@ th{background:#f2ebf0}
 .error{background:#ffe1e1;border:1px solid #e9a1a1;padding:9px;border-radius:8px;margin-top:10px}
 .success{background:#e1f5e7;border:1px solid #add9b9;padding:9px;border-radius:8px;margin-top:10px}
 .sync{font-size:12px;margin-left:8px;opacity:.95}
-@media(max-width:700px){.field{min-width:140px} main{padding:10px}}
+@media(max-width:900px){.row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.row{grid-template-columns:1fr} main{padding:10px}.card{padding:12px} nav{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}nav button{white-space:nowrap}}
 </style>
 </head>
 <body>
@@ -207,7 +210,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.2.3";
+const APP_VERSION = "0.2.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -221,7 +224,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],rules:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.2.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.2.4");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -306,7 +309,8 @@ function optionize(id,values){
 }
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
-  ["dashContest","ruleContest","animalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,opts));
+  const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
+  ["dashContest","ruleContest","animalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 function renderFarmerSelectors(){
@@ -332,7 +336,9 @@ async function deleteRule(id){if(!confirm("Supprimer cette règle ?"))return;awa
 function renderRules(){
   const cid=document.getElementById("ruleContest")?.value;
   const rows=db.rules.filter(r=>r.concours_id===cid).map(r=>`<tr><td>${escapeHtml(r.analyse_type)}</td><td>${r.age_min_mois} mois</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" mois"}</td><td>${r.delai_max_jours} j</td><td><button class="danger" onclick="deleteRule('${r.id}')">Supprimer</button></td></tr>`).join("");
-  document.getElementById("ruleList").innerHTML=`<div class="scroll"><table><thead><tr><th>Analyse</th><th>Âge mini</th><th>Âge maxi</th><th>Délai</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById("ruleList").innerHTML=rows
+    ? `<div class="scroll"><table><thead><tr><th>Analyse</th><th>Âge mini</th><th>Âge maxi</th><th>Délai</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="muted" style="padding:12px 4px">Aucune règle sanitaire enregistrée pour ce concours.</div>`;
 }
 async function addAnimal(){
   const body={concours_id:document.getElementById("animalContest").value,eleveur:document.getElementById("farmerName").value.trim(),
@@ -365,10 +371,11 @@ async function importCSV(){
 async function deleteAnimal(id){if(!confirm("Supprimer cet animal du concours ?"))return;await sb("concours_animaux?id=eq."+id,{method:"DELETE"});await loadAll()}
 function renderAnimals(){
   const cid=document.getElementById("animalContest")?.value;
-  document.getElementById("animalTable").innerHTML=db.animals.filter(a=>a.concours_id===cid).map(a=>`
+  const animalRows=db.animals.filter(a=>a.concours_id===cid).map(a=>`
     <tr><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.cheptel||"")}</td><td><strong>${escapeHtml(a.bovin)}</strong></td>
     <td>${a.naissance||""}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td>
     <td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`).join("");
+  document.getElementById("animalTable").innerHTML=animalRows || '<tr><td colspan="7" class="muted">Aucun animal enregistré pour ce concours.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
 function renderAnalysis(){
