@@ -1,22 +1,35 @@
-Suivi des concours v0.1.1
+SUIVI DES CONCOURS v0.2.1
 
-Premier jet fonctionnel, autonome et local.
+Cette version utilise le projet Supabase :
+https://ckylznynqsefqkmtjcjf.supabase.co
 
-Inclus :
-- création des concours ;
-- règles sanitaires paramétrables par âge ;
-- ajout manuel + import CSV ;
-- affichage des seules analyses nécessaires par bovin ;
-- saisie globale par éleveur et date ;
-- Tout conforme / Tout en cours labo / Tout en attente ;
-- statut : conforme, non conforme, positif, à recontrôler, analyse inutile ;
-- suivi du certificat final ;
-- distinction conforme mais absent du certificat ;
-- calcul des analyses remboursables ;
-- export récapitulatif CSV.
+NOUVEAUTÉS
+- Données partagées entre navigateurs / PC / téléphone
+- Connexion par compte Supabase
+- Concours, règles, animaux, résultats et certificats stockés dans Supabase
+- Cache PWA renouvelé (v0.2.1 affichée partout)
+- Ajout manuel et import CSV
+- Analyses nécessaires automatiquement selon l'âge
+- Tout conforme / Tout en cours labo / Tout en attente
+- Analyse inutile, positif, à recontrôler, non conforme
+- Certificat final
+- Remboursement seulement si analyse nécessaire + conforme + animal sur certificat
+- Export CSV
 
-Important :
-Cette version utilise localStorage pour le prototype.
-Elle n'est pas encore multi-utilisateurs / Supabase.
+INSTALLATION
+1. Ouvrir Supabase > SQL Editor.
+2. Exécuter tout le contenu de SQL_SETUP.sql UNE SEULE FOIS.
+3. Remplacer sur GitHub les anciens fichiers par :
+   index.html
+   config.js
+   manifest.json
+   sw.js
+4. Attendre le redéploiement GitHub Pages.
+5. Ouvrir l'application et se connecter avec un compte utilisateur existant du projet Supabase.
 
-Correction v0.1.1 : les en-têtes de tableaux ne masquent plus les lignes ajoutées.
+IMPORTANT
+Les utilisateurs doivent exister dans Supabase Auth.
+Les tables ne sont PAS ouvertes au public : seuls les utilisateurs authentifiés peuvent y accéder.
+
+CORRECTION v0.2.1
+- Colonne SQL 'analyse' renommée 'analyse_type' pour éviter le conflit avec le mot-clé PostgreSQL ANALYSE/ANALYZE.
