@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.8</title>
-<link rel="manifest" href="manifest.json?v=038">
+<title>Suivi des concours v0.3.9</title>
+<link rel="manifest" href="manifest.json?v=039">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -147,6 +147,26 @@ th{background:#f2ebf0}
     <div class="field"><label>Maladie</label><select id="demandDisease"><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div>
     <div class="field"><label>Délai maxi avant concours (jours)</label><input id="demandDelay" type="number" min="0" value="21"></div>
     <button class="action" onclick="addContestDemand()">Ajouter la demande</button></div><div id="demandList" style="margin-top:12px"></div></div>
+
+  <div class="card">
+    <h2>Autres points de vérification</h2>
+    <div class="muted">Ajoute les qualifications, vaccinations ou autres exigences à vérifier en plus des analyses.</div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Concours</label><select id="checkContest"></select></div>
+      <div class="field"><label>Niveau</label><select id="checkLevel"><option value="cheptel">Cheptel</option><option value="animal">Animal</option></select></div>
+      <div class="field"><label>Type</label><select id="checkType">
+        <option value="qualification">Qualification</option>
+        <option value="vaccination">Vaccination</option>
+        <option value="document">Document</option>
+        <option value="autre">Autre</option>
+      </select></div>
+      <div class="field"><label>Point à vérifier</label><input id="checkLabel" placeholder="Ex. Qualification IBR, vaccination FCO…"></div>
+      <div class="field"><label>Obligatoire</label><select id="checkRequired"><option value="true">Oui</option><option value="false">Non</option></select></div>
+      <button class="action" onclick="addCheckDef()">Ajouter</button>
+    </div>
+    <div id="checkDefList" style="margin-top:12px"></div>
+  </div>
+
   <div class="card">
     <h2>Exceptions propres au concours</h2>
     <div class="muted">À utiliser seulement si ce concours a une règle différente du paramétrage général.</div>
@@ -251,7 +271,7 @@ th{background:#f2ebf0}
   </div>
 
   <div class="card"><h2>Animaux inscrits</h2><div class="scroll"><table>
-    <thead><tr><th>Dépt.</th><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détenteur métier</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
+    <thead><tr><th>Dépt.</th><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détail contrôle</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
     <tbody id="animalTable"></tbody>
   </table></div></div>
 </section>
@@ -323,6 +343,13 @@ th{background:#f2ebf0}
     <div id="certAnimals" style="margin-top:12px"></div>
   </div>
 
+
+  <div class="card">
+    <h3>Points de vérification complémentaires</h3>
+    <div class="muted">Qualifications au cheptel, vaccinations ou autres exigences. Les points non applicables peuvent être marqués N/A.</div>
+    <div id="certChecks" style="margin-top:12px"></div>
+  </div>
+
   <div class="card">
     <h3>Récapitulatif des certificats du concours</h3>
     <div id="certRecap"></div>
@@ -353,7 +380,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.8";
+const APP_VERSION = "0.3.9";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -365,9 +392,9 @@ const STATUS=[
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
-let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null;
+let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.8");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.9");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -415,17 +442,19 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,departments,rules,templateRules,demands,animals,results,certs]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,animals,results,certs]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
     sb("concours_regles_catalogue?select=*&order=maladie.asc,age_min_mois.asc"),
     sb("concours_demandes?select=*&order=maladie.asc"),
+    sb("concours_points_controle?select=*&order=niveau.asc,libelle.asc"),
+    sb("concours_controles?select=*"),
     sb("concours_animaux?select=*&order=eleveur.asc,bovin.asc"),
     sb("concours_resultats?select=*"),
     sb("concours_certificats?select=*")
   ]);
-  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.animals=animals||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.animals=animals||[];db.certificates={};
   (certs||[]).forEach(c=>db.certificates[c.concours_id+"|"+c.eleveur]=c);
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
@@ -454,7 +483,7 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","deptContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 
@@ -513,6 +542,43 @@ async function addContest(){
   await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value},prefer:"return=representation"});
   document.getElementById("cName").value="";document.getElementById("cDate").value="";await loadAll();
 }
+
+async function addCheckDef(){
+  const body={
+    concours_id:document.getElementById("checkContest").value,
+    niveau:document.getElementById("checkLevel").value,
+    type_controle:document.getElementById("checkType").value,
+    libelle:document.getElementById("checkLabel").value.trim(),
+    obligatoire:document.getElementById("checkRequired").value==="true"
+  };
+  if(!body.concours_id||!body.libelle)return alert("Concours et libellé obligatoires.");
+  await sb("concours_points_controle",{method:"POST",body,prefer:"return=minimal"});
+  document.getElementById("checkLabel").value="";
+  await loadAll();
+}
+async function deleteCheckDef(id){
+  if(!confirm("Supprimer ce point de vérification ?"))return;
+  await sb("concours_points_controle?id=eq."+id,{method:"DELETE"});
+  await loadAll();
+}
+function renderCheckDefs(){
+  const cid=document.getElementById("checkContest")?.value;
+  const rows=db.checkDefs.filter(x=>x.concours_id===cid).map(x=>`<tr>
+    <td>${x.niveau==="cheptel"?"Cheptel":"Animal"}</td><td>${escapeHtml(x.type_controle)}</td>
+    <td><strong>${escapeHtml(x.libelle)}</strong></td><td>${x.obligatoire?'<span class="badge warn">Obligatoire</span>':'Non'}</td>
+    <td><button class="danger" onclick="deleteCheckDef('${x.id}')">Supprimer</button></td></tr>`).join("");
+  const t=document.getElementById("checkDefList"); if(!t)return;
+  t.innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Niveau</th><th>Type</th><th>Point</th><th>Obligatoire</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted">Aucun autre point de vérification.</div>';
+}
+function getCheckResult(defId,scopeKey){
+  return db.checkResults.find(x=>x.point_id===defId&&x.cle_cible===scopeKey)||{statut:"a_verifier",commentaire:""};
+}
+async function saveCheckResult(defId,scopeKey,status,comment){
+  const def=db.checkDefs.find(x=>x.id===defId); if(!def)return;
+  const body={point_id:defId,concours_id:def.concours_id,cle_cible:scopeKey,statut:status,commentaire:comment||null,updated_at:new Date().toISOString()};
+  await sb("concours_controles?on_conflict=point_id,cle_cible",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();
+}
 async function addRule(){
   const body={concours_id:document.getElementById("ruleContest").value,analyse_type:document.getElementById("ruleAnalysis").value,
     age_min_mois:Number(document.getElementById("ruleMin").value||0),
@@ -551,11 +617,22 @@ function pick(o, names){
   }
   return "";
 }
+function cleanExcelCell(v){
+  let s=String(v??"").trim();
+  if(/^=".*"$/.test(s)) s=s.slice(2,-1);
+  return s.trim();
+}
 function normalizeBovin(v){
-  return String(v||"").replace(/\s+/g,"").toUpperCase();
+  let s=cleanExcelCell(v).toUpperCase();
+  s=s.replace(/^FR[\s._-]*/,"");
+  s=s.replace(/[^0-9A-Z]/g,"");
+  return s;
+}
+function normalizeHerd(v){
+  return cleanExcelCell(v).replace(/[^0-9A-Z]/gi,"").toUpperCase();
 }
 function normalizeDate(v){
-  const s=String(v||"").trim();
+  const s=cleanExcelCell(v);
   if(!s)return null;
   if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
   const m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
@@ -709,21 +786,28 @@ async function importBusinessCSV(){
   const dept=document.getElementById("businessDept").value;
   if(!cid)return alert("Choisir un concours.");
   if(!dept)return alert("Choisir le département correspondant au fichier métier.");
+
   const text=await decodeCSVFile(f);
   const source=parseCSV(text);
   const business=new Map();
+  let recognized=0, withoutId=0;
+
   source.forEach(o=>{
-    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin"]));
-    if(!bovin)return;
+    const rawId=pick(o,["Identifiant bovin","bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national"]);
+    const bovin=normalizeBovin(rawId);
+    if(!bovin){withoutId++;return;}
+    recognized++;
     business.set(bovin,{
       bovin,
-      detenteur:pick(o,["eleveur","éleveur","proprietaire","propriétaire","detenteur","détenteur","nom","exploitation","raison sociale"]),
-      cheptel:pick(o,["cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"]),
-      naissance:normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]))
+      cheptel:normalizeHerd(pick(o,["Exploitation","cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"])),
+      naissance:normalizeDate(pick(o,["Date naissance","naissance","date de naissance","date naissance","ddn"])),
+      nom:cleanExcelCell(pick(o,["Nom"])),
+      numeroTravail:cleanExcelCell(pick(o,["Numéro travail","Numero travail"]))
     });
   });
+
   const inscrits=db.animals.filter(a=>a.concours_id===cid && a.departement===dept);
-  if(!inscrits.length)return alert("Aucun animal inscrit pour ce concours.");
+  if(!inscrits.length)return alert("Aucun animal inscrit pour ce concours et ce département.");
 
   let ok=0,completed=0,mismatch=0,notfound=0;
   const ops=[];
@@ -731,33 +815,47 @@ async function importBusinessCSV(){
     const m=business.get(normalizeBovin(a.bovin));
     if(!m){
       notfound++;
-      ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{controle_metier:"notfound",detenteur_metier:null,cheptel_metier:null,naissance_metier:null}}));
+      ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{controle_metier:"notfound",cheptel_metier:null,naissance_metier:null}}));
       continue;
     }
-    const hadMissing=!a.cheptel || !a.naissance || !a.eleveur || a.eleveur==="Éleveur à compléter";
-    const nameMismatch=a.eleveur && a.eleveur!=="Éleveur à compléter" && m.detenteur && !sameText(a.eleveur,m.detenteur);
-    const patch={
-      detenteur_metier:m.detenteur||null,
+    const registeredHerd=normalizeHerd(a.cheptel);
+    const herdMismatch=registeredHerd && m.cheptel && registeredHerd!==m.cheptel;
+    const birthMismatch=a.naissance && m.naissance && a.naissance!==m.naissance;
+    const hadMissing=!a.cheptel || !a.naissance;
+    const status=(herdMismatch||birthMismatch)?"mismatch":(hadMissing?"completed":"ok");
+    if(status==="mismatch")mismatch++; else if(status==="completed")completed++; else ok++;
+
+    const note=[];
+    if(herdMismatch)note.push("EDE différent");
+    if(birthMismatch)note.push("date naissance différente");
+
+    ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{
       cheptel_metier:m.cheptel||null,
       naissance_metier:m.naissance||null,
       cheptel:a.cheptel||m.cheptel||null,
       naissance:a.naissance||m.naissance||null,
-      eleveur:(a.eleveur&&a.eleveur!=="Éleveur à compléter")?a.eleveur:(m.detenteur||a.eleveur),
-      controle_metier:nameMismatch?"mismatch":(hadMissing?"completed":"ok")
-    };
-    if(nameMismatch)mismatch++;
-    else if(hadMissing)completed++;
-    else ok++;
-    ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:patch}));
+      controle_metier:status,
+      controle_metier_commentaire:note.join(" / ")||null
+    }}));
   }
   await Promise.all(ops);
+  lastBusinessImport={fileName:f.name,totalLines:source.length,recognized,withoutId,matched:ok+completed+mismatch,notfound,example:[...business.keys()][0]||""};
   document.getElementById("animalViewContest").value=cid;
-  document.getElementById("businessImportSummary").innerHTML=
-    `<span class="badge ok">${ok} cohérent(s)</span> `+
-    `<span class="badge lab">${completed} complété(s)</span> `+
-    `<span class="badge warn">${mismatch} détenteur(s) à vérifier</span> `+
-    `<span class="badge bad">${notfound} non retrouvé(s)</span>`;
   await loadAll();
+  document.getElementById("businessImportSummary").innerHTML=
+    `<div class="kpis">
+      <div class="kpi"><span>Lignes métier</span><strong>${source.length}</strong></div>
+      <div class="kpi"><span>N° bovins reconnus</span><strong>${recognized}</strong></div>
+      <div class="kpi"><span>Rapprochés</span><strong>${ok+completed+mismatch}</strong></div>
+      <div class="kpi"><span>Non retrouvés</span><strong>${notfound}</strong></div>
+    </div>
+    <div class="muted" style="margin-top:7px">Exemple de n° lu : ${escapeHtml(lastBusinessImport.example||"—")}</div>
+    <div style="margin-top:7px">
+      <span class="badge ok">${ok} cohérent(s)</span>
+      <span class="badge lab">${completed} complété(s)</span>
+      <span class="badge warn">${mismatch} incohérence(s) EDE/date à vérifier</span>
+      <span class="badge bad">${notfound} non retrouvé(s)</span>
+    </div>`;
 }
 async function deleteAnimal(id){if(!confirm("Supprimer cet animal du concours ?"))return;await sb("concours_animaux?id=eq."+id,{method:"DELETE"});await loadAll()}
 
@@ -780,7 +878,7 @@ function renderAnimals(){
     if(sort==="status"){const x=String(a.controle_metier||"pending").localeCompare(String(b.controle_metier||"pending"));return x||String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});}
     return String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
-  const rows=list.map(a=>`<tr><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.cheptel||"")}</td><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${a.naissance||""}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.detenteur_metier||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`).join("");
+  const rows=list.map(a=>`<tr><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.cheptel||"")}</td><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${a.naissance||""}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.controle_metier_commentaire||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`).join("");
   document.getElementById("animalTable").innerHTML=rows||'<tr><td colspan="10" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
@@ -847,7 +945,57 @@ function renderCertificates(){
     ${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">Pas totalement conforme</span>'}
     ${animalSanitaryOK(a)&&!a.sur_certificat?'<span class="badge na">Conforme mais pas sur certificat</span>':""}</label>`).join("")||"<span class='muted'>Aucun animal.</span>";
 
+  renderCertificateChecks();
   renderCertificateRecap();
+}
+
+function checkStatusOptions(sel){
+  const opts=[["a_verifier","À vérifier"],["conforme","Conforme"],["nonconforme","Non conforme"],["nonapp","Non applicable"]];
+  return opts.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("");
+}
+function renderCertificateChecks(){
+  const target=document.getElementById("certChecks"); if(!target)return;
+  const cid=document.getElementById("certContest")?.value, farmer=document.getElementById("certFarmer")?.value;
+  const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
+  const herd=(animals.find(a=>a.cheptel)?.cheptel||farmer||"");
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid);
+  let htmlOut="";
+  const herdDefs=defs.filter(d=>d.niveau==="cheptel");
+  if(herdDefs.length){
+    htmlOut+=`<h4>Cheptel ${escapeHtml(herd)}</h4><div class="scroll"><table><thead><tr><th>Point</th><th>Statut</th><th>Commentaire</th></tr></thead><tbody>`;
+    herdDefs.forEach(d=>{
+      const key="cheptel:"+herd, r=getCheckResult(d.id,key);
+      htmlOut+=`<tr><td>${escapeHtml(d.libelle)} ${d.obligatoire?"*":""}</td>
+      <td><select onchange="saveCheckResult('${d.id}','${escapeHtml(key)}',this.value,this.closest('tr').querySelector('input').value)">${checkStatusOptions(r.statut)}</select></td>
+      <td><input value="${escapeHtml(r.commentaire||"")}" onchange="saveCheckResult('${d.id}','${escapeHtml(key)}',this.closest('tr').querySelector('select').value,this.value)"></td></tr>`;
+    });
+    htmlOut+="</tbody></table></div>";
+  }
+  const animalDefs=defs.filter(d=>d.niveau==="animal");
+  if(animalDefs.length){
+    htmlOut+=`<h4 style="margin-top:16px">Contrôles individuels</h4><div class="scroll"><table><thead><tr><th>Bovin</th>${animalDefs.map(d=>`<th>${escapeHtml(d.libelle)}${d.obligatoire?" *":""}</th>`).join("")}</tr></thead><tbody>`;
+    animals.forEach(a=>{
+      htmlOut+=`<tr><td><strong>${escapeHtml(a.bovin)}</strong></td>`;
+      animalDefs.forEach(d=>{
+        const key="animal:"+a.id, r=getCheckResult(d.id,key);
+        htmlOut+=`<td><select onchange="saveCheckResult('${d.id}','${key}',this.value,'')">${checkStatusOptions(r.statut)}</select></td>`;
+      });
+      htmlOut+="</tr>";
+    });
+    htmlOut+="</tbody></table></div>";
+  }
+  target.innerHTML=htmlOut||'<div class="muted">Aucun point complémentaire paramétré pour ce concours.</div>';
+}
+function supplementaryChecksOK(cid,farmer){
+  const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
+  const herd=(animals.find(a=>a.cheptel)?.cheptel||farmer||"");
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.obligatoire);
+  return defs.every(d=>{
+    if(d.niveau==="cheptel"){
+      const r=getCheckResult(d.id,"cheptel:"+herd); return ["conforme","nonapp"].includes(r.statut);
+    }
+    return animals.every(a=>["conforme","nonapp"].includes(getCheckResult(d.id,"animal:"+a.id).statut));
+  });
 }
 function renderCertificateRecap(){
   const cid=document.getElementById("certContest")?.value;
@@ -858,9 +1006,10 @@ function renderCertificateRecap(){
     const status=c.statut_certificat||"non_recu";
     if(filter && status!==filter)return "";
     const count=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===f&&a.sur_certificat).length;
+    const extraOK=supplementaryChecksOK(cid,f);
     return `<tr>
       <td><strong>${escapeHtml(f)}</strong></td>
-      <td>${certStatusBadge(status)}</td>
+      <td>${certStatusBadge(status)} ${extraOK?'<span class="badge ok">Contrôles OK</span>':'<span class="badge warn">Contrôles à finir</span>'}</td>
       <td>${c.date_reception||""}</td>
       <td>${c.date_signature||""}</td>
       <td>${escapeHtml(c.mode_transmission||"")}</td>
@@ -953,10 +1102,10 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
+function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","certFarmer","certStatusFilter","refundContest","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","certFarmer","certStatusFilter","refundContest","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });

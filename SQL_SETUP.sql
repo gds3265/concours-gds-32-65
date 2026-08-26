@@ -189,3 +189,52 @@ alter table public.concours_certificats
   add column if not exists statut_certificat text not null default 'non_recu',
   add column if not exists date_reception date;
 
+
+
+-- ============================================================
+-- v0.3.9 - IMPORT METIER GDS + POINTS DE VERIFICATION
+-- ============================================================
+
+alter table public.concours_animaux
+  add column if not exists controle_metier_commentaire text;
+
+create table if not exists public.concours_points_controle (
+  id uuid primary key default gen_random_uuid(),
+  concours_id uuid not null references public.concours(id) on delete cascade,
+  niveau text not null check (niveau in ('cheptel','animal')),
+  type_controle text not null default 'autre',
+  libelle text not null,
+  obligatoire boolean not null default true,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.concours_controles (
+  id uuid primary key default gen_random_uuid(),
+  concours_id uuid not null references public.concours(id) on delete cascade,
+  point_id uuid not null references public.concours_points_controle(id) on delete cascade,
+  cle_cible text not null,
+  statut text not null default 'a_verifier'
+    check (statut in ('a_verifier','conforme','nonconforme','nonapp')),
+  commentaire text,
+  updated_at timestamptz not null default now(),
+  unique(point_id, cle_cible)
+);
+
+alter table public.concours_points_controle enable row level security;
+alter table public.concours_controles enable row level security;
+
+drop policy if exists "concours_points_controle_authenticated_all" on public.concours_points_controle;
+create policy "concours_points_controle_authenticated_all"
+on public.concours_points_controle for all to authenticated using (true) with check (true);
+
+drop policy if exists "concours_controles_authenticated_all" on public.concours_controles;
+create policy "concours_controles_authenticated_all"
+on public.concours_controles for all to authenticated using (true) with check (true);
+
+-- Précharge les qualifications cheptel courantes uniquement s'il n'existe encore aucun point.
+insert into public.concours_points_controle (concours_id,niveau,type_controle,libelle,obligatoire)
+select c.id,'cheptel','qualification',v.libelle,true
+from public.concours c
+cross join (values ('Qualification IBR'),('Qualification BVD'),('Qualification Brucellose'),('Qualification Leucose'),('Qualification Tuberculose')) as v(libelle)
+where not exists (select 1 from public.concours_points_controle p where p.concours_id=c.id);
