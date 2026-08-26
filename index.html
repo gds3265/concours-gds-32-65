@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.0</title>
-<link rel="manifest" href="manifest.json?v=030">
+<title>Suivi des concours v0.3.1</title>
+<link rel="manifest" href="manifest.json?v=031">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -150,9 +150,10 @@ th{background:#f2ebf0}
   </div>
 </section>
 
+
 <section id="animaux" class="section">
   <div class="card">
-    <h2>Ajout / import des animaux</h2>
+    <h2>Ajout manuel d'un animal</h2>
     <div class="row">
       <div class="field"><label>Concours</label><select id="animalContest"></select></div>
       <div class="field"><label>Éleveur</label><input id="farmerName"></div>
@@ -161,15 +162,57 @@ th{background:#f2ebf0}
       <div class="field"><label>Date de naissance</label><input id="birthDate" type="date"></div>
       <button class="action" onclick="addAnimal()">Ajouter manuellement</button>
     </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-    <div class="row">
-      <div class="field"><label>Importer un CSV</label><input id="csvFile" type="file" accept=".csv,text/csv"></div>
-      <button class="secondary" onclick="importCSV()">Importer</button>
-      <div class="muted">Colonnes reconnues : eleveur, cheptel, bovin, naissance.</div>
+  </div>
+
+  <div class="card">
+    <h2>1. Importer la liste des inscrits</h2>
+    <div class="muted">
+      Fichier fourni par l'organisateur ou le partenaire. Le n° de cheptel et la date de naissance peuvent être absents.
+      Le n° bovin sert de clé de rapprochement avec le fichier métier.
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Concours</label><select id="partnerContest"></select></div>
+      <div class="field"><label>Fichier CSV des inscrits</label><input id="partnerCsvFile" type="file" accept=".csv,text/csv"></div>
+      <button class="action" onclick="importPartnerCSV()">Importer les inscrits</button>
+    </div>
+    <div class="muted" style="margin-top:8px">
+      Colonnes reconnues automatiquement : bovin / animal / numéro, éleveur / nom, cheptel, naissance, commune.
     </div>
   </div>
+
+  <div class="card">
+    <h2>2. Importer le fichier bovins métier</h2>
+    <div class="muted">
+      Ce fichier sert à compléter et contrôler les animaux déjà inscrits : détenteur, n° cheptel et date de naissance.
+      Aucun nouvel inscrit n'est créé automatiquement à partir du fichier métier.
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Concours</label><select id="businessContest"></select></div>
+      <div class="field"><label>Fichier CSV bovins métier</label><input id="businessCsvFile" type="file" accept=".csv,text/csv"></div>
+      <button class="action" onclick="importBusinessCSV()">Contrôler / compléter</button>
+    </div>
+    <div id="businessImportSummary" class="muted" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Contrôle des inscrits</h2>
+    <div class="row">
+      <div class="field"><label>Concours affiché</label><select id="animalViewContest"></select></div>
+      <div class="field"><label>Filtre contrôle</label>
+        <select id="animalCheckFilter">
+          <option value="">Tous</option>
+          <option value="ok">Retrouvés / cohérents</option>
+          <option value="completed">Complétés par le fichier métier</option>
+          <option value="mismatch">Détenteur à vérifier</option>
+          <option value="notfound">Non retrouvés dans le fichier métier</option>
+          <option value="pending">Pas encore contrôlés</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div class="card"><h2>Animaux inscrits</h2><div class="scroll"><table>
-    <thead><tr><th>Éleveur</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
+    <thead><tr><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détenteur métier</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
     <tbody id="animalTable"></tbody>
   </table></div></div>
 </section>
@@ -231,7 +274,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.3.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -245,7 +288,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.1");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -331,7 +374,7 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","demandContest","animalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 function renderFarmerSelectors(){
@@ -378,33 +421,158 @@ async function addAnimal(){
   catch(e){return alert("Impossible d'ajouter l'animal. Vérifie qu'il n'est pas déjà inscrit.\n"+e.message)}
   document.getElementById("animalNo").value="";document.getElementById("birthDate").value="";await loadAll();
 }
+
+function normHeader(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim()
+    .replace(/[°º]/g,"").replace(/\s+/g," ");
+}
+function pick(o, names){
+  const entries=Object.entries(o);
+  for(const n of names){
+    const nn=normHeader(n);
+    const found=entries.find(([k])=>normHeader(k)===nn);
+    if(found && String(found[1]??"").trim()!=="") return String(found[1]).trim();
+  }
+  return "";
+}
+function normalizeBovin(v){
+  return String(v||"").replace(/\s+/g,"").toUpperCase();
+}
+function normalizeDate(v){
+  const s=String(v||"").trim();
+  if(!s)return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(m){
+    let y=m[3]; if(y.length===2)y=(Number(y)>50?"19":"20")+y;
+    return `${y}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+  }
+  return null;
+}
+function sameText(a,b){
+  const clean=s=>normHeader(s).replace(/[^a-z0-9]/g,"");
+  return !!clean(a) && clean(a)===clean(b);
+}
 function parseCSV(text){
   const lines=text.trim().split(/\r?\n/);if(lines.length<2)return[];
   const sep=lines[0].split(";").length>lines[0].split(",").length?";":",";
   const heads=lines[0].split(sep).map(x=>x.trim().toLowerCase());
   return lines.slice(1).map(l=>{const v=l.split(sep).map(x=>x.trim());const o={};heads.forEach((h,i)=>o[h]=v[i]||"");return o});
 }
-async function importCSV(){
-  const f=document.getElementById("csvFile").files[0];if(!f)return alert("Choisir un CSV");
-  const cid=document.getElementById("animalContest").value;
+
+async function importPartnerCSV(){
+  const f=document.getElementById("partnerCsvFile").files[0];
+  if(!f)return alert("Choisir le fichier CSV des inscrits.");
+  const cid=document.getElementById("partnerContest").value;
+  if(!cid)return alert("Choisir un concours.");
   const text=await f.text(), rows=[];
   parseCSV(text).forEach(o=>{
-    const eleveur=o.eleveur||o["éleveur"]||o.nom||"",bovin=o.bovin||o.animal||o.numero||o["n° bovin"]||"";
-    if(eleveur&&bovin)rows.push({concours_id:cid,eleveur,cheptel:o.cheptel||"",bovin,naissance:o.naissance||o["date de naissance"]||null,origine:"Import CSV"});
+    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","numero national","identifiant bovin"]));
+    const eleveur=pick(o,["eleveur","éleveur","nom","detenteur","détenteur","exploitation","raison sociale"]) || "Éleveur à compléter";
+    const cheptel=pick(o,["cheptel","n cheptel","n° cheptel","ede","numero cheptel"]);
+    const naissance=normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]));
+    const commune=pick(o,["commune","ville"]);
+    if(bovin)rows.push({
+      concours_id:cid,eleveur,cheptel:cheptel||null,bovin,naissance,
+      origine:"Import liste inscrits",
+      commune_partenaire:commune||null,
+      controle_metier:"pending",
+      detenteur_metier:null,
+      cheptel_metier:null,
+      naissance_metier:null
+    });
   });
-  if(!rows.length)return alert("Aucune ligne reconnue.");
-  try{await sb("concours_animaux?on_conflict=concours_id,bovin",{method:"POST",body:rows,prefer:"resolution=ignore-duplicates,return=minimal"});}
-  catch(e){return alert("Erreur import : "+e.message)}
-  await loadAll();alert(rows.length+" lignes traitées.");
+  if(!rows.length)return alert("Aucun n° bovin reconnu dans ce fichier.");
+  try{
+    await sb("concours_animaux?on_conflict=concours_id,bovin",{method:"POST",body:rows,prefer:"resolution=ignore-duplicates,return=minimal"});
+  }catch(e){return alert("Erreur import inscrits : "+e.message)}
+  document.getElementById("animalViewContest").value=cid;
+  await loadAll();
+  alert(rows.length+" ligne(s) d'inscrits traitée(s).");
+}
+
+async function importBusinessCSV(){
+  const f=document.getElementById("businessCsvFile").files[0];
+  if(!f)return alert("Choisir le fichier CSV bovins métier.");
+  const cid=document.getElementById("businessContest").value;
+  if(!cid)return alert("Choisir un concours.");
+  const text=await f.text();
+  const source=parseCSV(text);
+  const business=new Map();
+  source.forEach(o=>{
+    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","numero national","identifiant bovin"]));
+    if(!bovin)return;
+    business.set(bovin,{
+      bovin,
+      detenteur:pick(o,["eleveur","éleveur","detenteur","détenteur","nom","exploitation","raison sociale"]),
+      cheptel:pick(o,["cheptel","n cheptel","n° cheptel","ede","numero cheptel"]),
+      naissance:normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]))
+    });
+  });
+  const inscrits=db.animals.filter(a=>a.concours_id===cid);
+  if(!inscrits.length)return alert("Aucun animal inscrit pour ce concours.");
+
+  let ok=0,completed=0,mismatch=0,notfound=0;
+  const ops=[];
+  for(const a of inscrits){
+    const m=business.get(normalizeBovin(a.bovin));
+    if(!m){
+      notfound++;
+      ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{controle_metier:"notfound",detenteur_metier:null,cheptel_metier:null,naissance_metier:null}}));
+      continue;
+    }
+    const hadMissing=!a.cheptel || !a.naissance || !a.eleveur || a.eleveur==="Éleveur à compléter";
+    const nameMismatch=a.eleveur && a.eleveur!=="Éleveur à compléter" && m.detenteur && !sameText(a.eleveur,m.detenteur);
+    const patch={
+      detenteur_metier:m.detenteur||null,
+      cheptel_metier:m.cheptel||null,
+      naissance_metier:m.naissance||null,
+      cheptel:a.cheptel||m.cheptel||null,
+      naissance:a.naissance||m.naissance||null,
+      eleveur:(a.eleveur&&a.eleveur!=="Éleveur à compléter")?a.eleveur:(m.detenteur||a.eleveur),
+      controle_metier:nameMismatch?"mismatch":(hadMissing?"completed":"ok")
+    };
+    if(nameMismatch)mismatch++;
+    else if(hadMissing)completed++;
+    else ok++;
+    ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:patch}));
+  }
+  await Promise.all(ops);
+  document.getElementById("animalViewContest").value=cid;
+  document.getElementById("businessImportSummary").innerHTML=
+    `<span class="badge ok">${ok} cohérent(s)</span> `+
+    `<span class="badge lab">${completed} complété(s)</span> `+
+    `<span class="badge warn">${mismatch} détenteur(s) à vérifier</span> `+
+    `<span class="badge bad">${notfound} non retrouvé(s)</span>`;
+  await loadAll();
 }
 async function deleteAnimal(id){if(!confirm("Supprimer cet animal du concours ?"))return;await sb("concours_animaux?id=eq."+id,{method:"DELETE"});await loadAll()}
+
+function checkBadge(a){
+  const s=a.controle_metier||"pending";
+  if(s==="ok")return '<span class="badge ok">Retrouvé / cohérent</span>';
+  if(s==="completed")return '<span class="badge lab">Complété</span>';
+  if(s==="mismatch")return '<span class="badge warn">Détenteur à vérifier</span>';
+  if(s==="notfound")return '<span class="badge bad">Non retrouvé</span>';
+  return '<span class="badge na">Pas encore contrôlé</span>';
+}
 function renderAnimals(){
-  const cid=document.getElementById("animalContest")?.value;
-  const animalRows=db.animals.filter(a=>a.concours_id===cid).map(a=>`
-    <tr><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.cheptel||"")}</td><td><strong>${escapeHtml(a.bovin)}</strong></td>
-    <td>${a.naissance||""}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td>
-    <td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`).join("");
-  document.getElementById("animalTable").innerHTML=animalRows || '<tr><td colspan="7" class="muted">Aucun animal enregistré pour ce concours.</td></tr>';
+  const cid=document.getElementById("animalViewContest")?.value || document.getElementById("animalContest")?.value;
+  const filter=document.getElementById("animalCheckFilter")?.value||"";
+  const list=db.animals.filter(a=>a.concours_id===cid && (!filter || (a.controle_metier||"pending")===filter));
+  const animalRows=list.map(a=>`
+    <tr>
+      <td>${escapeHtml(a.eleveur)}</td>
+      <td>${escapeHtml(a.cheptel||"")}</td>
+      <td><strong>${escapeHtml(a.bovin)}</strong></td>
+      <td>${a.naissance||""}</td>
+      <td>${checkBadge(a)}</td>
+      <td>${escapeHtml(a.detenteur_metier||"")}</td>
+      <td>${escapeHtml(a.origine)}</td>
+      <td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td>
+      <td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td>
+    </tr>`).join("");
+  document.getElementById("animalTable").innerHTML=animalRows || '<tr><td colspan="9" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
 function renderAnalysis(){
@@ -506,7 +674,7 @@ function exportRecapCSV(){
 function renderAll(){renderSelectors();renderTemplateRules();renderDemands();renderRules();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","demandContest","animalContest","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","demandContest","animalContest","partnerContest","businessContest","animalViewContest","animalCheckFilter","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors();renderAll();
   }
 });

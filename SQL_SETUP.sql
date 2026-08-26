@@ -137,3 +137,16 @@ insert into public.concours_regles_catalogue (maladie,libelle_analyse,matrice,te
 ('BVD','BVD PCR individuelle sérum','Sérum','PCR individuelle',3,null,true,true,false),
 ('BVD','BVD PCR mélange sérum','Sérum','PCR mélange',3,null,true,true,false)
 ) as v(maladie,libelle_analyse,matrice,technique,age_min_mois,age_max_mois,recevable_validation,remboursable,methode_reference_remboursement) where not exists (select 1 from public.concours_regles_catalogue where maladie='BVD');
+
+
+-- ============================================================
+-- v0.3.1 - CONTRÔLE DES LISTES D'INSCRITS AVEC LE FICHIER MÉTIER
+-- ============================================================
+
+alter table public.concours_animaux
+  add column if not exists commune_partenaire text,
+  add column if not exists controle_metier text not null default 'pending',
+  add column if not exists detenteur_metier text,
+  add column if not exists cheptel_metier text,
+  add column if not exists naissance_metier date;
+
