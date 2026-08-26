@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.2.1</title>
-<link rel="manifest" href="manifest.json?v=021">
+<title>Suivi des concours v0.2.2</title>
+<link rel="manifest" href="manifest.json?v=022">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -206,7 +206,12 @@ th{background:#f2ebf0}
 </main>
 </div>
 
-<script src="config.js?v=021"></script>
+<script>
+const APP_VERSION = "0.2.2";
+const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
+
+</script>
 <script>
 const ANALYSES=["IBR sérologie","BVD Ag sang","BVD Ag cartilage","BVD PCR","Besnoitiose"];
 const STATUS=[
@@ -216,7 +221,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],rules:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION);
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.2.2");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
