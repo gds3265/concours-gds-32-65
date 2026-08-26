@@ -1,4 +1,4 @@
-SUIVI DES CONCOURS v0.3.4
+SUIVI DES CONCOURS v0.3.5
 
 Cette version utilise le projet Supabase :
 https://ckylznynqsefqkmtjcjf.supabase.co
@@ -7,7 +7,7 @@ NOUVEAUTÉS
 - Données partagées entre navigateurs / PC / téléphone
 - Connexion par compte Supabase
 - Concours, règles, animaux, résultats et certificats stockés dans Supabase
-- Cache PWA renouvelé (v0.3.4 affichée partout)
+- Cache PWA renouvelé (v0.3.5 affichée partout)
 - Ajout manuel et import CSV
 - Analyses nécessaires automatiquement selon l'âge
 - Tout conforme / Tout en cours labo / Tout en attente
@@ -31,28 +31,28 @@ IMPORTANT
 Les utilisateurs doivent exister dans Supabase Auth.
 Les tables ne sont PAS ouvertes au public : seuls les utilisateurs authentifiés peuvent y accéder.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Colonne SQL 'analyse' renommée 'analyse_type' pour éviter le conflit avec le mot-clé PostgreSQL ANALYSE/ANALYZE.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Configuration Supabase intégrée directement dans index.html.
 - Plus de fichier config.js nécessaire.
 - Cache PWA renouvelé.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Correction d'une erreur de syntaxe JavaScript qui bloquait l'application avant la connexion.
 - Syntaxe JavaScript vérifiée avec Node.js.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Formulaires passés en grille responsive pour éviter les champs/boutons hors écran.
 - Largeur des champs limitée au conteneur.
 - Navigation mobile améliorée.
 - Message explicite si aucun concours, aucune règle ou aucun animal.
 - Cache renouvelé.
 
-NOUVEAUTÉ v0.3.4 : module de paramétrage général par maladie, demandes par concours, règles BVD pré-enregistrées et logique de méthode de référence pour le remboursement.
+NOUVEAUTÉ v0.3.5 : module de paramétrage général par maladie, demandes par concours, règles BVD pré-enregistrées et logique de méthode de référence pour le remboursement.
 
-NOUVEAUTÉS v0.3.4
+NOUVEAUTÉS v0.3.5
 - Deux imports séparés dans Animaux :
   1) liste des inscrits partenaire ;
   2) fichier bovins métier.
@@ -67,7 +67,7 @@ NOUVEAUTÉS v0.3.4
   * pas encore contrôlé.
 - Le fichier métier ne crée jamais de nouveaux inscrits.
 
-NOUVEAUTÉS v0.3.4
+NOUVEAUTÉS v0.3.5
 - Un concours peut contenir plusieurs départements.
 - Liste des départements participants.
 - Import des inscrits rattaché à un département.
@@ -78,11 +78,22 @@ NOUVEAUTÉS v0.3.4
   * ou un département seulement.
 - Un seul concours conserve le récap global.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Ajout du bloc Départements participants qui manquait dans l'interface.
 - Correction de l'erreur 'Cannot set properties of null (setting innerHTML)'.
 - Les rendus Paramétrage / Demandes / Départements utilisent maintenant des sélecteurs DOM explicites.
 - Le message de démarrage ne suppose plus systématiquement que le SQL est en cause.
 
-CORRECTION v0.3.4
+CORRECTION v0.3.5
 - Délai maximum par défaut avant concours fixé à 21 jours pour les demandes et règles sanitaires.
+
+CORRECTION v0.3.5
+- Import des CSV Windows-1252 / ANSI.
+- Lecture CSV robuste avec champs entre guillemets et retours à la ligne internes.
+- Reconnaissance des colonnes N° ANIMAL, N°CHEPTEL, Propriétaire, DATE NAISSANCE.
+- Ajout de variantes de noms de colonnes.
+- Ordre des cadres Animaux :
+  1. Importer la liste des inscrits
+  2. Exporter les n° bovins
+  3. Importer le fichier bovins métier
+  4. Contrôler les inscrits

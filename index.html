@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.4</title>
-<link rel="manifest" href="manifest.json?v=034">
+<title>Suivi des concours v0.3.5</title>
+<link rel="manifest" href="manifest.json?v=035">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -167,7 +167,7 @@ th{background:#f2ebf0}
 
 
 <section id="animaux" class="section">
-  <div class="card">
+<div class="card">
     <h2>Ajout manuel d'un animal</h2>
     <div class="row">
       <div class="field"><label>Concours</label><select id="animalContest"></select></div>
@@ -193,12 +193,22 @@ th{background:#f2ebf0}
       <button class="action" onclick="importPartnerCSV()">Importer les inscrits</button>
     </div>
     <div class="muted" style="margin-top:8px">
-      Colonnes reconnues automatiquement : bovin / animal / numéro, éleveur / nom, cheptel, naissance, commune.
+      Colonnes reconnues automatiquement, notamment : N° ANIMAL, N°CHEPTEL, Propriétaire, DATE NAISSANCE, ainsi que les variantes usuelles. Les CSV Windows/ANSI sont acceptés.
     </div>
   </div>
 
   <div class="card">
-    <h2>2. Importer le fichier bovins métier</h2>
+    <h2>2. Exporter les n° bovins pour extraction métier</h2>
+    <div class="row">
+      <div class="field"><label>Concours</label><select id="exportAnimalContest"></select></div>
+      <div class="field"><label>Département</label><select id="exportAnimalDept"><option value="">Tous les départements</option></select></div>
+      <button class="action" onclick="exportAnimalNumbers()">Exporter le CSV</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Le CSV contient uniquement une colonne <strong>bovin</strong>.</div>
+  </div>
+
+  <div class="card">
+    <h2>3. Importer le fichier bovins métier</h2>
     <div class="muted">
       Ce fichier sert à compléter et contrôler les animaux déjà inscrits : détenteur, n° cheptel et date de naissance.
       Aucun nouvel inscrit n'est créé automatiquement à partir du fichier métier.
@@ -213,17 +223,7 @@ th{background:#f2ebf0}
   </div>
 
   <div class="card">
-    <h2>Exporter les n° bovins pour extraction métier</h2>
-    <div class="row">
-      <div class="field"><label>Concours</label><select id="exportAnimalContest"></select></div>
-      <div class="field"><label>Département</label><select id="exportAnimalDept"><option value="">Tous les départements</option></select></div>
-      <button class="action" onclick="exportAnimalNumbers()">Exporter le CSV</button>
-    </div>
-    <div class="muted" style="margin-top:8px">Le CSV contient uniquement une colonne <strong>bovin</strong>.</div>
-  </div>
-
-  <div class="card">
-    <h2>Contrôle des inscrits</h2>
+    <h2>4. Contrôler les inscrits</h2>
     <div class="row">
       <div class="field"><label>Concours affiché</label><select id="animalViewContest"></select></div>
       <div class="field"><label>Filtre contrôle</label>
@@ -302,7 +302,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.4";
+const APP_VERSION = "0.3.5";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -316,7 +316,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.5");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -518,11 +518,67 @@ function sameText(a,b){
   const clean=s=>normHeader(s).replace(/[^a-z0-9]/g,"");
   return !!clean(a) && clean(a)===clean(b);
 }
+async function decodeCSVFile(file){
+  const buffer=await file.arrayBuffer();
+  try{
+    return new TextDecoder("utf-8",{fatal:true}).decode(buffer);
+  }catch(e){
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+}
+function detectSeparator(text){
+  let inQuotes=false, semi=0, comma=0;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(ch==='"'){
+      if(inQuotes && text[i+1]==='"'){i++;continue;}
+      inQuotes=!inQuotes;
+    }else if(!inQuotes){
+      if(ch===';')semi++;
+      else if(ch===',')comma++;
+      else if(ch==='\n'||ch==='\r')break;
+    }
+  }
+  return semi>=comma?';':',';
+}
 function parseCSV(text){
-  const lines=text.trim().split(/\r?\n/);if(lines.length<2)return[];
-  const sep=lines[0].split(";").length>lines[0].split(",").length?";":",";
-  const heads=lines[0].split(sep).map(x=>x.trim().toLowerCase());
-  return lines.slice(1).map(l=>{const v=l.split(sep).map(x=>x.trim());const o={};heads.forEach((h,i)=>o[h]=v[i]||"");return o});
+  text=String(text||"").replace(/^\uFEFF/,"");
+  const sep=detectSeparator(text);
+  const rows=[];
+  let row=[], field="", inQuotes=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQuotes){
+      if(ch==='"'){
+        if(text[i+1]==='"'){field+='"';i++;}
+        else inQuotes=false;
+      }else{
+        field+=ch;
+      }
+    }else{
+      if(ch==='"')inQuotes=true;
+      else if(ch===sep){row.push(field);field="";}
+      else if(ch==='\r'){
+        if(text[i+1]==='\n')i++;
+        row.push(field);field="";
+        if(row.some(v=>String(v).trim()!==""))rows.push(row);
+        row=[];
+      }else if(ch==='\n'){
+        row.push(field);field="";
+        if(row.some(v=>String(v).trim()!==""))rows.push(row);
+        row=[];
+      }else field+=ch;
+    }
+  }
+  row.push(field);
+  if(row.some(v=>String(v).trim()!==""))rows.push(row);
+  if(rows.length<2)return [];
+  const heads=rows[0].map(x=>String(x||"").trim());
+  return rows.slice(1).map(values=>{
+    const obj={};
+    heads.forEach((h,i)=>obj[h]=String(values[i]??"").trim());
+    return obj;
+  });
 }
 
 async function importPartnerCSV(){
@@ -532,11 +588,11 @@ async function importPartnerCSV(){
   const dept=document.getElementById("partnerDept").value;
   if(!cid)return alert("Choisir un concours.");
   if(!dept)return alert("Choisir le département.");
-  const text=await f.text(), rows=[];
+  const text=await decodeCSVFile(f), rows=[];
   parseCSV(text).forEach(o=>{
-    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","numero national","identifiant bovin"]));
-    const eleveur=pick(o,["eleveur","éleveur","nom","detenteur","détenteur","exploitation","raison sociale"]) || "Éleveur à compléter";
-    const cheptel=pick(o,["cheptel","n cheptel","n° cheptel","ede","numero cheptel"]);
+    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin"]));
+    const eleveur=pick(o,["eleveur","éleveur","proprietaire","propriétaire","nom","detenteur","détenteur","exploitation","raison sociale"]) || "Éleveur à compléter";
+    const cheptel=pick(o,["cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"]);
     const naissance=normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]));
     const commune=pick(o,["commune","ville"]);
     if(bovin)rows.push({
@@ -549,7 +605,7 @@ async function importPartnerCSV(){
       naissance_metier:null
     });
   });
-  if(!rows.length)return alert("Aucun n° bovin reconnu dans ce fichier.");
+  if(!rows.length)return alert("Aucun n° bovin reconnu dans ce fichier.\n\nColonnes attendues : N° ANIMAL, bovin, animal ou équivalent.");
   try{
     await sb("concours_animaux?on_conflict=concours_id,bovin",{method:"POST",body:rows,prefer:"resolution=ignore-duplicates,return=minimal"});
   }catch(e){return alert("Erreur import inscrits : "+e.message)}
@@ -565,16 +621,16 @@ async function importBusinessCSV(){
   const dept=document.getElementById("businessDept").value;
   if(!cid)return alert("Choisir un concours.");
   if(!dept)return alert("Choisir le département correspondant au fichier métier.");
-  const text=await f.text();
+  const text=await decodeCSVFile(f);
   const source=parseCSV(text);
   const business=new Map();
   source.forEach(o=>{
-    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","numero national","identifiant bovin"]));
+    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin"]));
     if(!bovin)return;
     business.set(bovin,{
       bovin,
-      detenteur:pick(o,["eleveur","éleveur","detenteur","détenteur","nom","exploitation","raison sociale"]),
-      cheptel:pick(o,["cheptel","n cheptel","n° cheptel","ede","numero cheptel"]),
+      detenteur:pick(o,["eleveur","éleveur","proprietaire","propriétaire","detenteur","détenteur","nom","exploitation","raison sociale"]),
+      cheptel:pick(o,["cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"]),
       naissance:normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]))
     });
   });
