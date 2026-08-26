@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.2.4</title>
-<link rel="manifest" href="manifest.json?v=024">
+<title>Suivi des concours v0.3.0</title>
+<link rel="manifest" href="manifest.json?v=030">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -80,6 +80,7 @@ th{background:#f2ebf0}
   </div>
   <nav>
     <button data-tab="dashboard">Accueil</button>
+    <button data-tab="parametres">Paramétrage</button>
     <button data-tab="concours">Concours</button>
     <button data-tab="animaux">Animaux</button>
     <button data-tab="analyses">Analyses</button>
@@ -101,6 +102,21 @@ th{background:#f2ebf0}
   <div class="card"><h3>À traiter</h3><div id="todo"></div></div>
 </section>
 
+<section id="parametres" class="section">
+  <div class="card"><h2>Paramétrage des règles sanitaires</h2><div class="muted">Règles générales réutilisables pour tous les concours.</div></div>
+  <div class="card"><h3>Ajouter une règle</h3><div class="row">
+    <div class="field"><label>Maladie</label><select id="tplDisease"><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div>
+    <div class="field"><label>Libellé analyse</label><input id="tplAnalysis" placeholder="Ex. BVD Ag sérum"></div>
+    <div class="field"><label>Matrice</label><select id="tplMatrix"><option value="">—</option><option>Sérum</option><option>Sang</option><option>Biopsie auriculaire</option><option>Cartilage</option><option>Autre</option></select></div>
+    <div class="field"><label>Technique</label><input id="tplTechnique" placeholder="Ex. Antigénémie / PCR"></div>
+    <div class="field"><label>Âge mini (mois)</label><input id="tplMin" type="number" min="0" value="0"></div>
+    <div class="field"><label>Âge maxi (mois)</label><input id="tplMax" type="number" min="0"></div>
+    <div class="field"><label>Recevable validation</label><select id="tplValid"><option value="true">Oui</option><option value="false">Non</option></select></div>
+    <div class="field"><label>Remboursable</label><select id="tplRefund"><option value="true">Oui</option><option value="false">Non</option></select></div>
+    <div class="field"><label>Méthode de référence remboursement</label><select id="tplPreferred"><option value="false">Non</option><option value="true">Oui</option></select></div>
+    <button class="action" onclick="addTemplateRule()">Ajouter la règle</button></div></div>
+  <div class="card"><div class="topline"><h3>Règles enregistrées</h3><div class="field" style="max-width:260px"><label>Filtre maladie</label><select id="tplFilter"><option value="">Toutes</option><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div></div><div id="templateRules"></div></div>
+</section>
 <section id="concours" class="section">
   <div class="card">
     <h2>Créer un concours</h2>
@@ -111,9 +127,14 @@ th{background:#f2ebf0}
       <button class="action" onclick="addContest()">Créer</button>
     </div>
   </div>
+  <div class="card"><h2>Demandes sanitaires du concours</h2><div class="muted">Choisir seulement les maladies demandées. Les règles détaillées sont reprises du paramétrage général.</div><div class="row" style="margin-top:10px">
+    <div class="field"><label>Concours</label><select id="demandContest"></select></div>
+    <div class="field"><label>Maladie</label><select id="demandDisease"><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div>
+    <div class="field"><label>Délai maxi avant concours (jours)</label><input id="demandDelay" type="number" min="0" value="30"></div>
+    <button class="action" onclick="addContestDemand()">Ajouter la demande</button></div><div id="demandList" style="margin-top:12px"></div></div>
   <div class="card">
-    <h2>Règles sanitaires</h2>
-    <div class="muted">Le logiciel détermine les analyses nécessaires selon l'âge du bovin à la date du concours.</div>
+    <h2>Exceptions propres au concours</h2>
+    <div class="muted">À utiliser seulement si ce concours a une règle différente du paramétrage général.</div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="ruleContest"></select></div>
       <div class="field"><label>Analyse</label><select id="ruleAnalysis">
@@ -210,21 +231,21 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.2.4";
+const APP_VERSION = "0.3.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
 </script>
 <script>
-const ANALYSES=["IBR sérologie","BVD Ag sang","BVD Ag cartilage","BVD PCR","Besnoitiose"];
+const BASE_ANALYSES=["IBR sérologie","BVD Ag sang","BVD Ag cartilage","BVD PCR","Besnoitiose"]; function allAnalyses(){return [...new Set([...BASE_ANALYSES,...db.templateRules.map(r=>r.libelle_analyse).filter(Boolean)])]}
 const STATUS=[
   ["attente","⏳ Non fait / non reçu"],["labo","🧪 En cours labo"],["conforme","✅ Négatif = conforme"],
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
-let db={contests:[],rules:[],animals:[],results:{},certificates:{}};
+let db={contests:[],rules:[],templateRules:[],demands:[],animals:[],results:{},certificates:{}};
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.2.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.0");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -272,14 +293,16 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,rules,animals,results,certs]=await Promise.all([
+  const [contests,rules,templateRules,demands,animals,results,certs]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_regles?select=*&order=created_at.asc"),
+    sb("concours_regles_catalogue?select=*&order=maladie.asc,age_min_mois.asc"),
+    sb("concours_demandes?select=*&order=maladie.asc"),
     sb("concours_animaux?select=*&order=eleveur.asc,bovin.asc"),
     sb("concours_resultats?select=*"),
     sb("concours_certificats?select=*")
   ]);
-  db.contests=contests||[];db.rules=rules||[];db.animals=animals||[];db.certificates={};
+  db.contests=contests||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.animals=animals||[];db.certificates={};
   (certs||[]).forEach(c=>db.certificates[c.concours_id+"|"+c.eleveur]=c);
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
@@ -291,12 +314,10 @@ function ageMonths(birth, at){
   let m=(d.getFullYear()-b.getFullYear())*12+d.getMonth()-b.getMonth();
   if(d.getDate()<b.getDate())m--; return m;
 }
-function needed(animal,analysis,contestId){
-  const c=contest(contestId); if(!c)return false;
-  const age=ageMonths(animal.naissance,c.date_concours);
-  return db.rules.filter(r=>r.concours_id===contestId&&r.analyse_type===analysis)
-    .some(r=>age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)));
-}
+function diseaseForAnalysis(analysis){const t=(analysis||"").toLowerCase();if(t.includes("bvd"))return "BVD";if(t.includes("ibr"))return "IBR";if(t.includes("besno"))return "Besnoitiose";return db.templateRules.find(r=>r.libelle_analyse===analysis)?.maladie||"Autre"}
+function activeDemand(contestId,disease){return db.demands.find(d=>d.concours_id===contestId&&d.maladie===disease)}
+function applicableTemplateRules(animal,contestId,disease){const c=contest(contestId);if(!c)return[];const age=ageMonths(animal.naissance,c.date_concours);return db.templateRules.filter(r=>r.maladie===disease&&age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)))}
+function needed(animal,analysis,contestId){const disease=diseaseForAnalysis(analysis);if(activeDemand(contestId,disease)){return applicableTemplateRules(animal,contestId,disease).filter(r=>r.recevable_validation).some(r=>r.libelle_analyse===analysis)}const c=contest(contestId);if(!c)return false;const age=ageMonths(animal.naissance,c.date_concours);return db.rules.filter(r=>r.concours_id===contestId&&r.analyse_type===analysis).some(r=>age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)))}
 function getResult(aid,analysis){
   db.results[aid]||={};
   return db.results[aid][analysis]||{animal_id:aid,analyse_type:analysis,statut:"attente",date_prelevement:"",commentaire:""};
@@ -310,7 +331,7 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","animalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","demandContest","animalContest","analysisContest","certContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 function renderFarmerSelectors(){
@@ -319,6 +340,14 @@ function renderFarmerSelectors(){
     optionize(fid,farmers(c).map(x=>({value:x,label:x})));
   });
 }
+
+async function addTemplateRule(){const body={maladie:tplDisease.value,libelle_analyse:tplAnalysis.value.trim(),matrice:tplMatrix.value||null,technique:tplTechnique.value.trim()||null,age_min_mois:Number(tplMin.value||0),age_max_mois:tplMax.value===""?null:Number(tplMax.value),recevable_validation:tplValid.value==="true",remboursable:tplRefund.value==="true",methode_reference_remboursement:tplPreferred.value==="true"};if(!body.libelle_analyse)return alert("Indique le libellé de l'analyse.");await sb("concours_regles_catalogue",{method:"POST",body,prefer:"return=representation"});tplAnalysis.value="";tplTechnique.value="";await loadAll()}
+async function deleteTemplateRule(id){if(!confirm("Supprimer cette règle générale ?"))return;await sb("concours_regles_catalogue?id=eq."+id,{method:"DELETE"});await loadAll()}
+function renderTemplateRules(){const f=document.getElementById("tplFilter")?.value||"";const rows=db.templateRules.filter(r=>!f||r.maladie===f).map(r=>`<tr><td><strong>${escapeHtml(r.maladie)}</strong></td><td>${escapeHtml(r.libelle_analyse)}</td><td>${escapeHtml(r.matrice||"—")}</td><td>${escapeHtml(r.technique||"—")}</td><td>${r.age_min_mois} m</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" m"}</td><td>${r.recevable_validation?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.remboursable?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${r.methode_reference_remboursement?'<span class="badge warn">Référence</span>':'—'}</td><td><button class="danger" onclick="deleteTemplateRule('${r.id}')">Supprimer</button></td></tr>`).join("");templateRules.innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Analyse</th><th>Matrice</th><th>Technique</th><th>Âge mini</th><th>Âge maxi</th><th>Validation</th><th>Remboursable</th><th>Référence remb.</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune règle enregistrée.</div>'}
+async function addContestDemand(){const body={concours_id:demandContest.value,maladie:demandDisease.value,delai_max_jours:Number(demandDelay.value||0)};if(!body.concours_id)return alert("Crée d’abord un concours.");await sb("concours_demandes?on_conflict=concours_id,maladie",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll()}
+async function deleteContestDemand(id){if(!confirm("Retirer cette maladie du concours ?"))return;await sb("concours_demandes?id=eq."+id,{method:"DELETE"});await loadAll()}
+function renderDemands(){const cid=document.getElementById("demandContest")?.value;const rows=db.demands.filter(d=>d.concours_id===cid).map(d=>`<tr><td><strong>${escapeHtml(d.maladie)}</strong></td><td>${d.delai_max_jours} j</td><td>${db.templateRules.filter(r=>r.maladie===d.maladie).length} règle(s)</td><td><button class="danger" onclick="deleteContestDemand('${d.id}')">Retirer</button></td></tr>`).join("");demandList.innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Délai</th><th>Règles générales</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune maladie demandée pour ce concours.</div>'}
+
 async function addContest(){
   const nom=document.getElementById("cName").value.trim(),date=document.getElementById("cDate").value;
   if(!nom||!date)return alert("Nom et date obligatoires");
@@ -381,7 +410,7 @@ function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v
 function renderAnalysis(){
   const cid=document.getElementById("analysisContest")?.value,farmer=document.getElementById("analysisFarmer")?.value;
   const list=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
-  let html="<thead><tr><th>Bovin</th><th>Âge</th>"+ANALYSES.map(x=>`<th>${x}</th>`).join("")+"<th>Commentaire</th></tr></thead><tbody>";
+  let html="<thead><tr><th>Bovin</th><th>Âge</th>"+allAnalyses().map(x=>`<th>${x}</th>`).join("")+"<th>Commentaire</th></tr></thead><tbody>";
   for(const a of list){
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);html+=`<tr><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${age==null?"?":age+" m"}</td>`;
     for(const an of ANALYSES){
@@ -389,7 +418,7 @@ function renderAnalysis(){
       if(!need&&r.statut!=="inutile")html+=`<td class="analysis-cell na">Non nécessaire<br><button class="secondary" onclick="markUnneededDone('${a.id}','${an}')">Faite quand même</button></td>`;
       else html+=`<td class="analysis-cell"><select class="analysis-select" onchange="setResult('${a.id}','${an}',this.value)">${statusOptions(r.statut)}</select></td>`;
     }
-    const com=ANALYSES.map(an=>getResult(a.id,an).commentaire).find(Boolean)||"";
+    const com=allAnalyses().map(an=>getResult(a.id,an).commentaire).find(Boolean)||"";
     html+=`<td><input style="min-width:180px" value="${escapeHtml(com)}" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
   }
   document.getElementById("analysisTable").innerHTML=html+"</tbody>";
@@ -403,15 +432,15 @@ async function setResult(aid,analysis,status){
   const d=document.getElementById("sampleDate").value||null;await upsertResult(aid,analysis,{statut:status,date_prelevement:d});await loadAll();
 }
 async function setAnimalComment(aid,txt){
-  const ops=ANALYSES.map(an=>upsertResult(aid,an,{commentaire:txt}));await Promise.all(ops);await loadAll();
+  const ops=allAnalyses().map(an=>upsertResult(aid,an,{commentaire:txt}));await Promise.all(ops);await loadAll();
 }
 async function markUnneededDone(aid,analysis){await upsertResult(aid,analysis,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null});await loadAll()}
 async function setAllStatus(status){
   const cid=document.getElementById("analysisContest").value,farmer=document.getElementById("analysisFarmer").value,d=document.getElementById("sampleDate").value||null;
-  const ops=[];db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer).forEach(a=>ANALYSES.forEach(an=>{if(needed(a,an,cid))ops.push(upsertResult(a.id,an,{statut:status,date_prelevement:d}))}));
+  const ops=[];db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer).forEach(a=>allAnalyses().forEach(an=>{if(needed(a,an,cid))ops.push(upsertResult(a.id,an,{statut:status,date_prelevement:d}))}));
   await Promise.all(ops);await loadAll();
 }
-function animalSanitaryOK(a){return ANALYSES.filter(an=>needed(a,an,a.concours_id)).every(an=>getResult(a.id,an).statut==="conforme")}
+function animalSanitaryOK(a){return allAnalyses().filter(an=>needed(a,an,a.concours_id)).every(an=>getResult(a.id,an).statut==="conforme")}
 function renderCertificates(){
   const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value;
   const cert=db.certificates[cid+"|"+farmer];
@@ -433,38 +462,40 @@ async function saveCertificate(){
   const body={concours_id:document.getElementById("certContest").value,eleveur:document.getElementById("certFarmer").value,date_signature:document.getElementById("signDate").value||null,mode_transmission:document.getElementById("sendMode").value||null,updated_at:new Date().toISOString()};
   await sb("concours_certificats?on_conflict=concours_id,eleveur",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll();alert("Certificat enregistré.");
 }
+function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
+function reimbursementDecision(animal,analysis,status){const rule=templateRuleFor(animal,analysis);if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};if(rule){if(!rule.recevable_validation)return{ok:false,reason:"Méthode non recevable pour cet âge"};if(!rule.remboursable)return{ok:false,reason:"Méthode non remboursable"};const refs=applicableTemplateRules(animal,animal.concours_id,rule.maladie).filter(r=>r.recevable_validation&&r.remboursable&&r.methode_reference_remboursement);if(refs.length&&!rule.methode_reference_remboursement)return{ok:false,reason:"Méthode recevable mais plus coûteuse que la méthode de référence"};return{ok:true,reason:""}}return{ok:needed(animal,analysis,animal.concours_id),reason:needed(animal,analysis,animal.concours_id)?"":"Analyse non nécessaire"}}
 function renderRefunds(){
   const cid=document.getElementById("refundContest")?.value,rows=[];
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>ANALYSES.forEach(an=>{
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>allAnalyses().forEach(an=>{
     const r=getResult(a.id,an),need=needed(a,an,cid);if(!need&&r.statut!=="inutile")return;
-    const refundable=need&&r.statut==="conforme"&&a.sur_certificat;
-    let reason="";if(!a.sur_certificat)reason="Animal absent du certificat final";else if(!need)reason="Analyse non nécessaire";else if(r.statut!=="conforme")reason="Analyse non conforme / non validée";
+    const decision=reimbursementDecision(a,an,r.statut),refundable=decision.ok;
+    let reason=decision.reason;
     rows.push(`<tr><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.bovin)}</td><td>${an}</td><td>${STATUS.find(s=>s[0]===r.statut)?.[1]||r.statut}</td><td>${a.sur_certificat?"Oui":"Non"}</td><td>${refundable?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${reason}</td></tr>`)
   }));
   document.getElementById("refundTable").innerHTML=rows.join("");
 }
 function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
-  ANALYSES.forEach(an=>counts[an]=animals.filter(a=>getResult(a.id,an).statut==="conforme").length);return counts;
+  allAnalyses().forEach(an=>counts[an]=animals.filter(a=>getResult(a.id,an).statut==="conforme").length);return counts;
 }
 function renderDashboard(){
   const cid=document.getElementById("dashContest")?.value,s=stats(cid);
   document.getElementById("kpis").innerHTML=[["Éleveurs",s.farmers],["Bovins inscrits",s.animals],["Sanitaires conformes",s.conform],["Sur certificat",s.signed]].map(([l,v])=>`<div class="kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
   const animals=db.animals.filter(a=>a.concours_id===cid);
-  const lab=animals.filter(a=>ANALYSES.some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="labo")).length;
-  const missing=animals.filter(a=>ANALYSES.some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="attente")).length;
-  const pb=animals.filter(a=>ANALYSES.some(an=>["nonconforme","positif","recontrole"].includes(getResult(a.id,an).statut))).length;
+  const lab=animals.filter(a=>allAnalyses().some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="labo")).length;
+  const missing=animals.filter(a=>allAnalyses().some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="attente")).length;
+  const pb=animals.filter(a=>allAnalyses().some(an=>["nonconforme","positif","recontrole"].includes(getResult(a.id,an).statut))).length;
   document.getElementById("todo").innerHTML=`<div class="kpis"><div class="kpi"><span>En cours labo</span><strong>${lab}</strong></div><div class="kpi"><span>Résultats manquants</span><strong>${missing}</strong></div><div class="kpi"><span>À vérifier / non conformes</span><strong>${pb}</strong></div></div>`;
 }
 function renderExport(){
   const cid=document.getElementById("exportContest")?.value,s=stats(cid);
-  document.getElementById("exportStats").innerHTML=ANALYSES.map(an=>`<div class="kpi"><span>${an}</span><strong>${s[an]}</strong></div>`).join("");
+  document.getElementById("exportStats").innerHTML=allAnalyses().map(an=>`<div class="kpi"><span>${an}</span><strong>${s[an]}</strong></div>`).join("");
 }
 function exportRecapCSV(){
   const cid=document.getElementById("exportContest").value,c=contest(cid);
   if(!c)return alert("Aucun concours.");
   const rows=[["Concours","Eleveur","Cheptel","Bovin","Naissance","Analyse","Necessaire","Statut","Date prelevement","Commentaire","Sur certificat","Remboursable"]];
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>ANALYSES.forEach(an=>{
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>allAnalyses().forEach(an=>{
     const r=getResult(a.id,an),need=needed(a,an,cid);if(!need&&r.statut==="attente")return;
     rows.push([c.nom,a.eleveur,a.cheptel||"",a.bovin,a.naissance||"",an,need?"Oui":"Non",r.statut,r.date_prelevement||"",r.commentaire||"",a.sur_certificat?"Oui":"Non",(need&&r.statut==="conforme"&&a.sur_certificat)?"Oui":"Non"])
   }));
@@ -472,10 +503,10 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderRules();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
+function renderAll(){renderSelectors();renderTemplateRules();renderDemands();renderRules();renderAnimals();renderAnalysis();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["ruleContest","animalContest","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","demandContest","animalContest","analysisContest","analysisFarmer","certContest","certFarmer","refundContest","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors();renderAll();
   }
 });
