@@ -1,4 +1,4 @@
-Suivi des concours v0.1
+Suivi des concours v0.1.1
 
 Premier jet fonctionnel, autonome et local.
 
@@ -18,3 +18,5 @@ Inclus :
 Important :
 Cette version utilise localStorage pour le prototype.
 Elle n'est pas encore multi-utilisateurs / Supabase.
+
+Correction v0.1.1 : les en-têtes de tableaux ne masquent plus les lignes ajoutées.

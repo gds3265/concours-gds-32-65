@@ -33,7 +33,7 @@ button.secondary{background:var(--accent2);color:var(--accent);border:none;borde
 button.danger{background:#8c3030;color:white;border:none;border-radius:8px;padding:8px 10px}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{border-bottom:1px solid #e9e2e7;padding:8px;text-align:left;vertical-align:middle}
-th{background:#f2ebf0;position:sticky;top:92px;z-index:2}
+th{background:#f2ebf0;position:sticky;top:0;z-index:2}
 .scroll{overflow:auto;max-height:62vh}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
 .ok{background:var(--ok)}
@@ -54,7 +54,6 @@ th{background:#f2ebf0;position:sticky;top:92px;z-index:2}
 .checkbox-list{display:flex;gap:12px;flex-wrap:wrap}
 .small{font-size:12px}
 @media(max-width:700px){
-  th{top:116px}
   .field{min-width:140px}
   main{padding:10px}
 }
@@ -62,7 +61,7 @@ th{background:#f2ebf0;position:sticky;top:92px;z-index:2}
 </head>
 <body>
 <header>
-  <h1>Suivi des concours <small>v0.1</small></h1>
+  <h1>Suivi des concours <small>v0.1.1</small></h1>
   <nav>
     <button data-tab="dashboard">Accueil</button>
     <button data-tab="concours">Concours</button>
