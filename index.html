@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.6</title>
-<link rel="manifest" href="manifest.json?v=046">
+<title>Suivi des concours v0.4.7</title>
+<link rel="manifest" href="manifest.json?v=047">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -82,6 +82,12 @@ th{background:#f2ebf0}
   .fast-animal .fast-status{grid-column:2/4}
   .fast-animal .fast-actions{grid-column:2/4}
 }
+
+
+.fast-warning{border:2px solid #c27b00;background:#fff8e8;padding:12px;border-radius:12px;margin:12px 0}
+.fast-warning strong{color:#8a5600}
+.fast-okbox{border:1px solid #b8d8c0;background:#f1faf3;padding:10px;border-radius:10px;margin:10px 0}
+.fast-transmission{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
 
 </style>
 </head>
@@ -474,10 +480,24 @@ th{background:#f2ebf0}
       <div id="fastQualificationBadges"></div>
     </div>
 
+    <div id="fastAttention"></div>
+
     <div class="fast-mode">
       <button class="secondary active" id="fastComputerBtn" onclick="setFastMode('computer')">Validation sur ordinateur</button>
       <button class="secondary" id="fastPaperBtn" onclick="setFastMode('paper')">Contrôle certificat papier</button>
     </div>
+
+    <div class="fast-transmission">
+      <div class="field">
+        <label>Transmission du certificat</label>
+        <select id="fastTransmission">
+          <option value="mail">Mail</option>
+          <option value="direct">Direct</option>
+        </select>
+      </div>
+      <button class="action" onclick="fastFinalizeCertificate()">Valider le certificat aujourd'hui</button>
+    </div>
+    <div class="muted">La validation enregistre automatiquement le certificat comme reçu et validé à la date du jour.</div>
 
     <div id="fastComputerMode">
       <div class="row">
@@ -575,7 +595,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.6";
+const APP_VERSION = "0.4.7";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -589,7 +609,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.6");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.7");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1345,6 +1365,8 @@ function loadFastValidation(){
   fastCurrentFarmer=chosen.farmer;
   document.getElementById("fastPanel").classList.remove("hidden");
   document.getElementById("fastAnimalsCard").classList.remove("hidden");
+  const cert=Object.values(db.certificates).find(c=>c.concours_id===cid&&c.eleveur===fastCurrentFarmer);
+  if(cert?.mode_transmission && document.getElementById("fastTransmission")) document.getElementById("fastTransmission").value=cert.mode_transmission;
   renderFastValidation();
 }
 function fastQualificationStatus(){
@@ -1362,6 +1384,85 @@ function fastAnimalAnalysisSummary(a){
     return `${lab} ${d}`;
   }).join(" · ");
 }
+
+function fastIssues(){
+  const cid=document.getElementById("fastContest")?.value;
+  const animals=fastAnimalsList();
+  const issues=[];
+
+  // Qualifications
+  fastQualificationStatus().forEach(x=>{
+    const s=x.result?.statut||"a_verifier";
+    if(["nonconforme","a_verifier"].includes(s)){
+      issues.push(`Qualification ${x.def.libelle} : ${s==="nonconforme"?"non conforme":"à vérifier"}`);
+    }
+  });
+
+  // Analyses animals
+  animals.forEach(a=>{
+    const states=animalDiseaseStates(a);
+    states.forEach(x=>{
+      if(["problem"].includes(animalOverallSanitaryStatus(a)) || ["nonconforme","positif","recontrole"].includes(x.status)){
+        if(["nonconforme","positif","recontrole"].includes(x.status)){
+          issues.push(`${String(a.bovin||"").slice(-4)} — ${x.disease} : ${x.status}`);
+        }
+      }
+    });
+  });
+
+  // Supplementary checks: herd + animals
+  const defs=(db.controlPoints||[]).filter(d=>d.concours_id===cid && d.type_controle!=="qualification");
+  defs.forEach(d=>{
+    if(d.niveau==="cheptel"){
+      const r=getCheckResult(d.id,"cheptel:"+fastCurrentHerd);
+      if(r && ["nonconforme","a_verifier"].includes(r.statut)){
+        issues.push(`${d.libelle} : ${r.statut==="nonconforme"?"non conforme":"à vérifier"}`);
+      }
+    } else {
+      animals.forEach(a=>{
+        const r=getCheckResult(d.id,"animal:"+a.id);
+        if(r && ["nonconforme","a_verifier"].includes(r.statut)){
+          issues.push(`${String(a.bovin||"").slice(-4)} — ${d.libelle} : ${r.statut==="nonconforme"?"non conforme":"à vérifier"}`);
+        }
+      });
+    }
+  });
+
+  return [...new Set(issues)];
+}
+function renderFastAttention(){
+  const target=document.getElementById("fastAttention");
+  if(!target)return;
+  const issues=fastIssues();
+  if(!issues.length){
+    target.innerHTML='<div class="fast-okbox">✅ Aucun problème déjà signalé dans les vérifications amont.</div>';
+    return;
+  }
+  target.innerHTML=`<div class="fast-warning"><strong>⚠ Attention — éléments à vérifier avant validation</strong><br>${issues.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>`;
+}
+async function fastFinalizeCertificate(){
+  const cid=document.getElementById("fastContest")?.value;
+  if(!cid||!fastCurrentHerd)return alert("Choisir un éleveur.");
+  const transmission=document.getElementById("fastTransmission")?.value||"mail";
+  const today=new Date().toISOString().slice(0,10);
+  const issues=fastIssues();
+  if(issues.length){
+    const ok=confirm(`Attention : ${issues.length} anomalie(s) ou élément(s) à vérifier sont déjà enregistrés.\n\nValider quand même le certificat ?`);
+    if(!ok)return;
+  }
+  const body={
+    concours_id:cid,
+    eleveur:fastCurrentFarmer,
+    statut_certificat:"valide",
+    date_reception:today,
+    date_signature:today,
+    mode_transmission:transmission
+  };
+  await sb("concours_certificats?on_conflict=concours_id,eleveur",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();
+  renderFastValidation();
+  alert(`Certificat enregistré comme reçu et validé le ${today} — transmission : ${transmission==="mail"?"Mail":"Direct"}.`);
+}
 function renderFastValidation(){
   const animals=fastAnimalsList();
   if(!animals.length)return;
@@ -1370,6 +1471,7 @@ function renderFastValidation(){
   document.getElementById("fastSummary").textContent=`${animals.length} bovin(s) inscrit(s) · ${paperChecked} vérifié(s) sur papier`;
 
   const quals=fastQualificationStatus();
+  renderFastAttention();
   document.getElementById("fastQualificationBadges").innerHTML=quals.map(x=>{
     const s=x.result.statut;
     const cls=s==="conforme"?"ok":s==="nonconforme"?"bad":s==="nonapp"?"na":"warn";
