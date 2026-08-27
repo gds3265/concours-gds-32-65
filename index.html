@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.0</title>
-<link rel="manifest" href="manifest.json?v=040">
+<title>Suivi des concours v0.4.1</title>
+<link rel="manifest" href="manifest.json?v=041">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -330,7 +330,7 @@ th{background:#f2ebf0}
   <div class="card">
     <h2>Points de vérification complémentaires</h2>
     <div class="muted">Vaccinations, documents ou autres exigences. Les qualifications sont gérées dans l’onglet Qualifications.</div>
-    <div class="row" style="margin-top:10px">
+    <div class="controls-grid" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="ctrlContest"></select></div>
       <div class="field"><label>Niveau</label><select id="ctrlLevel"><option value="cheptel">Cheptel</option><option value="animal">Animal</option></select></div>
       <div class="field"><label>Type</label><select id="ctrlType"><option value="vaccination">Vaccination</option><option value="document">Document</option><option value="autre">Autre</option></select></div>
@@ -416,22 +416,44 @@ th{background:#f2ebf0}
 </section>
 
 
+
 <section id="remboursements" class="section">
   <div class="card">
     <h2>Remboursements</h2>
     <div class="row">
-      <div class="field"><label>Concours</label><select id="refundContest"></select></div>
-      <div class="field"><label>Recherche</label><input id="refundSearch" placeholder="Éleveur ou n° cheptel"></div>
-      <button class="secondary" onclick="openTariffSetup()">Paramétrer les coûts</button>
+      <div class="field"><label>Année civile</label><select id="refundYear"></select></div>
+      <div class="field"><label>Concours</label>
+        <select id="refundContest">
+          <option value="">Tous les concours de l'année</option>
+        </select>
+      </div>
+      <div class="field"><label>Éleveur / n° cheptel</label>
+        <select id="refundFarmer">
+          <option value="">Tous les éleveurs</option>
+        </select>
+      </div>
+      <button class="secondary" onclick="openTariffSetup()">Paramétrer les coûts HT</button>
       <button class="action" onclick="exportRefundCSV()">Exporter pour publipostage</button>
     </div>
-    <div class="muted" style="margin-top:8px">Le remboursement est manuel : tu coches ce que tu as reçu et ce que tu souhaites réellement rembourser.</div>
+    <div class="muted" style="margin-top:8px">
+      Les remboursements sont gérés à l'année civile. Tous les montants affichés sont en <strong>€ HT</strong>.
+    </div>
   </div>
+
   <div class="card hidden" id="tariffPanel">
-    <h3>Tarifs par analyse</h3>
+    <h3>Tarifs des analyses — € HT</h3>
     <div id="tariffTable"></div>
   </div>
-  <div class="card"><div id="refundSummaryTable"></div></div>
+
+  <div class="card">
+    <h3>Récapitulatif annuel par éleveur</h3>
+    <div id="refundFarmerSummary"></div>
+  </div>
+
+  <div class="card">
+    <h3>Détail par concours et type d'analyse</h3>
+    <div id="refundSummaryTable"></div>
+  </div>
 </section>
 
 <section id="export" class="section">
@@ -448,7 +470,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.0";
+const APP_VERSION = "0.4.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -462,7 +484,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.1");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1358,15 +1380,40 @@ async function saveCertificate(){
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
 function reimbursementDecision(animal,analysis,status){const rule=templateRuleFor(animal,analysis);if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};if(rule){if(!rule.recevable_validation)return{ok:false,reason:"Méthode non recevable pour cet âge"};if(!rule.remboursable)return{ok:false,reason:"Méthode non remboursable"};const refs=applicableTemplateRules(animal,animal.concours_id,rule.maladie).filter(r=>r.recevable_validation&&r.remboursable&&r.methode_reference_remboursement);if(refs.length&&!rule.methode_reference_remboursement)return{ok:false,reason:"Méthode recevable mais plus coûteuse que la méthode de référence"};return{ok:true,reason:""}}return{ok:needed(animal,analysis,animal.concours_id),reason:needed(animal,analysis,animal.concours_id)?"":"Analyse non nécessaire"}}
-function refundGroups(cid){
+
+function refundYears(){
+  return [...new Set(db.contests.map(c=>String(c.date_concours||"").slice(0,4)).filter(Boolean))].sort().reverse();
+}
+function contestsForYear(year){
+  return db.contests.filter(c=>String(c.date_concours||"").startsWith(year));
+}
+function currentRefundContestIds(){
+  const year=document.getElementById("refundYear")?.value||"";
+  const cid=document.getElementById("refundContest")?.value||"";
+  if(cid)return [cid];
+  return contestsForYear(year).map(c=>c.id);
+}
+function refundGroupsByScope(){
+  const contestIds=currentRefundContestIds();
+  const farmerFilter=document.getElementById("refundFarmer")?.value||"";
   const map=new Map();
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+
+  db.animals.filter(a=>contestIds.includes(a.concours_id)).forEach(a=>{
     const herd=(a.cheptel||"Sans EDE"), farmer=a.eleveur||"";
+    if(farmerFilter && (herd+"|"+farmer)!==farmerFilter)return;
+
     Object.entries(db.results[a.id]||{}).forEach(([analysis,r])=>{
       if(!r || r.statut==="attente")return;
-      const key=herd+"|"+analysis;
-      if(!map.has(key))map.set(key,{herd,farmer,analysis,realise:0,eligible:0});
-      const g=map.get(key); g.realise++;
+      const c=contest(a.concours_id);
+      const key=a.concours_id+"|"+herd+"|"+analysis;
+      if(!map.has(key))map.set(key,{
+        contestId:a.concours_id,
+        contestName:c?.nom||"",
+        contestDate:c?.date_concours||"",
+        herd,farmer,analysis,realise:0,eligible:0
+      });
+      const g=map.get(key);
+      g.realise++;
       if(reimbursementDecision(a,analysis,r.statut).ok)g.eligible++;
     });
   });
@@ -1378,54 +1425,161 @@ function getTariff(cid,analysis){
 function getRefundLine(cid,herd,analysis){
   return db.refundLines.find(x=>x.concours_id===cid&&x.cheptel===herd&&x.analyse_type===analysis)||{};
 }
-function renderRefunds(){
-  const target=document.getElementById("refundSummaryTable"); if(!target)return;
-  const cid=document.getElementById("refundContest")?.value;
-  const q=((document.getElementById("refundSearch")?.value||"")+" "+searchText()).toLowerCase();
-  const groups=refundGroups(cid).filter(g=>!q||(g.herd+" "+g.farmer).toLowerCase().includes(q)).sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})||a.analysis.localeCompare(b.analysis));
-  target.innerHTML=`<div class="scroll"><table class="compact-table"><thead><tr><th>N° EDE</th><th>Éleveur</th><th>Analyse</th><th>Réalisées</th><th>Éligibles</th><th>Justificatif reçu</th><th>À rembourser</th><th>Coût unitaire</th><th>Montant</th></tr></thead><tbody>
-  ${groups.map(g=>{
-    const line=getRefundLine(cid,g.herd,g.analysis);
-    const price=line.cout_unitaire_override ?? getTariff(cid,g.analysis);
-    const qty=line.quantite_remboursee ?? g.eligible;
-    return `<tr><td><strong>${escapeHtml(g.herd)}</strong></td><td>${escapeHtml(g.farmer)}</td><td>${escapeHtml(g.analysis)}</td><td>${g.realise}</td><td>${g.eligible}</td>
-    <td><input type="checkbox" ${line.justificatif_recu?"checked":""} onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{justificatif_recu:this.checked})"></td>
-    <td><input type="checkbox" ${line.a_rembourser?"checked":""} onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{a_rembourser:this.checked})"></td>
-    <td><input type="number" step="0.01" value="${price}" onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{cout_unitaire_override:Number(this.value)})"></td>
-    <td>${(qty*price).toFixed(2)} €</td></tr>`;
-  }).join("")||'<tr><td colspan="9" class="muted">Aucune analyse enregistrée.</td></tr>'}
-  </tbody></table></div>`;
+function refundLineAmount(g){
+  const line=getRefundLine(g.contestId,g.herd,g.analysis);
+  if(!line.a_rembourser)return 0;
+  const price=line.cout_unitaire_override ?? getTariff(g.contestId,g.analysis);
+  const qty=line.quantite_remboursee ?? g.eligible;
+  return Number(qty||0)*Number(price||0);
 }
-async function saveRefundLine(herd,analysis,patch){
-  const cid=document.getElementById("refundContest").value;
+function renderRefundSelectors(){
+  const yearSel=document.getElementById("refundYear");
+  const contestSel=document.getElementById("refundContest");
+  const farmerSel=document.getElementById("refundFarmer");
+  if(!yearSel||!contestSel||!farmerSel)return;
+
+  const years=refundYears();
+  const oldYear=yearSel.value;
+  yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join("");
+  if(years.includes(oldYear))yearSel.value=oldYear;
+
+  const year=yearSel.value||years[0]||"";
+  const oldContest=contestSel.value;
+  const cs=contestsForYear(year);
+  contestSel.innerHTML='<option value="">Tous les concours de l’année</option>'+cs.map(c=>`<option value="${c.id}">${escapeHtml(c.nom)} — ${c.date_concours}</option>`).join("");
+  if(cs.some(c=>c.id===oldContest))contestSel.value=oldContest;
+
+  const ids=contestSel.value?[contestSel.value]:cs.map(c=>c.id);
+  const pairs=new Map();
+  db.animals.filter(a=>ids.includes(a.concours_id)).forEach(a=>{
+    const herd=a.cheptel||"Sans EDE", farmer=a.eleveur||"";
+    pairs.set(herd+"|"+farmer,{value:herd+"|"+farmer,label:`${herd} — ${farmer}`});
+  });
+  const oldFarmer=farmerSel.value;
+  const vals=[...pairs.values()].sort((a,b)=>a.label.localeCompare(b.label,undefined,{numeric:true}));
+  farmerSel.innerHTML='<option value="">Tous les éleveurs</option>'+vals.map(x=>`<option value="${escapeHtml(x.value)}">${escapeHtml(x.label)}</option>`).join("");
+  if(vals.some(x=>x.value===oldFarmer))farmerSel.value=oldFarmer;
+}
+function renderRefunds(){
+  renderRefundSelectors();
+  const target=document.getElementById("refundSummaryTable");
+  const farmerTarget=document.getElementById("refundFarmerSummary");
+  if(!target||!farmerTarget)return;
+
+  const groups=refundGroupsByScope().sort((a,b)=>
+    a.herd.localeCompare(b.herd,undefined,{numeric:true})||
+    a.contestDate.localeCompare(b.contestDate)||
+    a.analysis.localeCompare(b.analysis)
+  );
+
+  // Annual farmer summary
+  const fmap=new Map();
+  groups.forEach(g=>{
+    const key=g.herd+"|"+g.farmer;
+    if(!fmap.has(key))fmap.set(key,{herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,contests:new Map()});
+    const f=fmap.get(key);
+    f.totalEligible+=g.eligible;
+    f.totalAmount+=refundLineAmount(g);
+    if(!f.contests.has(g.contestId))f.contests.set(g.contestId,{name:g.contestName,eligible:0,amount:0});
+    const c=f.contests.get(g.contestId);
+    c.eligible+=g.eligible;
+    c.amount+=refundLineAmount(g);
+  });
+
+  farmerTarget.innerHTML=`<div class="scroll"><table class="compact-table">
+    <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Concours / analyses éligibles</th><th>Total analyses éligibles</th><th>Total remboursement HT</th></tr></thead>
+    <tbody>
+    ${[...fmap.values()].map(f=>{
+      const detail=[...f.contests.values()].map(c=>`${escapeHtml(c.name)} : ${c.eligible} éligible(s) — ${c.amount.toFixed(2)} € HT`).join("<br>");
+      return `<tr><td><strong>${escapeHtml(f.herd)}</strong></td><td>${escapeHtml(f.farmer)}</td><td>${detail}</td><td>${f.totalEligible}</td><td><strong>${f.totalAmount.toFixed(2)} € HT</strong></td></tr>`;
+    }).join("")||'<tr><td colspan="5" class="muted">Aucun remboursement dans cette sélection.</td></tr>'}
+    </tbody></table></div>`;
+
+  target.innerHTML=`<div class="scroll"><table class="compact-table">
+    <thead><tr><th>Concours</th><th>N° EDE</th><th>Éleveur</th><th>Analyse</th><th>Réalisées</th><th>Éligibles</th><th>Justificatif reçu</th><th>À rembourser</th><th>Coût unitaire HT</th><th>Montant HT</th></tr></thead>
+    <tbody>
+    ${groups.map(g=>{
+      const line=getRefundLine(g.contestId,g.herd,g.analysis);
+      const price=line.cout_unitaire_override ?? getTariff(g.contestId,g.analysis);
+      const qty=line.quantite_remboursee ?? g.eligible;
+      return `<tr>
+        <td>${escapeHtml(g.contestName)}</td>
+        <td><strong>${escapeHtml(g.herd)}</strong></td>
+        <td>${escapeHtml(g.farmer)}</td>
+        <td>${escapeHtml(g.analysis)}</td>
+        <td>${g.realise}</td>
+        <td>${g.eligible}</td>
+        <td><input type="checkbox" ${line.justificatif_recu?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{justificatif_recu:this.checked})"></td>
+        <td><input type="checkbox" ${line.a_rembourser?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{a_rembourser:this.checked})"></td>
+        <td><input type="number" step="0.01" value="${price}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{cout_unitaire_override:Number(this.value)})"></td>
+        <td>${(qty*price).toFixed(2)} € HT</td>
+      </tr>`;
+    }).join("")||'<tr><td colspan="10" class="muted">Aucune analyse enregistrée.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function saveRefundLine(cid,herd,analysis,patch){
   const current=getRefundLine(cid,herd,analysis);
-  const body={concours_id:cid,cheptel:herd,analyse_type:analysis,justificatif_recu:patch.justificatif_recu??current.justificatif_recu??false,a_rembourser:patch.a_rembourser??current.a_rembourser??false,cout_unitaire_override:patch.cout_unitaire_override??current.cout_unitaire_override??null,quantite_remboursee:current.quantite_remboursee??null,commentaire:current.commentaire??null};
-  await sb("concours_remboursement_lignes?on_conflict=concours_id,cheptel,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"}); await loadAll();
+  const body={
+    concours_id:cid,cheptel:herd,analyse_type:analysis,
+    justificatif_recu:patch.justificatif_recu??current.justificatif_recu??false,
+    a_rembourser:patch.a_rembourser??current.a_rembourser??false,
+    cout_unitaire_override:patch.cout_unitaire_override??current.cout_unitaire_override??null,
+    quantite_remboursee:current.quantite_remboursee??null,
+    commentaire:current.commentaire??null
+  };
+  await sb("concours_remboursement_lignes?on_conflict=concours_id,cheptel,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();
 }
 function openTariffSetup(){
-  document.getElementById("tariffPanel").classList.toggle("hidden"); renderTariffs();
+  document.getElementById("tariffPanel").classList.toggle("hidden");
+  renderTariffs();
 }
 function renderTariffs(){
-  const cid=document.getElementById("refundContest")?.value, target=document.getElementById("tariffTable"); if(!target)return;
-  const analyses=[...new Set([...db.templateRules.map(r=>r.libelle_analyse),...Object.values(db.results).flatMap(x=>Object.keys(x||{}))])].filter(Boolean).sort();
-  target.innerHTML=`<div class="scroll"><table><thead><tr><th>Analyse</th><th>Coût unitaire €</th></tr></thead><tbody>${analyses.map(a=>`<tr><td>${escapeHtml(a)}</td><td><input type="number" step="0.01" value="${getTariff(cid,a)}" onchange="saveTariff('${escapeHtml(a)}',this.value)"></td></tr>`).join("")}</tbody></table></div>`;
+  const target=document.getElementById("tariffTable"); if(!target)return;
+  const year=document.getElementById("refundYear")?.value||"";
+  const cid=document.getElementById("refundContest")?.value||"";
+  const cs=cid?[contest(cid)]:contestsForYear(year);
+  const rows=[];
+  cs.filter(Boolean).forEach(c=>{
+    const analyses=[...new Set([
+      ...db.templateRules.map(r=>r.libelle_analyse),
+      ...db.animals.filter(a=>a.concours_id===c.id).flatMap(a=>Object.keys(db.results[a.id]||{}))
+    ])].filter(Boolean).sort();
+    analyses.forEach(a=>rows.push({contest:c,analysis:a}));
+  });
+  target.innerHTML=`<div class="scroll"><table><thead><tr><th>Concours</th><th>Analyse</th><th>Coût unitaire HT</th></tr></thead><tbody>
+  ${rows.map(x=>`<tr><td>${escapeHtml(x.contest.nom)}</td><td>${escapeHtml(x.analysis)}</td><td><input type="number" step="0.01" value="${getTariff(x.contest.id,x.analysis)}" onchange="saveTariff('${x.contest.id}','${escapeHtml(x.analysis)}',this.value)"></td></tr>`).join("")}
+  </tbody></table></div>`;
 }
-async function saveTariff(analysis,value){
-  const cid=document.getElementById("refundContest").value;
-  await sb("concours_tarifs_analyses?on_conflict=concours_id,analyse_type",{method:"POST",body:{concours_id:cid,analyse_type:analysis,cout_unitaire:Number(value||0)},prefer:"resolution=merge-duplicates,return=minimal"}); await loadAll();
+async function saveTariff(cid,analysis,value){
+  await sb("concours_tarifs_analyses?on_conflict=concours_id,analyse_type",{method:"POST",body:{concours_id:cid,analyse_type:analysis,cout_unitaire:Number(value||0)},prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();
 }
 function exportRefundCSV(){
-  const cid=document.getElementById("refundContest").value,c=contest(cid); if(!c)return;
-  const rows=[["Concours","N EDE","Eleveur","Analyse","Nb realise","Nb eligible","Justificatif recu","A rembourser","Cout unitaire","Montant"]];
-  refundGroups(cid).forEach(g=>{
-    const line=getRefundLine(cid,g.herd,g.analysis); if(!line.a_rembourser)return;
-    const price=line.cout_unitaire_override??getTariff(cid,g.analysis);
-    const qty=line.quantite_remboursee??g.eligible;
-    rows.push([c.nom,g.herd,g.farmer,g.analysis,g.realise,g.eligible,line.justificatif_recu?"Oui":"Non","Oui",price,(qty*price).toFixed(2)]);
+  const year=document.getElementById("refundYear")?.value||"";
+  const groups=refundGroupsByScope();
+  const fmap=new Map();
+
+  groups.forEach(g=>{
+    const key=g.herd+"|"+g.farmer;
+    if(!fmap.has(key))fmap.set(key,{herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,details:[]});
+    const f=fmap.get(key);
+    f.totalEligible+=g.eligible;
+    const amt=refundLineAmount(g);
+    f.totalAmount+=amt;
+    if(g.eligible>0 || amt>0){
+      f.details.push(`${g.contestName}: ${g.eligible} analyse(s) éligible(s), ${amt.toFixed(2)} € HT`);
+    }
   });
+
+  const rows=[["Annee","N EDE","Eleveur","Nb analyses eligibles","Detail par concours","Montant total remboursement HT"]];
+  [...fmap.values()].forEach(f=>{
+    rows.push([year,f.herd,f.farmer,f.totalEligible,f.details.join(" | "),f.totalAmount.toFixed(2)]);
+  });
+
   const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(";")).join("\n");
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=`remboursements_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
+  a.href=url;a.download=`remboursements_${year}_publipostage.csv`;a.click();URL.revokeObjectURL(url);
 }
 function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
@@ -1476,13 +1630,15 @@ function exportRecapCSV(){
 function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundContest","refundSearch","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundYear","refundContest","refundFarmer","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
-document.getElementById("refundSearch")?.addEventListener("input",()=>renderRefunds());
+document.getElementById("refundYear")?.addEventListener("change",()=>renderRefunds());
+document.getElementById("refundContest")?.addEventListener("change",()=>renderRefunds());
+document.getElementById("refundFarmer")?.addEventListener("change",()=>renderRefunds());
 if(TOKEN)startApp();
 </script>
 </body>

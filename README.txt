@@ -147,7 +147,7 @@ NOUVEAUTES v0.3.11
 - Validation sanitaire par maladie : une methode recevable conforme suffit.
 - Vue globale Qualifications des cheptels avec tous les EDE et validation en serie.
 
-NOUVEAUTÉS v0.4.0
+NOUVEAUTÉS v0.4.1
 - Recherche globale par éleveur ou n° cheptel.
 - Onglet Animaux renommé Liste inscrits.
 - Analyses : vue tout le concours, ajout rapide d'un animal, ajout d'une analyse non prévue.
@@ -160,3 +160,17 @@ NOUVEAUTÉS v0.4.0
 - Coût unitaire modifiable au cas par cas.
 - Cases Justificatif reçu / À rembourser.
 - Export CSV pour publipostage.
+
+CORRECTION / ÉVOLUTION v0.4.1
+- Correction de l'affichage de l'onglet Autres contrôles.
+- Remboursements gérés à l'année civile.
+- Filtres : année / concours / éleveur-EDE.
+- Vue tous les concours de l'année et tous les éleveurs.
+- Vue tous les concours d'un éleveur sur l'année.
+- Vue un concours et tous ses éleveurs.
+- Tous les montants sont explicitement HT.
+- Récap annuel par éleveur avec :
+  * détail par concours ;
+  * nombre d'analyses éligibles ;
+  * total annuel HT.
+- Export publipostage : une ligne par éleveur avec total annuel HT et détail par concours.
