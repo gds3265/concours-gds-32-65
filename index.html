@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.9</title>
-<link rel="manifest" href="manifest.json?v=049">
+<title>Suivi des concours v0.4.10</title>
+<link rel="manifest" href="manifest.json?v=0410">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -116,7 +116,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=049" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=0410" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -511,7 +511,7 @@ th{background:#f2ebf0}
       <button class="action" onclick="fastValidateAllToday()">Valider le certificat aujourd'hui</button>
     </div>
     <div class="muted">
-      La validation complète uniquement les analyses et qualifications encore en attente, sans écraser les anomalies déjà saisies.
+      La validation complète uniquement les analyses et qualifications encore en attente. Chaque bovin doit être classé Validé, Pas sur certif ou Refusé avant de valider le certificat.
     </div>
 
     <div style="margin-top:16px">
@@ -599,7 +599,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.9";
+const APP_VERSION = "0.4.10";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -613,7 +613,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.10");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1441,6 +1441,13 @@ async function fastValidateAllToday(){
   await fastFinalizeCertificate();
 }
 async function fastFinalizeCertificate(){
+  const unresolved=fastAnimalsList().filter(a=>(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="a_verifier");
+  if(unresolved.length){
+    const nums=unresolved.map(a=>String(a.bovin||"")).join(", ");
+    alert(`Validation impossible : ${unresolved.length} bovin(s) n'ont pas encore été traités.\n\n${nums}\n\nChoisis pour chacun : Validé, Pas sur certif ou Refusé.`);
+    return;
+  }
+
   const cid=document.getElementById("fastContest")?.value;
   if(!cid||!fastCurrentHerd)return alert("Choisir un éleveur.");
   const transmission=document.getElementById("fastTransmission")?.value||"mail";
@@ -1486,9 +1493,9 @@ function renderFastValidation(){
       <div class="fast-status">${fastAnimalAnalysisSummary(a)}</div>
       <div class="fast-actions">
         <select onchange="setCertificateAnimalStatus('${a.id}',this.value)">
-          <option value="a_verifier" ${(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="a_verifier"?"selected":""}>À vérifier</option>
-          <option value="present" ${(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="present"?"selected":""}>Présent</option>
-          <option value="non_present" ${a.statut_certificat_animal==="non_present"?"selected":""}>Non présent</option>
+          ${((a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="a_verifier")?'<option value="" selected disabled>Choisir…</option>':""}
+          <option value="present" ${(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="present"?"selected":""}>Validé</option>
+          <option value="non_present" ${a.statut_certificat_animal==="non_present"?"selected":""}>Pas sur certif</option>
           <option value="refuse" ${a.statut_certificat_animal==="refuse"?"selected":""}>Refusé</option>
         </select>
         ${a.verifie_certificat_papier?'<span class="badge ok">Papier vérifié</span>':''}
@@ -1588,9 +1595,9 @@ function renderCertificates(){
       <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
       <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
       <select class="cert-animal-status" onchange="setCertificateAnimalStatus('${a.id}',this.value)">
-        <option value="a_verifier" ${ast==="a_verifier"?"selected":""}>À vérifier</option>
-        <option value="present" ${ast==="present"?"selected":""}>Présent sur certificat</option>
-        <option value="non_present" ${ast==="non_present"?"selected":""}>Non présent</option>
+        ${ast==="a_verifier"?'<option value="" selected disabled>Choisir…</option>':""}
+        <option value="present" ${ast==="present"?"selected":""}>Validé</option>
+        <option value="non_present" ${ast==="non_present"?"selected":""}>Pas sur certif</option>
         <option value="refuse" ${ast==="refuse"?"selected":""}>Refusé</option>
       </select>
     </div>`;
@@ -1780,7 +1787,7 @@ function renderCertificateRecap(){
       <td><input type="date" value="${c.date_reception||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_reception',this.value)"></td>
       <td><input type="date" value="${c.date_signature||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_signature',this.value)"></td>
       <td>${escapeHtml(c.mode_transmission||"")}</td>
-      <td>${count}${absent?` · ${absent} absent(s)`:""}${refused?` · ${refused} refusé(s)`:""}</td>
+      <td>${count}${absent?` · ${absent} pas sur certif`:""}${refused?` · ${refused} refusé(s)`:""}</td>
       <td>${escapeHtml(c.commentaire||"")}</td>
     </tr>`;
   }).join("");
