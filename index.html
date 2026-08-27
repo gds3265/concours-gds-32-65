@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.9</title>
-<link rel="manifest" href="manifest.json?v=039">
+<title>Suivi des concours v0.3.10</title>
+<link rel="manifest" href="manifest.json?v=0310">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -380,7 +380,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.9";
+const APP_VERSION = "0.3.10";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -394,7 +394,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.10");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -623,13 +623,15 @@ function cleanExcelCell(v){
   return s.trim();
 }
 function normalizeBovin(v){
-  let s=cleanExcelCell(v).toUpperCase();
-  s=s.replace(/^FR[\s._-]*/,"");
-  s=s.replace(/[^0-9A-Z]/g,"");
-  return s;
+  const raw=cleanExcelCell(v);
+  const digits=String(raw||"").replace(/\D/g,"");
+  // Comparaison sur les 10 chiffres du n° national.
+  return digits.length>=10 ? digits.slice(-10) : digits;
 }
 function normalizeHerd(v){
-  return cleanExcelCell(v).replace(/[^0-9A-Z]/gi,"").toUpperCase();
+  const raw=cleanExcelCell(v);
+  const digits=String(raw||"").replace(/\D/g,"");
+  return digits || String(raw||"").replace(/[^0-9A-Z]/gi,"").toUpperCase();
 }
 function normalizeDate(v){
   const s=cleanExcelCell(v);
@@ -849,7 +851,7 @@ async function importBusinessCSV(){
       <div class="kpi"><span>Rapprochés</span><strong>${ok+completed+mismatch}</strong></div>
       <div class="kpi"><span>Non retrouvés</span><strong>${notfound}</strong></div>
     </div>
-    <div class="muted" style="margin-top:7px">Exemple de n° lu : ${escapeHtml(lastBusinessImport.example||"—")}</div>
+    <div class="muted" style="margin-top:7px">Exemple de n° normalisé : ${escapeHtml(lastBusinessImport.example||"—")} — comparaison sur les 10 chiffres du n° bovin.</div>
     <div style="margin-top:7px">
       <span class="badge ok">${ok} cohérent(s)</span>
       <span class="badge lab">${completed} complété(s)</span>
