@@ -302,3 +302,12 @@ alter table public.concours_animaux
 
 alter table public.concours_certificats
   add column if not exists mode_validation text;
+
+-- v0.4.9 - statut animal sur certificat
+alter table public.concours_animaux
+  add column if not exists statut_certificat_animal text not null default 'a_verifier';
+
+update public.concours_animaux
+set statut_certificat_animal='present'
+where sur_certificat=true
+  and statut_certificat_animal='a_verifier';
