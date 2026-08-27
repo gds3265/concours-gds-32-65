@@ -147,7 +147,7 @@ NOUVEAUTES v0.3.11
 - Validation sanitaire par maladie : une methode recevable conforme suffit.
 - Vue globale Qualifications des cheptels avec tous les EDE et validation en serie.
 
-NOUVEAUTÉS v0.4.12
+NOUVEAUTÉS v0.4.13
 - Recherche globale par éleveur ou n° cheptel.
 - Onglet Animaux renommé Liste inscrits.
 - Analyses : vue tout le concours, ajout rapide d'un animal, ajout d'une analyse non prévue.
@@ -161,7 +161,7 @@ NOUVEAUTÉS v0.4.12
 - Cases Justificatif reçu / À rembourser.
 - Export CSV pour publipostage.
 
-CORRECTION / ÉVOLUTION v0.4.12
+CORRECTION / ÉVOLUTION v0.4.13
 - Correction de l'affichage de l'onglet Autres contrôles.
 - Remboursements gérés à l'année civile.
 - Filtres : année / concours / éleveur-EDE.
@@ -175,7 +175,7 @@ CORRECTION / ÉVOLUTION v0.4.12
   * total annuel HT.
 - Export publipostage : une ligne par éleveur avec total annuel HT et détail par concours.
 
-CORRECTIONS v0.4.12
+CORRECTIONS v0.4.13
 - Qualifications visibles par défaut.
 - Mise en page Autres contrôles reprise.
 - Retrait des qualifications dans Certificats.
@@ -183,7 +183,7 @@ CORRECTIONS v0.4.12
 - 4 derniers chiffres du bovin affichés en grand.
 - Export remboursements détaillé par maladie et méthode.
 
-NOUVEAUTÉS v0.4.12
+NOUVEAUTÉS v0.4.13
 - Compteurs Accueil recalculés uniquement sur les maladies réellement demandées et les méthodes retenues.
 - Résultats manquants / labo / non conformes cohérents avec l'écran Analyses.
 - Remboursements : statut Remboursé + date de remboursement.
@@ -192,13 +192,13 @@ NOUVEAUTÉS v0.4.12
   * Déjà remboursé
 - Filtre Tout / À rembourser / Remboursé.
 
-CORRECTION v0.4.12
+CORRECTION v0.4.13
 - Export remboursements détaillé par catégorie d'analyse.
 - Exemple : BVD Ag : 5 analyses éligibles | IBR : 5 analyses éligibles.
 - Ajout de colonnes séparées Nb BVD Ag, Nb BVD PCR, Nb IBR, etc. selon les analyses présentes.
 - Total annuel et détail par concours conservés.
 
-NOUVEAUTÉS v0.4.12
+NOUVEAUTÉS v0.4.13
 - Nouvel onglet Validation rapide, uniquement par éleveur / n° cheptel.
 - Mode Validation sur ordinateur :
   * affiche bovins, analyses déjà saisies et qualifications ;
@@ -211,7 +211,7 @@ NOUVEAUTÉS v0.4.12
   * le bovin pointé passe directement Sur certificat final.
 - Compteur des bovins vérifiés sur papier.
 
-CORRECTIONS v0.4.12
+CORRECTIONS v0.4.13
 - Les listes de concours sont maintenant alimentées dans Autres contrôles et Validation rapide.
 - Validation rapide déplacée entre Certificats et Remboursements dans la navigation et dans l'application.
 - Ajout d'une liste des concours enregistrés avec possibilité de suppression.
@@ -219,7 +219,7 @@ CORRECTIONS v0.4.12
 - La suppression d'un concours supprime automatiquement ses données liées grâce aux relations Supabase en cascade.
 - Aucun changement SQL requis.
 
-NOUVEAUTÉS v0.4.12
+NOUVEAUTÉS v0.4.13
 - Validation rapide : choix Mail / Direct.
 - Bouton de validation du certificat :
   * passe le certificat en reçu + validé ;
@@ -232,7 +232,7 @@ NOUVEAUTÉS v0.4.12
   * contrôle complémentaire cheptel ou animal non conforme / à vérifier.
 - Aucune modification SQL requise.
 
-MODIFICATIONS v0.4.12
+MODIFICATIONS v0.4.13
 - Validation rapide simplifiée en un seul flux.
 - Suppression des boutons Validation sur ordinateur / Contrôle certificat papier.
 - Suppression des boutons Tous les bovins / Aucun bovin.
@@ -243,7 +243,7 @@ MODIFICATIONS v0.4.12
 - Certificats : dates Reçu le et Validé le modifiables directement dans le récapitulatif.
 - Aucun changement SQL requis.
 
-NOUVEAUTÉS v0.4.12
+NOUVEAUTÉS v0.4.13
 - Logo GDS 32-65 intégré.
 - Suivi certificats : recherche par n° cheptel ou nom.
 - Clic sur N° cheptel ou Éleveur pour trier croissant/décroissant.
@@ -251,7 +251,7 @@ NOUVEAUTÉS v0.4.12
 - Non présent et Refusé sont exclus du certificat final et des remboursements.
 - Contrôle papier exact 10 chiffres => Présent.
 
-CORRECTIONS v0.4.12
+CORRECTIONS v0.4.13
 - Libellé Présent remplacé par Validé.
 - Libellé Non présent remplacé par Pas sur certif.
 - À vérifier n'est plus proposé comme choix dans Validation rapide / Certificats.
@@ -262,7 +262,7 @@ CORRECTIONS v0.4.12
   * Refusé
 - Aucun changement SQL requis.
 
-CORRECTIONS v0.4.12
+CORRECTIONS v0.4.13
 - Validation rapide : enregistrement fiable du certificat en reçu / validé.
 - Sélectionner tout : tous les bovins passent réellement en Validé.
 - Suppression du conflit entre ancien sur_certificat et nouveau statut animal.
@@ -270,9 +270,14 @@ CORRECTIONS v0.4.12
 - Le statut d'erreur de synchronisation est remis à jour après succès.
 - Aucun changement SQL requis.
 
-CORRECTIONS v0.4.12
+CORRECTIONS v0.4.13
 - Le certificat est enregistré avant la complétion automatique des analyses.
 - Vérification après rechargement que statut et dates ont bien été récupérés depuis Supabase.
 - Analyses et qualifications mises à jour en lots.
 - Le bandeau de synchronisation affiche le détail réel d'une erreur API.
+- Aucun changement SQL requis.
+
+MODIFICATIONS v0.4.13
+- Validation rapide déplacée avant Certificats dans la navigation et dans l'application.
+- Dans Validation rapide, Entrée dans le champ N° cheptel / éleveur lance directement la recherche.
 - Aucun changement SQL requis.

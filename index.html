@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.12</title>
-<link rel="manifest" href="manifest.json?v=0412">
+<title>Suivi des concours v0.4.13</title>
+<link rel="manifest" href="manifest.json?v=0413">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -116,7 +116,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=0412" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=0413" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -127,8 +127,8 @@ th{background:#f2ebf0}
     <button data-tab="analyses">Analyses</button>
     <button data-tab="qualifications">Qualifications</button>
     <button data-tab="controles">Autres contrôles</button>
-    <button data-tab="certificats">Certificats</button>
     <button data-tab="validationrapide">Validation rapide</button>
+    <button data-tab="certificats">Certificats</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
@@ -402,6 +402,63 @@ th{background:#f2ebf0}
   <div class="card"><div id="supplementaryChecks"></div></div>
 </section>
 
+<section id="validationrapide" class="section">
+  <div class="card">
+    <h2>Validation rapide par éleveur</h2>
+    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
+    <div class="fast-validation-grid" style="margin-top:12px">
+      <div class="field"><label>Concours</label><select id="fastContest"></select></div>
+      <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
+      <button class="action" onclick="loadFastValidation()">Afficher</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastPanel">
+    <div class="topline">
+      <div>
+        <h3 id="fastTitle">Éleveur</h3>
+        <div id="fastSummary" class="muted"></div>
+      </div>
+      <div id="fastQualificationBadges"></div>
+    </div>
+
+    <div id="fastAttention"></div>
+
+    <div class="fast-transmission">
+      <div class="field">
+        <label>Transmission du certificat</label>
+        <select id="fastTransmission">
+          <option value="mail">Mail</option>
+          <option value="direct">Direct</option>
+        </select>
+      </div>
+      <button class="secondary" onclick="fastSelectAllCertificate(true)">Sélectionner tout</button>
+      <button class="action" onclick="fastValidateAllToday()">Valider le certificat aujourd'hui</button>
+    </div>
+    <div class="muted">
+      La validation complète uniquement les analyses et qualifications encore en attente. Chaque bovin doit être classé Validé, Pas sur certif ou Refusé avant de valider le certificat.
+    </div>
+
+    <div style="margin-top:16px">
+      <label><strong>Contrôle avec certificat papier — saisir les 10 chiffres du bovin</strong></label>
+      <div class="row" style="margin-top:6px">
+        <div class="field">
+          <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
+        </div>
+        <button class="action" onclick="paperCheckBovin()">Vérifier</button>
+        <button class="secondary" onclick="resetPaperChecks()">Réinitialiser le pointage papier</button>
+      </div>
+      <div id="paperMessage" style="margin-top:10px"></div>
+      <div class="muted" style="margin-top:8px">Entrée valide automatiquement le numéro saisi.</div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastAnimalsCard">
+    <h3>Bovins de l'éleveur</h3>
+    <div id="fastAnimals"></div>
+  </div>
+</section>
+
 <section id="certificats" class="section">
   
   <div class="card">
@@ -477,62 +534,7 @@ th{background:#f2ebf0}
 
 
 
-<section id="validationrapide" class="section">
-  <div class="card">
-    <h2>Validation rapide par éleveur</h2>
-    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
-    <div class="fast-validation-grid" style="margin-top:12px">
-      <div class="field"><label>Concours</label><select id="fastContest"></select></div>
-      <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
-      <button class="action" onclick="loadFastValidation()">Afficher</button>
-    </div>
-  </div>
 
-  <div class="card hidden" id="fastPanel">
-    <div class="topline">
-      <div>
-        <h3 id="fastTitle">Éleveur</h3>
-        <div id="fastSummary" class="muted"></div>
-      </div>
-      <div id="fastQualificationBadges"></div>
-    </div>
-
-    <div id="fastAttention"></div>
-
-    <div class="fast-transmission">
-      <div class="field">
-        <label>Transmission du certificat</label>
-        <select id="fastTransmission">
-          <option value="mail">Mail</option>
-          <option value="direct">Direct</option>
-        </select>
-      </div>
-      <button class="secondary" onclick="fastSelectAllCertificate(true)">Sélectionner tout</button>
-      <button class="action" onclick="fastValidateAllToday()">Valider le certificat aujourd'hui</button>
-    </div>
-    <div class="muted">
-      La validation complète uniquement les analyses et qualifications encore en attente. Chaque bovin doit être classé Validé, Pas sur certif ou Refusé avant de valider le certificat.
-    </div>
-
-    <div style="margin-top:16px">
-      <label><strong>Contrôle avec certificat papier — saisir les 10 chiffres du bovin</strong></label>
-      <div class="row" style="margin-top:6px">
-        <div class="field">
-          <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
-        </div>
-        <button class="action" onclick="paperCheckBovin()">Vérifier</button>
-        <button class="secondary" onclick="resetPaperChecks()">Réinitialiser le pointage papier</button>
-      </div>
-      <div id="paperMessage" style="margin-top:10px"></div>
-      <div class="muted" style="margin-top:8px">Entrée valide automatiquement le numéro saisi.</div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="fastAnimalsCard">
-    <h3>Bovins de l'éleveur</h3>
-    <div id="fastAnimals"></div>
-  </div>
-</section>
 
 <section id="remboursements" class="section">
   <div class="card">
@@ -599,7 +601,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.12";
+const APP_VERSION = "0.4.13";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -613,7 +615,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.12");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.13");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -2287,6 +2289,12 @@ document.getElementById("refundYear")?.addEventListener("change",()=>renderRefun
 document.getElementById("refundContest")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundFarmer")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundView")?.addEventListener("change",()=>renderRefunds());
+document.getElementById("fastHerdSearch")?.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    e.preventDefault();
+    loadFastValidation();
+  }
+});
 document.getElementById("paperBovinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();paperCheckBovin();}});
 document.getElementById("certRecapSearch")?.addEventListener("input",()=>renderCertificateRecap());
 if(TOKEN)startApp();
