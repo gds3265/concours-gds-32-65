@@ -311,3 +311,8 @@ update public.concours_animaux
 set statut_certificat_animal='present'
 where sur_certificat=true
   and statut_certificat_animal='a_verifier';
+
+-- v0.4.14 - simplification des statuts certificats
+update public.concours_certificats
+set statut_certificat='valide'
+where statut_certificat='signe';

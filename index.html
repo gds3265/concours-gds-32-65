@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.13</title>
-<link rel="manifest" href="manifest.json?v=0413">
+<title>Suivi des concours v0.4.14</title>
+<link rel="manifest" href="manifest.json?v=0414">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -116,7 +116,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=0413" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=0414" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -469,9 +469,8 @@ th{background:#f2ebf0}
       <div class="field"><label>Statut du certificat</label>
         <select id="certStatus">
           <option value="non_recu">Non reçu</option>
-          <option value="recu_attente">Reçu – en attente de validation</option>
-          <option value="valide">Validé / prêt à signer</option>
-          <option value="signe">Signé</option>
+          <option value="recu_attente">Reçu / en attente</option>
+          <option value="valide">Validé</option>
         </select>
       </div>
       <div class="field"><label>Date de réception</label><input id="receiveDate" type="date"></div>
@@ -497,9 +496,8 @@ th{background:#f2ebf0}
         <select id="certStatusFilter">
           <option value="">Tous les statuts</option>
           <option value="non_recu">Non reçu</option>
-          <option value="recu_attente">Reçu – en attente de validation</option>
-          <option value="valide">Validé / prêt à signer</option>
-          <option value="signe">Signé</option>
+          <option value="recu_attente">Reçu / en attente</option>
+          <option value="valide">Validé</option>
         </select>
       </div>
     </div>
@@ -601,7 +599,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.13";
+const APP_VERSION = "0.4.14";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -615,7 +613,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.13");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.14");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -683,7 +681,7 @@ async function loadAll(){
     sb("concours_certificats?select=*")
   ]);
   db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.certificates={};
-  (certs||[]).forEach(c=>db.certificates[c.concours_id+"|"+c.eleveur]=c);
+  (certs||[]).forEach(c=>{if(c.statut_certificat==="signe")c.statut_certificat="valide";db.certificates[c.concours_id+"|"+c.eleveur]=c});
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
 }
@@ -1306,15 +1304,13 @@ async function setAllStatus(status){
 function animalSanitaryOK(a){return requestedDiseases(a.concours_id).every(d=>diseaseSatisfied(a,a.concours_id,d))}
 
 function certStatusLabel(s){
-  if(s==="recu_attente")return "Reçu – en attente de validation";
-  if(s==="valide")return "Validé / prêt à signer";
-  if(s==="signe")return "Signé";
+  if(s==="recu_attente")return "Reçu / en attente";
+  if(s==="valide"||s==="signe")return "Validé";
   return "Non reçu";
 }
 function certStatusBadge(s){
-  if(s==="recu_attente")return '<span class="badge warn">Reçu – à valider</span>';
-  if(s==="valide")return '<span class="badge lab">Validé / prêt à signer</span>';
-  if(s==="signe")return '<span class="badge ok">Signé</span>';
+  if(s==="recu_attente")return '<span class="badge warn">Reçu / en attente</span>';
+  if(s==="valide"||s==="signe")return '<span class="badge ok">Validé</span>';
   return '<span class="badge na">Non reçu</span>';
 }
 function herdListForContest(cid){
