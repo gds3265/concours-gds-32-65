@@ -292,3 +292,13 @@ alter table public.concours_animaux
 alter table public.concours_remboursement_lignes
   add column if not exists rembourse boolean not null default false,
   add column if not exists date_rembourse date;
+
+
+-- ============================================================
+-- v0.4.5 - VALIDATION RAPIDE / CONTROLE CERTIFICAT PAPIER
+-- ============================================================
+alter table public.concours_animaux
+  add column if not exists verifie_certificat_papier boolean not null default false;
+
+alter table public.concours_certificats
+  add column if not exists mode_validation text;

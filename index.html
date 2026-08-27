@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.4</title>
-<link rel="manifest" href="manifest.json?v=044">
+<title>Suivi des concours v0.4.5</title>
+<link rel="manifest" href="manifest.json?v=045">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -67,6 +67,22 @@ th{background:#f2ebf0}
 @media(max-width:1100px){.controls-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:700px){.controls-grid{grid-template-columns:1fr!important}.controls-grid button{width:100%!important}}
 
+
+.fast-validation-grid{display:grid;grid-template-columns:minmax(180px,260px) minmax(220px,1fr) auto;gap:10px;align-items:end}
+.fast-mode{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.fast-mode button.active{outline:3px solid rgba(123,47,99,.22)}
+.fast-animal{display:grid;grid-template-columns:34px 110px minmax(130px,1fr) minmax(240px,2fr) auto;gap:10px;align-items:center;padding:9px 8px;border-bottom:1px solid var(--line)}
+.fast-animal .work-no{font-size:20px}
+.paper-input{font-size:22px;font-weight:700;letter-spacing:1px}
+.paper-ok{background:#eef8f0}
+.paper-missing{background:#fff7e6}
+@media(max-width:850px){
+  .fast-validation-grid{grid-template-columns:1fr}
+  .fast-animal{grid-template-columns:32px 90px 1fr}
+  .fast-animal .fast-status{grid-column:2/4}
+  .fast-animal .fast-actions{grid-column:2/4}
+}
+
 </style>
 </head>
 <body>
@@ -95,6 +111,7 @@ th{background:#f2ebf0}
     <button data-tab="concours">Concours</button>
     <button data-tab="animaux">Liste inscrits</button>
     <button data-tab="analyses">Analyses</button>
+    <button data-tab="validationrapide">Validation rapide</button>
     <button data-tab="qualifications">Qualifications</button>
     <button data-tab="controles">Autres contrôles</button>
     <button data-tab="certificats">Certificats</button>
@@ -327,6 +344,63 @@ th{background:#f2ebf0}
 
 
 
+
+<section id="validationrapide" class="section">
+  <div class="card">
+    <h2>Validation rapide par éleveur</h2>
+    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
+    <div class="fast-validation-grid" style="margin-top:12px">
+      <div class="field"><label>Concours</label><select id="fastContest"></select></div>
+      <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
+      <button class="action" onclick="loadFastValidation()">Afficher</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastPanel">
+    <div class="topline">
+      <div>
+        <h3 id="fastTitle">Éleveur</h3>
+        <div id="fastSummary" class="muted"></div>
+      </div>
+      <div id="fastQualificationBadges"></div>
+    </div>
+
+    <div class="fast-mode">
+      <button class="secondary active" id="fastComputerBtn" onclick="setFastMode('computer')">Validation sur ordinateur</button>
+      <button class="secondary" id="fastPaperBtn" onclick="setFastMode('paper')">Contrôle certificat papier</button>
+    </div>
+
+    <div id="fastComputerMode">
+      <div class="row">
+        <button class="action" onclick="fastFillPending()">Valider les éléments en attente</button>
+        <button class="secondary" onclick="fastSelectAllCertificate(true)">Tous les bovins sur certificat</button>
+        <button class="secondary" onclick="fastSelectAllCertificate(false)">Aucun bovin sur certificat</button>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        Seuls les éléments encore en attente sont complétés en conforme. Les statuts déjà saisis sont conservés.
+      </div>
+    </div>
+
+    <div id="fastPaperMode" class="hidden">
+      <div class="row">
+        <div class="field">
+          <label>Saisir les 10 chiffres du bovin inscrits sur le certificat</label>
+          <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
+        </div>
+        <button class="action" onclick="paperCheckBovin()">Vérifier</button>
+        <button class="secondary" onclick="resetPaperChecks()">Réinitialiser le pointage papier</button>
+      </div>
+      <div id="paperMessage" style="margin-top:10px"></div>
+      <div class="muted" style="margin-top:8px">Entrée valide automatiquement le numéro saisi.</div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastAnimalsCard">
+    <h3>Bovins de l'éleveur</h3>
+    <div id="fastAnimals"></div>
+  </div>
+</section>
+
 <section id="qualifications" class="section">
   <div class="card">
     <h2>Qualifications des cheptels</h2>
@@ -489,7 +563,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.4";
+const APP_VERSION = "0.4.5";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -503,7 +577,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.5");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1189,6 +1263,163 @@ async function setAllHerdQualifications(status){
   herds.forEach(hd=>defs.forEach(d=>{const key='cheptel:'+hd.herd;const body={point_id:d.id,concours_id:cid,cle_cible:key,statut:status,commentaire:null,updated_at:new Date().toISOString()};ops.push(sb('concours_controles?on_conflict=point_id,cle_cible',{method:'POST',body,prefer:'resolution=merge-duplicates,return=minimal'}))}));
   await Promise.all(ops);await loadAll();
 }
+
+let fastMode="computer";
+let fastCurrentHerd="";
+let fastCurrentFarmer="";
+
+function fastAnimalsList(){
+  const cid=document.getElementById("fastContest")?.value;
+  return db.animals.filter(a=>a.concours_id===cid && a.cheptel===fastCurrentHerd && (!fastCurrentFarmer || a.eleveur===fastCurrentFarmer));
+}
+function setFastMode(mode){
+  fastMode=mode;
+  document.getElementById("fastComputerMode")?.classList.toggle("hidden",mode!=="computer");
+  document.getElementById("fastPaperMode")?.classList.toggle("hidden",mode!=="paper");
+  document.getElementById("fastComputerBtn")?.classList.toggle("active",mode==="computer");
+  document.getElementById("fastPaperBtn")?.classList.toggle("active",mode==="paper");
+  if(mode==="paper")setTimeout(()=>document.getElementById("paperBovinInput")?.focus(),50);
+}
+function loadFastValidation(){
+  const cid=document.getElementById("fastContest")?.value;
+  const q=(document.getElementById("fastHerdSearch")?.value||"").trim().toLowerCase();
+  if(!cid||!q)return alert("Choisir un concours et saisir un n° cheptel ou un éleveur.");
+
+  const candidates=db.animals.filter(a=>a.concours_id===cid && (
+    String(a.cheptel||"").toLowerCase().includes(q) ||
+    String(a.eleveur||"").toLowerCase().includes(q)
+  ));
+  if(!candidates.length)return alert("Aucun éleveur trouvé.");
+
+  const herds=[...new Map(candidates.map(a=>[(a.cheptel||"")+"|"+(a.eleveur||""),{herd:a.cheptel||"",farmer:a.eleveur||""}])).values()];
+  let chosen=herds[0];
+  if(herds.length>1){
+    const exact=herds.find(h=>String(h.herd).toLowerCase()===q);
+    if(exact)chosen=exact;
+    else return alert("Plusieurs éleveurs correspondent. Saisis le n° cheptel complet.");
+  }
+
+  fastCurrentHerd=chosen.herd;
+  fastCurrentFarmer=chosen.farmer;
+  document.getElementById("fastPanel").classList.remove("hidden");
+  document.getElementById("fastAnimalsCard").classList.remove("hidden");
+  renderFastValidation();
+}
+function fastQualificationStatus(){
+  const cid=document.getElementById("fastContest")?.value;
+  const defs=qualificationDefs(cid);
+  return defs.map(d=>({def:d,result:getCheckResult(d.id,"cheptel:"+fastCurrentHerd)}));
+}
+function fastAnimalAnalysisSummary(a){
+  const diseases=demandedDiseases(a.concours_id);
+  return diseases.map(d=>{
+    const dr=getDiseaseResult(a,d);
+    if(!dr.method)return `${d}: N/A`;
+    const st=dr.result?.statut||"attente";
+    const lab=st==="conforme"?"✅":st==="labo"?"🧪":st==="attente"?"⏳":st==="positif"?"🔴":st==="recontrole"?"🔁":"❌";
+    return `${lab} ${d}`;
+  }).join(" · ");
+}
+function renderFastValidation(){
+  const animals=fastAnimalsList();
+  if(!animals.length)return;
+  document.getElementById("fastTitle").textContent=`${fastCurrentHerd} — ${fastCurrentFarmer}`;
+  const paperChecked=animals.filter(a=>a.verifie_certificat_papier).length;
+  document.getElementById("fastSummary").textContent=`${animals.length} bovin(s) inscrit(s) · ${paperChecked} vérifié(s) sur papier`;
+
+  const quals=fastQualificationStatus();
+  document.getElementById("fastQualificationBadges").innerHTML=quals.map(x=>{
+    const s=x.result.statut;
+    const cls=s==="conforme"?"ok":s==="nonconforme"?"bad":s==="nonapp"?"na":"warn";
+    return `<span class="badge ${cls}" style="margin-left:5px">${escapeHtml(x.def.libelle)}: ${s==="conforme"?"OK":s==="nonapp"?"N/A":s==="nonconforme"?"NON":"à vérifier"}</span>`;
+  }).join("");
+
+  document.getElementById("fastAnimals").innerHTML=animals.map(a=>`
+    <div class="fast-animal ${a.verifie_certificat_papier?"paper-ok":"paper-missing"}">
+      <input type="checkbox" ${a.sur_certificat?"checked":""} onchange="toggleCertificateAnimal('${a.id}',this.checked)">
+      <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></div>
+      <div>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
+      <div class="fast-status">${fastAnimalAnalysisSummary(a)}</div>
+      <div class="fast-actions">${a.verifie_certificat_papier?'<span class="badge ok">Papier vérifié</span>':''}</div>
+    </div>`).join("");
+}
+async function fastFillPending(){
+  const animals=fastAnimalsList();
+  if(!animals.length)return;
+  const cid=document.getElementById("fastContest").value;
+  const ops=[];
+
+  // Analyses: only pending values, never overwrite any existing non-pending state.
+  animals.forEach(a=>{
+    demandedDiseases(cid).forEach(d=>{
+      const dr=getDiseaseResult(a,d);
+      if(dr.method && (!dr.result || dr.result.statut==="attente")){
+        ops.push(upsertResultNoReload(a.id,dr.method,{statut:"conforme"}));
+      }
+    });
+  });
+
+  // Qualifications: only a_verifier, preserve all previously entered statuses.
+  qualificationDefs(cid).forEach(d=>{
+    const key="cheptel:"+fastCurrentHerd;
+    const r=getCheckResult(d.id,key);
+    if(!r || r.statut==="a_verifier"){
+      ops.push(saveCheckResultNoReload(d.id,key,"conforme",r?.commentaire||""));
+    }
+  });
+
+  await Promise.all(ops);
+  await loadAll();
+  renderFastValidation();
+}
+async function upsertResultNoReload(aid,analysis,patch){
+  const current=getResult(aid,analysis);
+  const body={
+    animal_id:aid,
+    analyse_type:analysis,
+    statut:patch.statut??current.statut??"attente",
+    date_prelevement:patch.date_prelevement??current.date_prelevement??null,
+    commentaire:patch.commentaire??current.commentaire??null,
+    updated_at:new Date().toISOString()
+  };
+  await sb("concours_resultats?on_conflict=animal_id,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+}
+async function fastSelectAllCertificate(v){
+  const ids=fastAnimalsList().map(a=>a.id);
+  await Promise.all(ids.map(id=>sb("concours_animaux?id=eq."+id,{method:"PATCH",body:{sur_certificat:v}})));
+  await loadAll(); renderFastValidation();
+}
+async function paperCheckBovin(){
+  const input=document.getElementById("paperBovinInput");
+  const msg=document.getElementById("paperMessage");
+  const raw=(input?.value||"").trim();
+  const normalized=normalizeBovin(raw);
+  if(normalized.length!==10){
+    msg.innerHTML='<div class="error">Saisis les 10 chiffres complets du bovin.</div>';
+    input?.focus(); return;
+  }
+  const animals=fastAnimalsList();
+  const a=animals.find(x=>normalizeBovin(x.bovin)===normalized);
+  if(!a){
+    msg.innerHTML=`<div class="error">❌ ${escapeHtml(normalized)} : ce bovin n’est pas dans le listing de cet éleveur.</div>`;
+    input.value=""; input.focus(); return;
+  }
+  if(a.verifie_certificat_papier){
+    msg.innerHTML=`<div class="error">⚠️ ${escapeHtml(normalized)} a déjà été pointé sur le certificat papier.</div>`;
+    input.value=""; input.focus(); return;
+  }
+  await sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{sur_certificat:true,verifie_certificat_papier:true}});
+  msg.innerHTML=`<div class="success">✅ ${escapeHtml(normalized)} vérifié et ajouté au certificat final.</div>`;
+  input.value="";
+  await loadAll(); renderFastValidation();
+  input.focus();
+}
+async function resetPaperChecks(){
+  if(!confirm("Réinitialiser uniquement le pointage papier de cet éleveur ?"))return;
+  const ids=fastAnimalsList().map(a=>a.id);
+  await Promise.all(ids.map(id=>sb("concours_animaux?id=eq."+id,{method:"PATCH",body:{verifie_certificat_papier:false}})));
+  await loadAll(); renderFastValidation();
+}
 function renderCertificates(){
   const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value;
   const cert=db.certificates[cid+"|"+farmer];
@@ -1789,7 +2020,7 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport()}
+function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
@@ -1802,6 +2033,7 @@ document.getElementById("refundYear")?.addEventListener("change",()=>renderRefun
 document.getElementById("refundContest")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundFarmer")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundView")?.addEventListener("change",()=>renderRefunds());
+document.getElementById("paperBovinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();paperCheckBovin();}});
 if(TOKEN)startApp();
 </script>
 </body>
