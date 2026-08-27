@@ -284,3 +284,11 @@ on public.concours_remboursement_lignes for all to authenticated using (true) wi
 alter table public.concours_animaux
   add column if not exists sexe text,
   add column if not exists nom_animal text;
+
+
+-- ============================================================
+-- v0.4.3 - SUIVI DES REMBOURSEMENTS EFFECTUES
+-- ============================================================
+alter table public.concours_remboursement_lignes
+  add column if not exists rembourse boolean not null default false,
+  add column if not exists date_rembourse date;

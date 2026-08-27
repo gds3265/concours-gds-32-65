@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.2</title>
-<link rel="manifest" href="manifest.json?v=042">
+<title>Suivi des concours v0.4.3</title>
+<link rel="manifest" href="manifest.json?v=043">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -439,6 +439,13 @@ th{background:#f2ebf0}
           <option value="">Tous les éleveurs</option>
         </select>
       </div>
+      <div class="field"><label>Afficher</label>
+        <select id="refundView">
+          <option value="all">Tout</option>
+          <option value="payable">À rembourser</option>
+          <option value="paid">Remboursé</option>
+        </select>
+      </div>
       <button class="secondary" onclick="openTariffSetup()">Paramétrer les coûts HT</button>
       <button class="action" onclick="exportRefundCSV()">Exporter pour publipostage</button>
     </div>
@@ -453,8 +460,13 @@ th{background:#f2ebf0}
   </div>
 
   <div class="card">
-    <h3>Récapitulatif annuel par éleveur</h3>
+    <h3>Récapitulatif remboursable</h3>
     <div id="refundFarmerSummary"></div>
+  </div>
+
+  <div class="card">
+    <h3>Récapitulatif déjà remboursé</h3>
+    <div id="refundPaidSummary"></div>
   </div>
 
   <div class="card">
@@ -477,7 +489,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.2";
+const APP_VERSION = "0.4.3";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -491,7 +503,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.3");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1476,41 +1488,71 @@ function renderRefunds(){
   renderRefundSelectors();
   const target=document.getElementById("refundSummaryTable");
   const farmerTarget=document.getElementById("refundFarmerSummary");
-  if(!target||!farmerTarget)return;
+  const paidTarget=document.getElementById("refundPaidSummary");
+  if(!target||!farmerTarget||!paidTarget)return;
 
-  const groups=refundGroupsByScope().sort((a,b)=>
+  const view=document.getElementById("refundView")?.value||"all";
+  let groups=refundGroupsByScope().sort((a,b)=>
     a.herd.localeCompare(b.herd,undefined,{numeric:true})||
     a.contestDate.localeCompare(b.contestDate)||
     a.analysis.localeCompare(b.analysis)
   );
 
-  // Annual farmer summary
-  const fmap=new Map();
-  groups.forEach(g=>{
+  if(view==="payable")groups=groups.filter(g=>{
+    const l=getRefundLine(g.contestId,g.herd,g.analysis);
+    return l.a_rembourser && !l.rembourse;
+  });
+  if(view==="paid")groups=groups.filter(g=>{
+    const l=getRefundLine(g.contestId,g.herd,g.analysis);
+    return !!l.rembourse;
+  });
+
+  // Payable summary
+  const payableMap=new Map();
+  refundGroupsByScope().forEach(g=>{
+    const line=getRefundLine(g.contestId,g.herd,g.analysis);
+    if(!line.a_rembourser || line.rembourse)return;
     const key=g.herd+"|"+g.farmer;
-    if(!fmap.has(key))fmap.set(key,{herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,contests:new Map()});
-    const f=fmap.get(key);
+    if(!payableMap.has(key))payableMap.set(key,{herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,contests:new Map()});
+    const f=payableMap.get(key);
     f.totalEligible+=g.eligible;
     f.totalAmount+=refundLineAmount(g);
     if(!f.contests.has(g.contestId))f.contests.set(g.contestId,{name:g.contestName,eligible:0,amount:0});
-    const c=f.contests.get(g.contestId);
-    c.eligible+=g.eligible;
-    c.amount+=refundLineAmount(g);
+    const c=f.contests.get(g.contestId); c.eligible+=g.eligible; c.amount+=refundLineAmount(g);
   });
 
   farmerTarget.innerHTML=`<div class="scroll"><table class="compact-table">
-    <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Concours / analyses éligibles</th><th>Total analyses éligibles</th><th>Total remboursement HT</th></tr></thead>
-    <tbody>
-    ${[...fmap.values()].map(f=>{
+    <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Concours / analyses éligibles</th><th>Total analyses</th><th>Total à rembourser HT</th></tr></thead>
+    <tbody>${[...payableMap.values()].map(f=>{
       const detail=[...f.contests.values()].map(c=>`${escapeHtml(c.name)} : ${c.eligible} éligible(s) — ${c.amount.toFixed(2)} € HT`).join("<br>");
       return `<tr><td><strong>${escapeHtml(f.herd)}</strong></td><td>${escapeHtml(f.farmer)}</td><td>${detail}</td><td>${f.totalEligible}</td><td><strong>${f.totalAmount.toFixed(2)} € HT</strong></td></tr>`;
-    }).join("")||'<tr><td colspan="5" class="muted">Aucun remboursement dans cette sélection.</td></tr>'}
-    </tbody></table></div>`;
+    }).join("")||'<tr><td colspan="5" class="muted">Rien à rembourser dans cette sélection.</td></tr>'}</tbody>
+  </table></div>`;
+
+  // Paid summary
+  const paidMap=new Map();
+  refundGroupsByScope().forEach(g=>{
+    const line=getRefundLine(g.contestId,g.herd,g.analysis);
+    if(!line.rembourse)return;
+    const key=g.herd+"|"+g.farmer;
+    if(!paidMap.has(key))paidMap.set(key,{herd:g.herd,farmer:g.farmer,totalAmount:0,details:[],lastDate:""});
+    const f=paidMap.get(key);
+    const price=line.cout_unitaire_override ?? getTariff(g.contestId,g.analysis);
+    const qty=line.quantite_remboursee ?? g.eligible;
+    const amount=Number(qty||0)*Number(price||0);
+    f.totalAmount+=amount;
+    f.details.push(`${g.contestName} — ${g.analysis}: ${qty} × ${Number(price).toFixed(2)} € HT`);
+    if(line.date_rembourse && line.date_rembourse>f.lastDate)f.lastDate=line.date_rembourse;
+  });
+
+  paidTarget.innerHTML=`<div class="scroll"><table class="compact-table">
+    <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Détail remboursé</th><th>Date remboursement</th><th>Total remboursé HT</th></tr></thead>
+    <tbody>${[...paidMap.values()].map(f=>`<tr><td><strong>${escapeHtml(f.herd)}</strong></td><td>${escapeHtml(f.farmer)}</td><td>${f.details.join("<br>")}</td><td>${f.lastDate||""}</td><td><strong>${f.totalAmount.toFixed(2)} € HT</strong></td></tr>`).join("")||'<tr><td colspan="5" class="muted">Aucun remboursement enregistré.</td></tr>'}</tbody>
+  </table></div>`;
 
   target.innerHTML=`<div class="scroll"><table class="compact-table">
-    <thead><tr><th>Concours</th><th>N° EDE</th><th>Éleveur</th><th>Analyse</th><th>Réalisées</th><th>Éligibles</th><th>Justificatif reçu</th><th>À rembourser</th><th>Coût unitaire HT</th><th>Montant HT</th></tr></thead>
-    <tbody>
-    ${groups.map(g=>{
+    <thead><tr><th>Concours</th><th>N° EDE</th><th>Éleveur</th><th>Analyse</th><th>Réalisées</th><th>Éligibles</th><th>Justificatif reçu</th><th>À rembourser</th><th>Remboursé</th><th>Date remboursement</th><th>Coût unitaire HT</th><th>Montant HT</th></tr></thead>
+    <tbody>${groups.map(g=>{
       const line=getRefundLine(g.contestId,g.herd,g.analysis);
       const price=line.cout_unitaire_override ?? getTariff(g.contestId,g.analysis);
       const qty=line.quantite_remboursee ?? g.eligible;
@@ -1523,11 +1565,19 @@ function renderRefunds(){
         <td>${g.eligible}</td>
         <td><input type="checkbox" ${line.justificatif_recu?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{justificatif_recu:this.checked})"></td>
         <td><input type="checkbox" ${line.a_rembourser?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{a_rembourser:this.checked})"></td>
+        <td><input type="checkbox" ${line.rembourse?"checked":""} onchange="markRefundPaid('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',this.checked)"></td>
+        <td><input type="date" value="${line.date_rembourse||""}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{date_rembourse:this.value||null})"></td>
         <td><input type="number" step="0.01" value="${price}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{cout_unitaire_override:Number(this.value)})"></td>
         <td>${(qty*price).toFixed(2)} € HT</td>
       </tr>`;
-    }).join("")||'<tr><td colspan="11" class="muted">Aucune analyse enregistrée.</td></tr>'}
-    </tbody></table></div>`;
+    }).join("")||'<tr><td colspan="12" class="muted">Aucune analyse enregistrée.</td></tr>'}</tbody>
+  </table></div>`;
+}
+async function markRefundPaid(cid,herd,analysis,checked){
+  await saveRefundLine(cid,herd,analysis,{
+    rembourse:checked,
+    date_rembourse:checked ? new Date().toISOString().slice(0,10) : null
+  });
 }
 async function saveRefundLine(cid,herd,analysis,patch){
   const current=getRefundLine(cid,herd,analysis);
@@ -1535,6 +1585,8 @@ async function saveRefundLine(cid,herd,analysis,patch){
     concours_id:cid,cheptel:herd,analyse_type:analysis,
     justificatif_recu:patch.justificatif_recu??current.justificatif_recu??false,
     a_rembourser:patch.a_rembourser??current.a_rembourser??false,
+    rembourse:patch.rembourse??current.rembourse??false,
+    date_rembourse:patch.date_rembourse??current.date_rembourse??null,
     cout_unitaire_override:patch.cout_unitaire_override??current.cout_unitaire_override??null,
     quantite_remboursee:current.quantite_remboursee??null,
     commentaire:current.commentaire??null
@@ -1613,15 +1665,52 @@ function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
   allAnalyses().forEach(an=>counts[an]=animals.filter(a=>getResult(a.id,an).statut==="conforme").length);return counts;
 }
+function animalDiseaseStates(a){
+  const cid=a.concours_id;
+  const diseases=demandedDiseases(cid);
+  return diseases.map(d=>{
+    const dr=getDiseaseResult(a,d);
+    if(!dr.method || !dr.result)return {disease:d,status:"not_applicable"};
+    return {disease:d,status:dr.result.statut||"attente"};
+  });
+}
+function animalOverallSanitaryStatus(a){
+  const states=animalDiseaseStates(a).filter(x=>x.status!=="not_applicable");
+  if(!states.length)return "conforme";
+  if(states.some(x=>["nonconforme","positif","recontrole"].includes(x.status)))return "problem";
+  if(states.some(x=>x.status==="labo"))return "lab";
+  if(states.some(x=>x.status==="attente"))return "missing";
+  if(states.every(x=>x.status==="conforme"))return "conforme";
+  return "missing";
+}
 function renderDashboard(){
-  const cid=document.getElementById("dashContest")?.value,s=stats(cid);
-  document.getElementById("kpis").innerHTML=[["Éleveurs",s.farmers],["Bovins inscrits",s.animals],["Sanitaires conformes",s.conform],["Sur certificat",s.signed]].map(([l,v])=>`<div class="kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
+  const cid=document.getElementById("dashContest")?.value;
   const animals=db.animals.filter(a=>a.concours_id===cid);
-  const lab=animals.filter(a=>allAnalyses().some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="labo")).length;
-  const missing=animals.filter(a=>allAnalyses().some(an=>needed(a,an,cid)&&getResult(a.id,an).statut==="attente")).length;
-  const pb=animals.filter(a=>allAnalyses().some(an=>["nonconforme","positif","recontrole"].includes(getResult(a.id,an).statut))).length;
+  const conform=animals.filter(a=>animalOverallSanitaryStatus(a)==="conforme");
+  const s={
+    farmers:new Set(animals.map(a=>a.eleveur)).size,
+    animals:animals.length,
+    conform:conform.length,
+    signed:animals.filter(a=>a.sur_certificat).length
+  };
+  document.getElementById("kpis").innerHTML=[
+    ["Éleveurs",s.farmers],
+    ["Bovins inscrits",s.animals],
+    ["Sanitaires conformes",s.conform],
+    ["Sur certificat",s.signed]
+  ].map(([l,v])=>`<div class="kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
+
+  const lab=animals.filter(a=>animalOverallSanitaryStatus(a)==="lab").length;
+  const missing=animals.filter(a=>animalOverallSanitaryStatus(a)==="missing").length;
+  const pb=animals.filter(a=>animalOverallSanitaryStatus(a)==="problem").length;
   const certAwaiting=Object.values(db.certificates).filter(c=>c.concours_id===cid&&c.statut_certificat==="recu_attente").length;
-  document.getElementById("todo").innerHTML=`<div class="kpis"><div class="kpi"><span>En cours labo</span><strong>${lab}</strong></div><div class="kpi"><span>Résultats manquants</span><strong>${missing}</strong></div><div class="kpi"><span>À vérifier / non conformes</span><strong>${pb}</strong></div><div class="kpi"><span>Certificats reçus à valider</span><strong>${certAwaiting}</strong></div></div>`;
+
+  document.getElementById("todo").innerHTML=`<div class="kpis">
+    <div class="kpi"><span>En cours labo</span><strong>${lab}</strong></div>
+    <div class="kpi"><span>Résultats manquants</span><strong>${missing}</strong></div>
+    <div class="kpi"><span>À vérifier / non conformes</span><strong>${pb}</strong></div>
+    <div class="kpi"><span>Certificats reçus à valider</span><strong>${certAwaiting}</strong></div>
+  </div>`;
 }
 function renderExport(){
   const cid=document.getElementById("exportContest")?.value,s=stats(cid);
@@ -1658,7 +1747,7 @@ function exportRecapCSV(){
 function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundYear","refundContest","refundFarmer","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
@@ -1667,6 +1756,7 @@ document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualif
 document.getElementById("refundYear")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundContest")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundFarmer")?.addEventListener("change",()=>renderRefunds());
+document.getElementById("refundView")?.addEventListener("change",()=>renderRefunds());
 if(TOKEN)startApp();
 </script>
 </body>
