@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.3</title>
-<link rel="manifest" href="manifest.json?v=043">
+<title>Suivi des concours v0.4.4</title>
+<link rel="manifest" href="manifest.json?v=044">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -489,7 +489,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.3";
+const APP_VERSION = "0.4.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -503,7 +503,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.4");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1620,17 +1620,28 @@ async function saveTariff(cid,analysis,value){
   await loadAll();
 }
 
+function reimbursementCategory(analysis){
+  const a=String(analysis||"").toLowerCase();
+  if(a.includes("bvd")){
+    if(a.includes("ag") || a.includes("antig")) return "BVD Ag";
+    if(a.includes("pcr")) return "BVD PCR";
+    return "BVD";
+  }
+  if(a.includes("ibr")) return "IBR";
+  if(a.includes("besno")) return "Besnoitiose";
+  if(a.includes("bruc")) return "Brucellose";
+  if(a.includes("leuc")) return "Leucose";
+  if(a.includes("tub")) return "Tuberculose";
+  return String(analysis||"Autre");
+}
 function reimbursementBreakdown(groups){
   const map=new Map();
   groups.forEach(g=>{
-    const line=getRefundLine(g.contestId,g.herd,g.analysis);
-    if(!line.a_rembourser)return;
-    const disease=diseaseForAnalysis(g.analysis);
-    const key=disease+"|"+g.analysis;
-    if(!map.has(key))map.set(key,{disease,analysis:g.analysis,count:0});
-    map.get(key).count += Number(line.quantite_remboursee ?? g.eligible ?? 0);
+    const category=reimbursementCategory(g.analysis);
+    if(!map.has(category))map.set(category,{category,count:0});
+    map.get(category).count += Number(g.eligible||0);
   });
-  return [...map.values()];
+  return [...map.values()].sort((a,b)=>a.category.localeCompare(b.category));
 }
 function exportRefundCSV(){
   const year=document.getElementById("refundYear")?.value||"";
@@ -1639,7 +1650,10 @@ function exportRefundCSV(){
 
   groups.forEach(g=>{
     const key=g.herd+"|"+g.farmer;
-    if(!fmap.has(key))fmap.set(key,{herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,details:[],allGroups:[]});
+    if(!fmap.has(key))fmap.set(key,{
+      herd:g.herd,farmer:g.farmer,totalEligible:0,totalAmount:0,
+      details:[],allGroups:[]
+    });
     const f=fmap.get(key);
     f.totalEligible+=g.eligible;
     const amt=refundLineAmount(g);
@@ -1650,16 +1664,47 @@ function exportRefundCSV(){
     }
   });
 
-  const rows=[["Annee","N EDE","Eleveur","Nb analyses eligibles","Detail eligibles par maladie et methode","Detail par concours","Montant total remboursement HT"]];
+  // Determine all categories present in this export
+  const categories=[...new Set(
+    [...fmap.values()].flatMap(f=>reimbursementBreakdown(f.allGroups).map(x=>x.category))
+  )].sort();
+
+  const headers=[
+    "Annee","N EDE","Eleveur","Nb analyses eligibles",
+    "Detail analyses eligibles",
+    ...categories.map(c=>"Nb "+c),
+    "Detail par concours",
+    "Montant total remboursement HT"
+  ];
+
+  const rows=[headers];
 
   [...fmap.values()].forEach(f=>{
-    const breakdown=reimbursementBreakdown(f.allGroups).map(x=>`${x.count} ${x.disease} - ${x.analysis}`).join(" | ");
-    rows.push([year,f.herd,f.farmer,f.totalEligible,breakdown,f.details.join(" | "),f.totalAmount.toFixed(2)]);
+    const breakdown=reimbursementBreakdown(f.allGroups);
+    const counts=Object.fromEntries(breakdown.map(x=>[x.category,x.count]));
+    const detail=breakdown
+      .map(x=>`${x.category} : ${x.count} analyse${x.count>1?"s":""} éligible${x.count>1?"s":""}`)
+      .join(" | ");
+
+    rows.push([
+      year,
+      f.herd,
+      f.farmer,
+      f.totalEligible,
+      detail,
+      ...categories.map(c=>counts[c]||0),
+      f.details.join(" | "),
+      f.totalAmount.toFixed(2)
+    ]);
   });
 
   const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(";")).join("\n");
-  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=`remboursements_${year}_publipostage.csv`;a.click();URL.revokeObjectURL(url);
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;
+  a.download=`remboursements_${year}_publipostage.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
