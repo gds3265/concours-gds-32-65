@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.7</title>
-<link rel="manifest" href="manifest.json?v=047">
+<title>Suivi des concours v0.4.8</title>
+<link rel="manifest" href="manifest.json?v=048">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -482,11 +482,6 @@ th{background:#f2ebf0}
 
     <div id="fastAttention"></div>
 
-    <div class="fast-mode">
-      <button class="secondary active" id="fastComputerBtn" onclick="setFastMode('computer')">Validation sur ordinateur</button>
-      <button class="secondary" id="fastPaperBtn" onclick="setFastMode('paper')">Contrôle certificat papier</button>
-    </div>
-
     <div class="fast-transmission">
       <div class="field">
         <label>Transmission du certificat</label>
@@ -495,25 +490,17 @@ th{background:#f2ebf0}
           <option value="direct">Direct</option>
         </select>
       </div>
-      <button class="action" onclick="fastFinalizeCertificate()">Valider le certificat aujourd'hui</button>
+      <button class="secondary" onclick="fastSelectAllCertificate(true)">Sélectionner tout</button>
+      <button class="action" onclick="fastValidateAllToday()">Valider le certificat aujourd'hui</button>
     </div>
-    <div class="muted">La validation enregistre automatiquement le certificat comme reçu et validé à la date du jour.</div>
-
-    <div id="fastComputerMode">
-      <div class="row">
-        <button class="action" onclick="fastFillPending()">Valider les éléments en attente</button>
-        <button class="secondary" onclick="fastSelectAllCertificate(true)">Tous les bovins sur certificat</button>
-        <button class="secondary" onclick="fastSelectAllCertificate(false)">Aucun bovin sur certificat</button>
-      </div>
-      <div class="muted" style="margin-top:8px">
-        Seuls les éléments encore en attente sont complétés en conforme. Les statuts déjà saisis sont conservés.
-      </div>
+    <div class="muted">
+      La validation complète uniquement les analyses et qualifications encore en attente, sans écraser les anomalies déjà saisies.
     </div>
 
-    <div id="fastPaperMode" class="hidden">
-      <div class="row">
+    <div style="margin-top:16px">
+      <label><strong>Contrôle avec certificat papier — saisir les 10 chiffres du bovin</strong></label>
+      <div class="row" style="margin-top:6px">
         <div class="field">
-          <label>Saisir les 10 chiffres du bovin inscrits sur le certificat</label>
           <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
         </div>
         <button class="action" onclick="paperCheckBovin()">Vérifier</button>
@@ -595,7 +582,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.7";
+const APP_VERSION = "0.4.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -609,7 +596,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.7");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.8");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1326,7 +1313,6 @@ async function setAllHerdQualifications(status){
   await Promise.all(ops);await loadAll();
 }
 
-let fastMode="computer";
 let fastCurrentHerd="";
 let fastCurrentFarmer="";
 
@@ -1334,14 +1320,7 @@ function fastAnimalsList(){
   const cid=document.getElementById("fastContest")?.value;
   return db.animals.filter(a=>a.concours_id===cid && a.cheptel===fastCurrentHerd && (!fastCurrentFarmer || a.eleveur===fastCurrentFarmer));
 }
-function setFastMode(mode){
-  fastMode=mode;
-  document.getElementById("fastComputerMode")?.classList.toggle("hidden",mode!=="computer");
-  document.getElementById("fastPaperMode")?.classList.toggle("hidden",mode!=="paper");
-  document.getElementById("fastComputerBtn")?.classList.toggle("active",mode==="computer");
-  document.getElementById("fastPaperBtn")?.classList.toggle("active",mode==="paper");
-  if(mode==="paper")setTimeout(()=>document.getElementById("paperBovinInput")?.focus(),50);
-}
+
 function loadFastValidation(){
   const cid=document.getElementById("fastContest")?.value;
   const q=(document.getElementById("fastHerdSearch")?.value||"").trim().toLowerCase();
@@ -1439,6 +1418,10 @@ function renderFastAttention(){
     return;
   }
   target.innerHTML=`<div class="fast-warning"><strong>⚠ Attention — éléments à vérifier avant validation</strong><br>${issues.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>`;
+}
+async function fastValidateAllToday(){
+  await fastFillPending();
+  await fastFinalizeCertificate();
 }
 async function fastFinalizeCertificate(){
   const cid=document.getElementById("fastContest")?.value;
@@ -1738,22 +1721,39 @@ function renderCertificateRecap(){
     const c=db.certificates[cid+"|"+f]||{};
     const status=c.statut_certificat||"non_recu";
     if(filter && status!==filter)return "";
+    const herd=db.animals.find(a=>a.concours_id===cid&&a.eleveur===f)?.cheptel||"";
     const count=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===f&&a.sur_certificat).length;
     const extraOK=supplementaryChecksOK(cid,f);
     return `<tr>
+      <td><strong>${escapeHtml(herd)}</strong></td>
       <td><strong>${escapeHtml(f)}</strong></td>
       <td>${certStatusBadge(status)} ${extraOK?'<span class="badge ok">Contrôles OK</span>':'<span class="badge warn">Contrôles à finir</span>'}</td>
-      <td>${c.date_reception||""}</td>
-      <td>${c.date_signature||""}</td>
+      <td><input type="date" value="${c.date_reception||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_reception',this.value)"></td>
+      <td><input type="date" value="${c.date_signature||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_signature',this.value)"></td>
       <td>${escapeHtml(c.mode_transmission||"")}</td>
       <td>${count}</td>
       <td>${escapeHtml(c.commentaire||"")}</td>
     </tr>`;
   }).join("");
   document.getElementById("certRecap").innerHTML=`<div class="scroll"><table>
-    <thead><tr><th>Éleveur</th><th>Statut</th><th>Reçu le</th><th>Signé le</th><th>Transmission</th><th>Bovins sur certif</th><th>Commentaire</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="7" class="muted">Aucun certificat pour ce filtre.</td></tr>'}</tbody>
+    <thead><tr><th>N° cheptel</th><th>Éleveur</th><th>Statut</th><th>Reçu le</th><th>Validé le</th><th>Transmission</th><th>Bovins sur certif</th><th>Commentaire</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="8" class="muted">Aucun certificat pour ce filtre.</td></tr>'}</tbody>
   </table></div>`;
+}
+async function updateCertificateDate(cid,farmer,field,value){
+  const current=db.certificates[cid+"|"+farmer]||{};
+  const body={
+    concours_id:cid,
+    eleveur:farmer,
+    statut_certificat:current.statut_certificat||"non_recu",
+    date_reception:current.date_reception||null,
+    date_signature:current.date_signature||null,
+    mode_transmission:current.mode_transmission||null,
+    commentaire:current.commentaire||null
+  };
+  body[field]=value||null;
+  await sb("concours_certificats?on_conflict=concours_id,eleveur",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();
 }
 async function toggleCertificateAnimal(id,v){await sb("concours_animaux?id=eq."+id,{method:"PATCH",body:{sur_certificat:v}});await loadAll()}
 async function selectAllCertificate(v){
