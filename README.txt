@@ -146,3 +146,17 @@ NOUVEAUTES v0.3.11
 - Tout conforme repare (on_conflict analyse_type).
 - Validation sanitaire par maladie : une methode recevable conforme suffit.
 - Vue globale Qualifications des cheptels avec tous les EDE et validation en serie.
+
+NOUVEAUTÉS v0.4.0
+- Recherche globale par éleveur ou n° cheptel.
+- Onglet Animaux renommé Liste inscrits.
+- Analyses : vue tout le concours, ajout rapide d'un animal, ajout d'une analyse non prévue.
+- Analyses affichées par maladie demandée avec séparation visuelle.
+- Qualifications séparées dans leur propre onglet.
+- Autres contrôles séparés des certificats et commentaires corrigés.
+- Ergonomie des animaux du certificat revue.
+- Remboursements agrégés par cheptel et analyse.
+- Tarifs par analyse paramétrables.
+- Coût unitaire modifiable au cas par cas.
+- Cases Justificatif reçu / À rembourser.
+- Export CSV pour publipostage.

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.3.11</title>
-<link rel="manifest" href="manifest.json?v=0311">
+<title>Suivi des concours v0.4.0</title>
+<link rel="manifest" href="manifest.json?v=040">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -82,12 +82,18 @@ th{background:#f2ebf0}
     <button data-tab="dashboard">Accueil</button>
     <button data-tab="parametres">Paramétrage</button>
     <button data-tab="concours">Concours</button>
-    <button data-tab="animaux">Animaux</button>
+    <button data-tab="animaux">Liste inscrits</button>
     <button data-tab="analyses">Analyses</button>
+    <button data-tab="qualifications">Qualifications</button>
+    <button data-tab="controles">Autres contrôles</button>
     <button data-tab="certificats">Certificats</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
+  <div style="margin-top:10px;display:grid;grid-template-columns:minmax(220px,420px) auto;gap:8px;align-items:center">
+    <input id="globalSearch" placeholder="Rechercher un éleveur ou n° cheptel…" style="width:100%;padding:8px 10px;border-radius:8px;border:0">
+    <span class="small" style="opacity:.9">Filtre les listes de l’écran affiché</span>
+  </div>
 </header>
 
 <main>
@@ -270,7 +276,7 @@ th{background:#f2ebf0}
     </div>
   </div>
 
-  <div class="card"><h2>Animaux inscrits</h2><div class="scroll"><table>
+  <div class="card"><h2>Liste des inscrits</h2><div class="scroll"><table>
     <thead><tr><th>Dépt.</th><th>Éleveur inscrit</th><th>Cheptel</th><th>Bovin</th><th>Naissance</th><th>Contrôle métier</th><th>Détail contrôle</th><th>Origine</th><th>Sur certificat</th><th></th></tr></thead>
     <tbody id="animalTable"></tbody>
   </table></div></div>
@@ -286,12 +292,56 @@ th{background:#f2ebf0}
       <button class="secondary" onclick="setAllStatus('conforme')">Tout conforme</button>
       <button class="secondary" onclick="setAllStatus('labo')">Tout en cours labo</button>
       <button class="secondary" onclick="setAllStatus('attente')">Tout en attente</button>
+      <button class="secondary" onclick="toggleQuickAnimal()">+ Ajouter un animal</button>
+      <button class="secondary" onclick="addUnexpectedAnalysis()">+ Analyse non prévue</button>
     </div>
-    <div class="muted" style="margin-top:8px">Grisé = analyse non nécessaire. Une analyse faite malgré tout peut être signalée comme inutile.</div>
+    <div class="muted" style="margin-top:8px">Seules les maladies demandées sont affichées. La méthode prioritaire est proposée automatiquement selon l’âge.</div>
+    <div id="quickAnimalPanel" class="hidden" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px">
+      <div class="row">
+        <div class="field"><label>Département</label><input id="quickDept" placeholder="65"></div>
+        <div class="field"><label>Éleveur</label><input id="quickFarmer"></div>
+        <div class="field"><label>N° cheptel</label><input id="quickHerd"></div>
+        <div class="field"><label>N° bovin</label><input id="quickBovin"></div>
+        <div class="field"><label>Date naissance</label><input id="quickBirth" type="date"></div>
+        <button class="action" onclick="quickAddAnimal()">Ajouter</button>
+      </div>
+    </div>
   </div>
   <div class="card"><div class="scroll"><table id="analysisTable"></table></div></div>
 </section>
 
+
+
+<section id="qualifications" class="section">
+  <div class="card">
+    <h2>Qualifications des cheptels</h2>
+    <div class="row">
+      <div class="field"><label>Concours</label><select id="qualContest"></select></div>
+      <div class="field"><label>Recherche</label><input id="qualSearch" placeholder="Éleveur ou n° EDE"></div>
+      <button class="secondary" onclick="setAllQualificationsConforme()">Tout conforme</button>
+    </div>
+  </div>
+  <div class="card">
+    <div id="qualificationTable"></div>
+  </div>
+</section>
+
+<section id="controles" class="section">
+  <div class="card">
+    <h2>Points de vérification complémentaires</h2>
+    <div class="muted">Vaccinations, documents ou autres exigences. Les qualifications sont gérées dans l’onglet Qualifications.</div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>Concours</label><select id="ctrlContest"></select></div>
+      <div class="field"><label>Niveau</label><select id="ctrlLevel"><option value="cheptel">Cheptel</option><option value="animal">Animal</option></select></div>
+      <div class="field"><label>Type</label><select id="ctrlType"><option value="vaccination">Vaccination</option><option value="document">Document</option><option value="autre">Autre</option></select></div>
+      <div class="field"><label>Point à vérifier</label><input id="ctrlLabel" placeholder="Ex. Vaccination FCO"></div>
+      <div class="field"><label>Obligatoire</label><select id="ctrlRequired"><option value="true">Oui</option><option value="false">Non</option></select></div>
+      <button class="action" onclick="addSupplementaryDef()">Ajouter</button>
+    </div>
+  </div>
+  <div class="card"><div id="supplementaryDefs"></div></div>
+  <div class="card"><div id="supplementaryChecks"></div></div>
+</section>
 
 <section id="certificats" class="section">
   <div class="card">
@@ -354,8 +404,8 @@ th{background:#f2ebf0}
 
 
   <div class="card">
-    <h3>Points de vérification complémentaires</h3>
-    <div class="muted">Qualifications au cheptel, vaccinations ou autres exigences. Les points non applicables peuvent être marqués N/A.</div>
+    <h3>Autres contrôles liés à ce dossier</h3>
+    <div class="muted">Vaccinations, documents ou autres exigences. Les qualifications sont gérées dans l’onglet Qualifications.</div>
     <div id="certChecks" style="margin-top:12px"></div>
   </div>
 
@@ -365,14 +415,23 @@ th{background:#f2ebf0}
   </div>
 </section>
 
+
 <section id="remboursements" class="section">
-  <div class="card"><h2>Suivi des remboursements</h2><div class="field"><label>Concours</label><select id="refundContest"></select></div>
-    <div class="muted" style="margin-top:8px">Remboursable = bovin sur certificat final + analyse nécessaire + analyse conforme.</div>
+  <div class="card">
+    <h2>Remboursements</h2>
+    <div class="row">
+      <div class="field"><label>Concours</label><select id="refundContest"></select></div>
+      <div class="field"><label>Recherche</label><input id="refundSearch" placeholder="Éleveur ou n° cheptel"></div>
+      <button class="secondary" onclick="openTariffSetup()">Paramétrer les coûts</button>
+      <button class="action" onclick="exportRefundCSV()">Exporter pour publipostage</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Le remboursement est manuel : tu coches ce que tu as reçu et ce que tu souhaites réellement rembourser.</div>
   </div>
-  <div class="card"><div class="scroll"><table>
-    <thead><tr><th>Éleveur</th><th>Bovin</th><th>Analyse</th><th>Statut</th><th>Sur certificat</th><th>Remboursable</th><th>Motif</th></tr></thead>
-    <tbody id="refundTable"></tbody>
-  </table></div></div>
+  <div class="card hidden" id="tariffPanel">
+    <h3>Tarifs par analyse</h3>
+    <div id="tariffTable"></div>
+  </div>
+  <div class="card"><div id="refundSummaryTable"></div></div>
 </section>
 
 <section id="export" class="section">
@@ -389,7 +448,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.3.11";
+const APP_VERSION = "0.4.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -401,9 +460,9 @@ const STATUS=[
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
-let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
+let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.3.11");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.0");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -451,7 +510,7 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,animals,results,certs]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
@@ -459,14 +518,26 @@ async function loadAll(){
     sb("concours_demandes?select=*&order=maladie.asc"),
     sb("concours_points_controle?select=*&order=niveau.asc,libelle.asc"),
     sb("concours_controles?select=*"),
+    sb("concours_tarifs_analyses?select=*"),
+    sb("concours_remboursement_lignes?select=*"),
     sb("concours_animaux?select=*&order=eleveur.asc,bovin.asc"),
     sb("concours_resultats?select=*"),
     sb("concours_certificats?select=*")
   ]);
-  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.animals=animals||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.certificates={};
   (certs||[]).forEach(c=>db.certificates[c.concours_id+"|"+c.eleveur]=c);
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
+}
+
+function searchText(){
+  return (document.getElementById("globalSearch")?.value||"").trim().toLowerCase();
+}
+function matchesSearch(animalOrText){
+  const q=searchText(); if(!q)return true;
+  if(typeof animalOrText==="string")return animalOrText.toLowerCase().includes(q);
+  const a=animalOrText||{};
+  return [a.eleveur,a.cheptel,a.bovin,a.detenteur_metier,a.cheptel_metier].some(v=>String(v||"").toLowerCase().includes(q));
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function contest(id){return db.contests.find(c=>c.id===id)}
@@ -534,7 +605,7 @@ function renderDepartments(){
 function renderFarmerSelectors(){
   [["analysisContest","analysisFarmer"],["certContest","certFarmer"]].forEach(([cid,fid])=>{
     const c=document.getElementById(cid)?.value;
-    optionize(fid,farmers(c).map(x=>({value:x,label:x})));
+    optionize(fid,[{value:"__ALL__",label:"Tous les éleveurs / tout le concours"},...farmers(c).map(x=>({value:x,label:x}))]);
   });
 }
 
@@ -934,39 +1005,88 @@ function methodOptions(rules,selected,animal,cid,disease){
   const sorted=rules.slice().sort((a,b)=>ruleRank(a,animal,cid,disease)-ruleRank(b,animal,cid,disease));
   return sorted.map((r,i)=>`<option value="${escapeHtml(r.libelle_analyse)}" ${r.libelle_analyse===selected?'selected':''}>${i===0?'★ ':''}${escapeHtml(r.libelle_analyse)}</option>`).join('');
 }
-function renderAnalysis(){
-  const cid=document.getElementById("analysisContest")?.value,farmer=document.getElementById("analysisFarmer")?.value;
-  const list=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
-  const diseases=requestedDiseases(cid);
-  let out=`<thead><tr><th>Bovin</th><th>Âge</th>${diseases.map(d=>`<th>${escapeHtml(d)}</th>`).join('')}<th>Commentaire</th></tr></thead><tbody>`;
-  for(const a of list){
-    const age=ageMonths(a.naissance,contest(cid)?.date_concours);
-    out+=`<tr><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${age==null?'?':age+' m'}</td>`;
-    for(const disease of diseases){
-      const rules=acceptedRulesForDisease(a,cid,disease);
-      if(!rules.length){out+=`<td class="empty-analysis">—</td>`;continue;}
-      const selected=selectedAnalysisForDisease(a,cid,disease);
-      const r=getResult(a.id,selected);
-      out+=`<td class="analysis-cell">`;
-      if(rules.length>1) out+=`<div class="analysis-method"><select onchange="changeDiseaseMethod('${a.id}','${escapeHtml(disease)}',this.value)">${methodOptions(rules,selected,a,cid,disease)}</select></div>`;
-      else out+=`<div class="analysis-method"><strong>${escapeHtml(selected)}</strong></div>`;
-      out+=`<select class="analysis-select" onchange="setResult('${a.id}','${escapeHtml(selected)}',this.value)">${statusOptions(r.statut)}</select></td>`;
-    }
-    const relevant=[]; diseases.forEach(d=>acceptedRulesForDisease(a,cid,d).forEach(r=>relevant.push(r.libelle_analyse)));
-    const com=relevant.map(an=>getResult(a.id,an).commentaire).find(Boolean)||'';
-    out+=`<td><input style="min-width:180px" value="${escapeHtml(com)}" onchange="setAnimalCommentRelevant('${a.id}',this.value)"></td></tr>`;
+
+function demandedDiseases(cid){
+  return db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie);
+}
+function methodOptionsForDisease(animal,cid,disease){
+  return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
+}
+function preferredMethodForDisease(animal,cid,disease){
+  const opts=methodOptionsForDisease(animal,cid,disease);
+  return opts.find(r=>r.methode_reference_remboursement)||opts[0]||null;
+}
+function getDiseaseResult(animal,disease){
+  const cid=animal.concours_id;
+  const methods=methodOptionsForDisease(animal,cid,disease);
+  for(const m of methods){
+    const r=getResult(animal.id,m.libelle_analyse);
+    if(r && r.statut!=="attente")return {method:m.libelle_analyse,result:r};
   }
+  const pref=preferredMethodForDisease(animal,cid,disease);
+  return {method:pref?.libelle_analyse||"",result:pref?getResult(animal.id,pref.libelle_analyse):null};
+}
+function diseaseMethodSelect(animal,cid,disease,current){
+  const opts=methodOptionsForDisease(animal,cid,disease);
+  if(!opts.length)return "";
+  return `<select onchange="changeDiseaseMethod('${animal.id}','${escapeHtml(disease)}',this.value)">
+    ${opts.map(o=>`<option value="${escapeHtml(o.libelle_analyse)}" ${o.libelle_analyse===current?"selected":""}>${o.methode_reference_remboursement?"★ ":""}${escapeHtml(o.libelle_analyse)}</option>`).join("")}
+  </select>`;
+}
+async function changeDiseaseMethod(animalId,disease,newMethod){
+  const a=db.animals.find(x=>x.id===animalId); if(!a)return;
+  const old=getDiseaseResult(a,disease);
+  const oldR=old.result||{statut:"attente",date_prelevement:null,commentaire:null};
+  await upsertResult(animalId,newMethod,{statut:oldR.statut,date_prelevement:oldR.date_prelevement||null,commentaire:oldR.commentaire||null});
+  await loadAll();
+}
+function toggleQuickAnimal(){
+  document.getElementById("quickAnimalPanel")?.classList.toggle("hidden");
+}
+async function quickAddAnimal(){
+  const cid=document.getElementById("analysisContest").value;
+  const body={concours_id:cid,departement:document.getElementById("quickDept").value.trim()||null,eleveur:document.getElementById("quickFarmer").value.trim(),cheptel:document.getElementById("quickHerd").value.trim()||null,bovin:normalizeBovin(document.getElementById("quickBovin").value),naissance:document.getElementById("quickBirth").value||null,origine:"Ajout depuis Analyses"};
+  if(!body.eleveur||!body.bovin)return alert("Éleveur et n° bovin obligatoires.");
+  await sb("concours_animaux",{method:"POST",body,prefer:"return=minimal"}); await loadAll();
+}
+async function addUnexpectedAnalysis(){
+  const cid=document.getElementById("analysisContest").value;
+  const farmer=document.getElementById("analysisFarmer").value;
+  const animalList=db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer));
+  if(!animalList.length)return alert("Aucun animal dans cette vue.");
+  const bovin=prompt("N° du bovin concerné :"); if(!bovin)return;
+  const a=animalList.find(x=>normalizeBovin(x.bovin)===normalizeBovin(bovin));
+  if(!a)return alert("Bovin non trouvé dans cette vue.");
+  const label=prompt("Libellé de l’analyse non prévue :"); if(!label)return;
+  await upsertResult(a.id,label,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null,commentaire:"Analyse ajoutée manuellement"});
+  await loadAll();
+}
+function renderAnalysis(){
+  const cid=document.getElementById("analysisContest")?.value, farmer=document.getElementById("analysisFarmer")?.value;
+  let list=db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer));
+  list=list.filter(matchesSearch);
+  const diseases=demandedDiseases(cid);
+  let out=`<thead><tr><th>Bovin</th><th>Éleveur / EDE</th><th>Âge</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
+  list.forEach(a=>{
+    const age=ageMonths(a.naissance,contest(cid)?.date_concours);
+    out+=`<tr><td><strong>${escapeHtml(a.bovin)}</strong></td><td>${escapeHtml(a.eleveur)}<br><span class="muted">${escapeHtml(a.cheptel||"")}</span></td><td>${age==null?"?":age+" m"}</td>`;
+    diseases.forEach(d=>{
+      const dr=getDiseaseResult(a,d);
+      if(!dr.method){
+        out+=`<td class="disease-col na">Non concerné</td>`;
+      }else{
+        const r=dr.result||{statut:"attente"};
+        out+=`<td class="disease-col">
+          ${diseaseMethodSelect(a,cid,d,dr.method)}
+          <select style="margin-top:6px" onchange="setResult('${a.id}','${escapeHtml(dr.method)}',this.value)">${statusOptions(r.statut)}</select>
+        </td>`;
+      }
+    });
+    const com=allAnalyses().map(an=>getResult(a.id,an).commentaire).find(Boolean)||"";
+    out+=`<td><input value="${escapeHtml(com)}" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
+  });
   document.getElementById("analysisTable").innerHTML=out+"</tbody>";
-}
-function changeDiseaseMethod(aid,disease,analysis){
-  // Le choix de méthode ne valide rien à lui seul ; il indique seulement la méthode que l'on veut renseigner.
-  renderAnalysisWithPreferredOverride(aid,disease,analysis);
-}
-const methodOverrides={};
-function renderAnalysisWithPreferredOverride(aid,disease,analysis){methodOverrides[aid+'|'+disease]=analysis;renderAnalysis()}
-const _selectedAnalysisForDisease=selectedAnalysisForDisease;
-selectedAnalysisForDisease=function(animal,cid,disease){return methodOverrides[animal.id+'|'+disease]||_selectedAnalysisForDisease(animal,cid,disease)};
-async function upsertResult(aid,analysis,patch){
+}async function upsertResult(aid,analysis,patch){
   const current=getResult(aid,analysis);
   const body={animal_id:aid,analyse_type:analysis,statut:patch.statut??current.statut,date_prelevement:(patch.date_prelevement ?? current.date_prelevement ?? null),commentaire:(patch.commentaire ?? current.commentaire ?? null),updated_at:new Date().toISOString()};
   await sb("concours_resultats?on_conflict=animal_id,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
@@ -980,17 +1100,15 @@ async function setAnimalCommentRelevant(aid,txt){
 }
 async function markUnneededDone(aid,analysis){await upsertResult(aid,analysis,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null});await loadAll()}
 async function setAllStatus(status){
-  try{
-    const cid=document.getElementById("analysisContest").value,farmer=document.getElementById("analysisFarmer").value,d=document.getElementById("sampleDate").value||null;
-    const ops=[];
-    db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer).forEach(a=>{
-      requestedDiseases(cid).forEach(disease=>{
-        const an=selectedAnalysisForDisease(a,cid,disease);
-        if(an)ops.push(upsertResult(a.id,an,{statut:status,date_prelevement:d}));
-      });
+  const cid=document.getElementById("analysisContest").value, farmer=document.getElementById("analysisFarmer").value, d=document.getElementById("sampleDate").value||null;
+  const diseases=demandedDiseases(cid), ops=[];
+  db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer) && matchesSearch(a)).forEach(a=>{
+    diseases.forEach(dis=>{
+      const current=getDiseaseResult(a,dis);
+      if(current.method)ops.push(upsertResult(a.id,current.method,{statut:status,date_prelevement:d}));
     });
-    await Promise.all(ops);await loadAll();
-  }catch(e){setSync('erreur',true);alert('Erreur lors de la validation globale : '+e.message)}
+  });
+  await Promise.all(ops); await loadAll();
 }
 function animalSanitaryOK(a){return requestedDiseases(a.concours_id).every(d=>diseaseSatisfied(a,a.concours_id,d))}
 
@@ -1035,11 +1153,11 @@ function renderCertificates(){
   document.getElementById("certComment").value=cert?.commentaire||"";
 
   document.getElementById("certAnimals").innerHTML=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer).map(a=>`
-    <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
-    <input type="checkbox" ${a.sur_certificat?"checked":""} onchange="toggleCertificateAnimal('${a.id}',this.checked)">
-    <strong>${escapeHtml(a.bovin)}</strong>
-    ${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">Pas totalement conforme</span>'}
-    ${animalSanitaryOK(a)&&!a.sur_certificat?'<span class="badge na">Conforme mais pas sur certificat</span>':""}</label>`).join("")||"<span class='muted'>Aucun animal.</span>";
+    <div class="cert-animal-row">
+      <input type="checkbox" ${a.sur_certificat?"checked":""} onchange="toggleCertificateAnimal('${a.id}',this.checked)">
+      <strong>${escapeHtml(a.bovin)}</strong>
+      <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
+    </div>`).join("")||"<span class='muted'>Aucun animal.</span>";
 
   renderCertificateChecks();
   renderCertificateRecap();
@@ -1049,12 +1167,110 @@ function checkStatusOptions(sel){
   const opts=[["a_verifier","À vérifier"],["conforme","Conforme"],["nonconforme","Non conforme"],["nonapp","Non applicable"]];
   return opts.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("");
 }
+
+function qualificationDefs(cid){
+  return db.checkDefs.filter(d=>d.concours_id===cid && d.type_controle==="qualification" && d.niveau==="cheptel");
+}
+function herdRows(cid){
+  const map=new Map();
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    const herd=(a.cheptel||"").trim()||"Sans EDE";
+    if(!map.has(herd))map.set(herd,{herd,farmer:a.eleveur||""});
+  });
+  return [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true}));
+}
+function renderQualifications(){
+  const target=document.getElementById("qualificationTable"); if(!target)return;
+  const cid=document.getElementById("qualContest")?.value;
+  const q=((document.getElementById("qualSearch")?.value||"")+" "+searchText()).toLowerCase();
+  const defs=qualificationDefs(cid);
+  const herds=herdRows(cid).filter(h=>!q || (h.herd+" "+h.farmer).toLowerCase().includes(q));
+  if(!defs.length){target.innerHTML='<div class="muted">Aucune qualification paramétrée pour ce concours.</div>';return;}
+  target.innerHTML=`<div class="scroll"><table class="compact-table"><thead><tr><th>N° EDE</th><th>Éleveur</th>${defs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>
+  ${herds.map(h=>`<tr><td><strong>${escapeHtml(h.herd)}</strong></td><td>${escapeHtml(h.farmer)}</td>${defs.map(d=>{
+    const r=getCheckResult(d.id,"cheptel:"+h.herd);
+    return `<td><select onchange="saveQualification('${d.id}','${escapeHtml(h.herd)}',this.value)">${checkStatusOptions(r.statut)}</select></td>`;
+  }).join("")}<td><input value="${escapeHtml(getHerdQualificationComment(cid,h.herd))}" onchange="saveHerdQualificationComment('${cid}','${escapeHtml(h.herd)}',this.value)"></td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+function getHerdQualificationComment(cid,herd){
+  const def=qualificationDefs(cid)[0]; if(!def)return "";
+  return getCheckResult(def.id,"cheptel:"+herd).commentaire||"";
+}
+async function saveQualification(defId,herd,status){
+  const key="cheptel:"+herd;
+  const current=getCheckResult(defId,key);
+  await saveCheckResult(defId,key,status,current.commentaire||"");
+}
+async function saveHerdQualificationComment(cid,herd,comment){
+  const defs=qualificationDefs(cid);
+  await Promise.all(defs.map(d=>{
+    const r=getCheckResult(d.id,"cheptel:"+herd);
+    return saveCheckResultNoReload(d.id,"cheptel:"+herd,r.statut,comment);
+  }));
+  await loadAll();
+}
+async function saveCheckResultNoReload(defId,scopeKey,status,comment){
+  const def=db.checkDefs.find(x=>x.id===defId); if(!def)return;
+  const body={point_id:defId,concours_id:def.concours_id,cle_cible:scopeKey,statut:status,commentaire:comment||null,updated_at:new Date().toISOString()};
+  await sb("concours_controles?on_conflict=point_id,cle_cible",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+}
+async function setAllQualificationsConforme(){
+  const cid=document.getElementById("qualContest").value;
+  const defs=qualificationDefs(cid), herds=herdRows(cid);
+  const ops=[];
+  herds.forEach(h=>defs.forEach(d=>{
+    const r=getCheckResult(d.id,"cheptel:"+h.herd);
+    ops.push(saveCheckResultNoReload(d.id,"cheptel:"+h.herd,"conforme",r.commentaire||""));
+  }));
+  await Promise.all(ops); await loadAll();
+}
+
+async function addSupplementaryDef(){
+  const body={concours_id:document.getElementById("ctrlContest").value,niveau:document.getElementById("ctrlLevel").value,type_controle:document.getElementById("ctrlType").value,libelle:document.getElementById("ctrlLabel").value.trim(),obligatoire:document.getElementById("ctrlRequired").value==="true"};
+  if(!body.concours_id||!body.libelle)return alert("Concours et libellé obligatoires.");
+  await sb("concours_points_controle",{method:"POST",body,prefer:"return=minimal"});
+  document.getElementById("ctrlLabel").value=""; await loadAll();
+}
+function renderSupplementary(){
+  const defsTarget=document.getElementById("supplementaryDefs"),checksTarget=document.getElementById("supplementaryChecks");
+  if(!defsTarget||!checksTarget)return;
+  const cid=document.getElementById("ctrlContest")?.value;
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.type_controle!=="qualification");
+  defsTarget.innerHTML=defs.length?`<div class="scroll"><table><thead><tr><th>Niveau</th><th>Type</th><th>Point</th><th>Obligatoire</th><th></th></tr></thead><tbody>${defs.map(d=>`<tr><td>${d.niveau}</td><td>${d.type_controle}</td><td><strong>${escapeHtml(d.libelle)}</strong></td><td>${d.obligatoire?"Oui":"Non"}</td><td><button class="danger" onclick="deleteCheckDef('${d.id}')">Supprimer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun contrôle complémentaire.</div>';
+
+  const herdDefs=defs.filter(d=>d.niveau==="cheptel");
+  const animalDefs=defs.filter(d=>d.niveau==="animal");
+  let out="";
+  if(herdDefs.length){
+    out+=`<h3>Contrôles au cheptel</h3><div class="scroll"><table><thead><tr><th>N° EDE</th><th>Éleveur</th>${herdDefs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
+    herdRows(cid).filter(h=>matchesSearch(h.herd+" "+h.farmer)).forEach(h=>{
+      out+=`<tr><td><strong>${h.herd}</strong></td><td>${escapeHtml(h.farmer)}</td>${herdDefs.map(d=>{
+        const r=getCheckResult(d.id,"cheptel:"+h.herd); return `<td><select onchange="saveCheckResult('${d.id}','cheptel:${h.herd}',this.value,this.closest('tr').querySelector('input').value)">${checkStatusOptions(r.statut)}</select></td>`;
+      }).join("")}<td><input value="${escapeHtml(herdDefs.map(d=>getCheckResult(d.id,"cheptel:"+h.herd).commentaire).find(Boolean)||"")}" onchange="saveSupplementaryHerdComment('${cid}','${h.herd}',this.value)"></td></tr>`;
+    });
+    out+="</tbody></table></div>";
+  }
+  if(animalDefs.length){
+    out+=`<h3 style="margin-top:16px">Contrôles individuels</h3><div class="scroll"><table><thead><tr><th>Bovin</th><th>Éleveur</th>${animalDefs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}</tr></thead><tbody>`;
+    db.animals.filter(a=>a.concours_id===cid&&matchesSearch(a)).forEach(a=>{
+      out+=`<tr><td><strong>${a.bovin}</strong></td><td>${escapeHtml(a.eleveur)}</td>${animalDefs.map(d=>{const r=getCheckResult(d.id,"animal:"+a.id);return `<td><select onchange="saveCheckResult('${d.id}','animal:${a.id}',this.value,'')">${checkStatusOptions(r.statut)}</select></td>`;}).join("")}</tr>`;
+    });
+    out+="</tbody></table></div>";
+  }
+  checksTarget.innerHTML=out||'<div class="muted">Aucun contrôle à saisir.</div>';
+}
+async function saveSupplementaryHerdComment(cid,herd,comment){
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.type_controle!=="qualification"&&d.niveau==="cheptel");
+  await Promise.all(defs.map(d=>{const r=getCheckResult(d.id,"cheptel:"+herd);return saveCheckResultNoReload(d.id,"cheptel:"+herd,r.statut,comment)}));
+  await loadAll();
+}
 function renderCertificateChecks(){
   const target=document.getElementById("certChecks"); if(!target)return;
   const cid=document.getElementById("certContest")?.value, farmer=document.getElementById("certFarmer")?.value;
   const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
   const herd=(animals.find(a=>a.cheptel)?.cheptel||farmer||"");
-  const defs=db.checkDefs.filter(d=>d.concours_id===cid);
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid && d.type_controle!=="qualification");
   let htmlOut="";
   const herdDefs=defs.filter(d=>d.niveau==="cheptel");
   if(herdDefs.length){
@@ -1085,7 +1301,7 @@ function renderCertificateChecks(){
 function supplementaryChecksOK(cid,farmer){
   const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
   const herd=(animals.find(a=>a.cheptel)?.cheptel||farmer||"");
-  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.obligatoire);
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.obligatoire&&d.type_controle!=="qualification");
   return defs.every(d=>{
     if(d.niveau==="cheptel"){
       const r=getCheckResult(d.id,"cheptel:"+herd); return ["conforme","nonapp"].includes(r.statut);
@@ -1142,15 +1358,74 @@ async function saveCertificate(){
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
 function reimbursementDecision(animal,analysis,status){const rule=templateRuleFor(animal,analysis);if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};if(rule){if(!rule.recevable_validation)return{ok:false,reason:"Méthode non recevable pour cet âge"};if(!rule.remboursable)return{ok:false,reason:"Méthode non remboursable"};const refs=applicableTemplateRules(animal,animal.concours_id,rule.maladie).filter(r=>r.recevable_validation&&r.remboursable&&r.methode_reference_remboursement);if(refs.length&&!rule.methode_reference_remboursement)return{ok:false,reason:"Méthode recevable mais plus coûteuse que la méthode de référence"};return{ok:true,reason:""}}return{ok:needed(animal,analysis,animal.concours_id),reason:needed(animal,analysis,animal.concours_id)?"":"Analyse non nécessaire"}}
+function refundGroups(cid){
+  const map=new Map();
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    const herd=(a.cheptel||"Sans EDE"), farmer=a.eleveur||"";
+    Object.entries(db.results[a.id]||{}).forEach(([analysis,r])=>{
+      if(!r || r.statut==="attente")return;
+      const key=herd+"|"+analysis;
+      if(!map.has(key))map.set(key,{herd,farmer,analysis,realise:0,eligible:0});
+      const g=map.get(key); g.realise++;
+      if(reimbursementDecision(a,analysis,r.statut).ok)g.eligible++;
+    });
+  });
+  return [...map.values()];
+}
+function getTariff(cid,analysis){
+  return db.tariffs.find(t=>t.concours_id===cid&&t.analyse_type===analysis)?.cout_unitaire??0;
+}
+function getRefundLine(cid,herd,analysis){
+  return db.refundLines.find(x=>x.concours_id===cid&&x.cheptel===herd&&x.analyse_type===analysis)||{};
+}
 function renderRefunds(){
-  const cid=document.getElementById("refundContest")?.value,rows=[];
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>allAnalyses().forEach(an=>{
-    const r=getResult(a.id,an),need=needed(a,an,cid);if(!need&&r.statut!=="inutile")return;
-    const decision=reimbursementDecision(a,an,r.statut),refundable=decision.ok;
-    let reason=decision.reason;
-    rows.push(`<tr><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.bovin)}</td><td>${an}</td><td>${STATUS.find(s=>s[0]===r.statut)?.[1]||r.statut}</td><td>${a.sur_certificat?"Oui":"Non"}</td><td>${refundable?'<span class="badge ok">Oui</span>':'<span class="badge bad">Non</span>'}</td><td>${reason}</td></tr>`)
-  }));
-  document.getElementById("refundTable").innerHTML=rows.join("");
+  const target=document.getElementById("refundSummaryTable"); if(!target)return;
+  const cid=document.getElementById("refundContest")?.value;
+  const q=((document.getElementById("refundSearch")?.value||"")+" "+searchText()).toLowerCase();
+  const groups=refundGroups(cid).filter(g=>!q||(g.herd+" "+g.farmer).toLowerCase().includes(q)).sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})||a.analysis.localeCompare(b.analysis));
+  target.innerHTML=`<div class="scroll"><table class="compact-table"><thead><tr><th>N° EDE</th><th>Éleveur</th><th>Analyse</th><th>Réalisées</th><th>Éligibles</th><th>Justificatif reçu</th><th>À rembourser</th><th>Coût unitaire</th><th>Montant</th></tr></thead><tbody>
+  ${groups.map(g=>{
+    const line=getRefundLine(cid,g.herd,g.analysis);
+    const price=line.cout_unitaire_override ?? getTariff(cid,g.analysis);
+    const qty=line.quantite_remboursee ?? g.eligible;
+    return `<tr><td><strong>${escapeHtml(g.herd)}</strong></td><td>${escapeHtml(g.farmer)}</td><td>${escapeHtml(g.analysis)}</td><td>${g.realise}</td><td>${g.eligible}</td>
+    <td><input type="checkbox" ${line.justificatif_recu?"checked":""} onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{justificatif_recu:this.checked})"></td>
+    <td><input type="checkbox" ${line.a_rembourser?"checked":""} onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{a_rembourser:this.checked})"></td>
+    <td><input type="number" step="0.01" value="${price}" onchange="saveRefundLine('${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{cout_unitaire_override:Number(this.value)})"></td>
+    <td>${(qty*price).toFixed(2)} €</td></tr>`;
+  }).join("")||'<tr><td colspan="9" class="muted">Aucune analyse enregistrée.</td></tr>'}
+  </tbody></table></div>`;
+}
+async function saveRefundLine(herd,analysis,patch){
+  const cid=document.getElementById("refundContest").value;
+  const current=getRefundLine(cid,herd,analysis);
+  const body={concours_id:cid,cheptel:herd,analyse_type:analysis,justificatif_recu:patch.justificatif_recu??current.justificatif_recu??false,a_rembourser:patch.a_rembourser??current.a_rembourser??false,cout_unitaire_override:patch.cout_unitaire_override??current.cout_unitaire_override??null,quantite_remboursee:current.quantite_remboursee??null,commentaire:current.commentaire??null};
+  await sb("concours_remboursement_lignes?on_conflict=concours_id,cheptel,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"}); await loadAll();
+}
+function openTariffSetup(){
+  document.getElementById("tariffPanel").classList.toggle("hidden"); renderTariffs();
+}
+function renderTariffs(){
+  const cid=document.getElementById("refundContest")?.value, target=document.getElementById("tariffTable"); if(!target)return;
+  const analyses=[...new Set([...db.templateRules.map(r=>r.libelle_analyse),...Object.values(db.results).flatMap(x=>Object.keys(x||{}))])].filter(Boolean).sort();
+  target.innerHTML=`<div class="scroll"><table><thead><tr><th>Analyse</th><th>Coût unitaire €</th></tr></thead><tbody>${analyses.map(a=>`<tr><td>${escapeHtml(a)}</td><td><input type="number" step="0.01" value="${getTariff(cid,a)}" onchange="saveTariff('${escapeHtml(a)}',this.value)"></td></tr>`).join("")}</tbody></table></div>`;
+}
+async function saveTariff(analysis,value){
+  const cid=document.getElementById("refundContest").value;
+  await sb("concours_tarifs_analyses?on_conflict=concours_id,analyse_type",{method:"POST",body:{concours_id:cid,analyse_type:analysis,cout_unitaire:Number(value||0)},prefer:"resolution=merge-duplicates,return=minimal"}); await loadAll();
+}
+function exportRefundCSV(){
+  const cid=document.getElementById("refundContest").value,c=contest(cid); if(!c)return;
+  const rows=[["Concours","N EDE","Eleveur","Analyse","Nb realise","Nb eligible","Justificatif recu","A rembourser","Cout unitaire","Montant"]];
+  refundGroups(cid).forEach(g=>{
+    const line=getRefundLine(cid,g.herd,g.analysis); if(!line.a_rembourser)return;
+    const price=line.cout_unitaire_override??getTariff(cid,g.analysis);
+    const qty=line.quantite_remboursee??g.eligible;
+    rows.push([c.nom,g.herd,g.farmer,g.analysis,g.realise,g.eligible,line.justificatif_recu?"Oui":"Non","Oui",price,(qty*price).toFixed(2)]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(";")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=`remboursements_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
 function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
@@ -1201,10 +1476,13 @@ function exportRecapCSV(){
 function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","refundContest","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundContest","refundSearch","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
+document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
+document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
+document.getElementById("refundSearch")?.addEventListener("input",()=>renderRefunds());
 if(TOKEN)startApp();
 </script>
 </body>

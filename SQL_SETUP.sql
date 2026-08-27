@@ -238,3 +238,44 @@ select c.id,'cheptel','qualification',v.libelle,true
 from public.concours c
 cross join (values ('Qualification IBR'),('Qualification BVD'),('Qualification Brucellose'),('Qualification Leucose'),('Qualification Tuberculose')) as v(libelle)
 where not exists (select 1 from public.concours_points_controle p where p.concours_id=c.id);
+
+
+-- ============================================================
+-- v0.4.0 - REMBOURSEMENTS
+-- ============================================================
+
+create table if not exists public.concours_tarifs_analyses (
+  id uuid primary key default gen_random_uuid(),
+  concours_id uuid not null references public.concours(id) on delete cascade,
+  analyse_type text not null,
+  cout_unitaire numeric(10,2) not null default 0,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  unique(concours_id, analyse_type)
+);
+
+create table if not exists public.concours_remboursement_lignes (
+  id uuid primary key default gen_random_uuid(),
+  concours_id uuid not null references public.concours(id) on delete cascade,
+  cheptel text not null,
+  analyse_type text not null,
+  justificatif_recu boolean not null default false,
+  a_rembourser boolean not null default false,
+  cout_unitaire_override numeric(10,2),
+  quantite_remboursee integer,
+  commentaire text,
+  created_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  unique(concours_id, cheptel, analyse_type)
+);
+
+alter table public.concours_tarifs_analyses enable row level security;
+alter table public.concours_remboursement_lignes enable row level security;
+
+drop policy if exists "concours_tarifs_analyses_authenticated_all" on public.concours_tarifs_analyses;
+create policy "concours_tarifs_analyses_authenticated_all"
+on public.concours_tarifs_analyses for all to authenticated using (true) with check (true);
+
+drop policy if exists "concours_remboursement_lignes_authenticated_all" on public.concours_remboursement_lignes;
+create policy "concours_remboursement_lignes_authenticated_all"
+on public.concours_remboursement_lignes for all to authenticated using (true) with check (true);
