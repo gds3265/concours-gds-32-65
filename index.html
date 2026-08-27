@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.5</title>
-<link rel="manifest" href="manifest.json?v=045">
+<title>Suivi des concours v0.4.6</title>
+<link rel="manifest" href="manifest.json?v=046">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -111,10 +111,10 @@ th{background:#f2ebf0}
     <button data-tab="concours">Concours</button>
     <button data-tab="animaux">Liste inscrits</button>
     <button data-tab="analyses">Analyses</button>
-    <button data-tab="validationrapide">Validation rapide</button>
     <button data-tab="qualifications">Qualifications</button>
     <button data-tab="controles">Autres contrôles</button>
     <button data-tab="certificats">Certificats</button>
+    <button data-tab="validationrapide">Validation rapide</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
@@ -160,6 +160,16 @@ th{background:#f2ebf0}
       <div class="field"><label>Type</label><select id="cType"><option value="suivi">Concours suivi</option><option value="gere">Concours géré</option></select></div>
       <button class="action" onclick="addContest()">Créer</button>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="topline">
+      <div>
+        <h2>Concours enregistrés</h2>
+        <div class="muted">La suppression efface également les animaux, analyses, certificats et remboursements liés à ce concours.</div>
+      </div>
+    </div>
+    <div id="contestList" style="margin-top:12px"></div>
   </div>
 
   <div class="card">
@@ -345,61 +355,7 @@ th{background:#f2ebf0}
 
 
 
-<section id="validationrapide" class="section">
-  <div class="card">
-    <h2>Validation rapide par éleveur</h2>
-    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
-    <div class="fast-validation-grid" style="margin-top:12px">
-      <div class="field"><label>Concours</label><select id="fastContest"></select></div>
-      <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
-      <button class="action" onclick="loadFastValidation()">Afficher</button>
-    </div>
-  </div>
 
-  <div class="card hidden" id="fastPanel">
-    <div class="topline">
-      <div>
-        <h3 id="fastTitle">Éleveur</h3>
-        <div id="fastSummary" class="muted"></div>
-      </div>
-      <div id="fastQualificationBadges"></div>
-    </div>
-
-    <div class="fast-mode">
-      <button class="secondary active" id="fastComputerBtn" onclick="setFastMode('computer')">Validation sur ordinateur</button>
-      <button class="secondary" id="fastPaperBtn" onclick="setFastMode('paper')">Contrôle certificat papier</button>
-    </div>
-
-    <div id="fastComputerMode">
-      <div class="row">
-        <button class="action" onclick="fastFillPending()">Valider les éléments en attente</button>
-        <button class="secondary" onclick="fastSelectAllCertificate(true)">Tous les bovins sur certificat</button>
-        <button class="secondary" onclick="fastSelectAllCertificate(false)">Aucun bovin sur certificat</button>
-      </div>
-      <div class="muted" style="margin-top:8px">
-        Seuls les éléments encore en attente sont complétés en conforme. Les statuts déjà saisis sont conservés.
-      </div>
-    </div>
-
-    <div id="fastPaperMode" class="hidden">
-      <div class="row">
-        <div class="field">
-          <label>Saisir les 10 chiffres du bovin inscrits sur le certificat</label>
-          <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
-        </div>
-        <button class="action" onclick="paperCheckBovin()">Vérifier</button>
-        <button class="secondary" onclick="resetPaperChecks()">Réinitialiser le pointage papier</button>
-      </div>
-      <div id="paperMessage" style="margin-top:10px"></div>
-      <div class="muted" style="margin-top:8px">Entrée valide automatiquement le numéro saisi.</div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="fastAnimalsCard">
-    <h3>Bovins de l'éleveur</h3>
-    <div id="fastAnimals"></div>
-  </div>
-</section>
 
 <section id="qualifications" class="section">
   <div class="card">
@@ -498,6 +454,62 @@ th{background:#f2ebf0}
 
 
 
+<section id="validationrapide" class="section">
+  <div class="card">
+    <h2>Validation rapide par éleveur</h2>
+    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
+    <div class="fast-validation-grid" style="margin-top:12px">
+      <div class="field"><label>Concours</label><select id="fastContest"></select></div>
+      <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
+      <button class="action" onclick="loadFastValidation()">Afficher</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastPanel">
+    <div class="topline">
+      <div>
+        <h3 id="fastTitle">Éleveur</h3>
+        <div id="fastSummary" class="muted"></div>
+      </div>
+      <div id="fastQualificationBadges"></div>
+    </div>
+
+    <div class="fast-mode">
+      <button class="secondary active" id="fastComputerBtn" onclick="setFastMode('computer')">Validation sur ordinateur</button>
+      <button class="secondary" id="fastPaperBtn" onclick="setFastMode('paper')">Contrôle certificat papier</button>
+    </div>
+
+    <div id="fastComputerMode">
+      <div class="row">
+        <button class="action" onclick="fastFillPending()">Valider les éléments en attente</button>
+        <button class="secondary" onclick="fastSelectAllCertificate(true)">Tous les bovins sur certificat</button>
+        <button class="secondary" onclick="fastSelectAllCertificate(false)">Aucun bovin sur certificat</button>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        Seuls les éléments encore en attente sont complétés en conforme. Les statuts déjà saisis sont conservés.
+      </div>
+    </div>
+
+    <div id="fastPaperMode" class="hidden">
+      <div class="row">
+        <div class="field">
+          <label>Saisir les 10 chiffres du bovin inscrits sur le certificat</label>
+          <input id="paperBovinInput" class="paper-input" inputmode="numeric" maxlength="10" placeholder="6518025393">
+        </div>
+        <button class="action" onclick="paperCheckBovin()">Vérifier</button>
+        <button class="secondary" onclick="resetPaperChecks()">Réinitialiser le pointage papier</button>
+      </div>
+      <div id="paperMessage" style="margin-top:10px"></div>
+      <div class="muted" style="margin-top:8px">Entrée valide automatiquement le numéro saisi.</div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="fastAnimalsCard">
+    <h3>Bovins de l'éleveur</h3>
+    <div id="fastAnimals"></div>
+  </div>
+</section>
+
 <section id="remboursements" class="section">
   <div class="card">
     <h2>Remboursements</h2>
@@ -563,7 +575,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.5";
+const APP_VERSION = "0.4.6";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -577,7 +589,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.5");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.6");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -678,7 +690,7 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 
@@ -736,6 +748,36 @@ async function addContest(){
   if(!nom||!date)return alert("Nom et date obligatoires");
   await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value},prefer:"return=representation"});
   document.getElementById("cName").value="";document.getElementById("cDate").value="";await loadAll();
+}
+
+function renderContestList(){
+  const target=document.getElementById("contestList");
+  if(!target)return;
+  const rows=[...db.contests].sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||""))).map(c=>{
+    const animals=db.animals.filter(a=>a.concours_id===c.id).length;
+    return `<tr>
+      <td><strong>${escapeHtml(c.nom)}</strong></td>
+      <td>${c.date_concours||""}</td>
+      <td>${c.type_suivi==="gere"?"Concours géré":"Concours suivi"}</td>
+      <td>${animals}</td>
+      <td><button class="danger" onclick="deleteContest('${c.id}')">Supprimer</button></td>
+    </tr>`;
+  }).join("");
+  target.innerHTML=rows
+    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Bovins</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="muted">Aucun concours enregistré.</div>`;
+}
+async function deleteContest(id){
+  const c=contest(id);
+  if(!c)return;
+  const animals=db.animals.filter(a=>a.concours_id===id).length;
+  const ok=confirm(`Supprimer définitivement le concours "${c.nom}" ?\n\n${animals} bovin(s) et toutes les données liées seront également supprimés.\n\nCette action est irréversible.`);
+  if(!ok)return;
+  const typed=prompt(`Pour confirmer, saisis SUPPRIMER :`);
+  if(typed!=="SUPPRIMER")return alert("Suppression annulée.");
+  await sb("concours?id=eq."+id,{method:"DELETE"});
+  fastCurrentHerd=""; fastCurrentFarmer="";
+  await loadAll();
 }
 
 async function addCheckDef(){
@@ -2020,10 +2062,10 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
