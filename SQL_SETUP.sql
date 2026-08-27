@@ -279,3 +279,8 @@ on public.concours_tarifs_analyses for all to authenticated using (true) with ch
 drop policy if exists "concours_remboursement_lignes_authenticated_all" on public.concours_remboursement_lignes;
 create policy "concours_remboursement_lignes_authenticated_all"
 on public.concours_remboursement_lignes for all to authenticated using (true) with check (true);
+
+-- v0.4.2 - infos animal
+alter table public.concours_animaux
+  add column if not exists sexe text,
+  add column if not exists nom_animal text;

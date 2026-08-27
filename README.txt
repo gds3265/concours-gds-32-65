@@ -147,7 +147,7 @@ NOUVEAUTES v0.3.11
 - Validation sanitaire par maladie : une methode recevable conforme suffit.
 - Vue globale Qualifications des cheptels avec tous les EDE et validation en serie.
 
-NOUVEAUTÉS v0.4.1
+NOUVEAUTÉS v0.4.2
 - Recherche globale par éleveur ou n° cheptel.
 - Onglet Animaux renommé Liste inscrits.
 - Analyses : vue tout le concours, ajout rapide d'un animal, ajout d'une analyse non prévue.
@@ -161,7 +161,7 @@ NOUVEAUTÉS v0.4.1
 - Cases Justificatif reçu / À rembourser.
 - Export CSV pour publipostage.
 
-CORRECTION / ÉVOLUTION v0.4.1
+CORRECTION / ÉVOLUTION v0.4.2
 - Correction de l'affichage de l'onglet Autres contrôles.
 - Remboursements gérés à l'année civile.
 - Filtres : année / concours / éleveur-EDE.
@@ -174,3 +174,11 @@ CORRECTION / ÉVOLUTION v0.4.1
   * nombre d'analyses éligibles ;
   * total annuel HT.
 - Export publipostage : une ligne par éleveur avec total annuel HT et détail par concours.
+
+CORRECTIONS v0.4.2
+- Qualifications visibles par défaut.
+- Mise en page Autres contrôles reprise.
+- Retrait des qualifications dans Certificats.
+- Sexe et nom de l'animal conservés.
+- 4 derniers chiffres du bovin affichés en grand.
+- Export remboursements détaillé par maladie et méthode.
