@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.10</title>
-<link rel="manifest" href="manifest.json?v=0410">
+<title>Suivi des concours v0.4.11</title>
+<link rel="manifest" href="manifest.json?v=0411">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -116,7 +116,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=0410" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=0411" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -599,7 +599,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.10";
+const APP_VERSION = "0.4.11";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -613,7 +613,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.10");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.11");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1437,10 +1437,20 @@ function renderFastAttention(){
   target.innerHTML=`<div class="fast-warning"><strong>⚠ Attention — éléments à vérifier avant validation</strong><br>${issues.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>`;
 }
 async function fastValidateAllToday(){
-  await fastFillPending();
+  const unresolved=fastAnimalsList().filter(a=>(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="a_verifier");
+  if(unresolved.length){
+    const nums=unresolved.map(a=>String(a.bovin||"")).join(", ");
+    alert(`Validation impossible : ${unresolved.length} bovin(s) n'ont pas encore été traités.\n\n${nums}\n\nChoisis pour chacun : Validé, Pas sur certif ou Refusé, ou utilise Sélectionner tout.`);
+    return;
+  }
+  await fastFillPendingNoReload();
   await fastFinalizeCertificate();
 }
 async function fastFinalizeCertificate(){
+  const cid=document.getElementById("fastContest")?.value;
+  const farmer=fastCurrentFarmer;
+  if(!cid||!fastCurrentHerd||!farmer)return alert("Choisir un éleveur.");
+
   const unresolved=fastAnimalsList().filter(a=>(a.statut_certificat_animal||(!a.sur_certificat?"a_verifier":"present"))==="a_verifier");
   if(unresolved.length){
     const nums=unresolved.map(a=>String(a.bovin||"")).join(", ");
@@ -1448,8 +1458,6 @@ async function fastFinalizeCertificate(){
     return;
   }
 
-  const cid=document.getElementById("fastContest")?.value;
-  if(!cid||!fastCurrentHerd)return alert("Choisir un éleveur.");
   const transmission=document.getElementById("fastTransmission")?.value||"mail";
   const today=new Date().toISOString().slice(0,10);
   const issues=fastIssues();
@@ -1457,18 +1465,29 @@ async function fastFinalizeCertificate(){
     const ok=confirm(`Attention : ${issues.length} anomalie(s) ou élément(s) à vérifier sont déjà enregistrés.\n\nValider quand même le certificat ?`);
     if(!ok)return;
   }
+
+  const existing=db.certificates[cid+"|"+farmer]||{};
   const body={
     concours_id:cid,
-    eleveur:fastCurrentFarmer,
+    eleveur:farmer,
     statut_certificat:"valide",
     date_reception:today,
     date_signature:today,
-    mode_transmission:transmission
+    mode_transmission:transmission,
+    commentaire:existing.commentaire||null,
+    updated_at:new Date().toISOString()
   };
-  await sb("concours_certificats?on_conflict=concours_id,eleveur",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+
+  await sb("concours_certificats?on_conflict=concours_id,eleveur",{
+    method:"POST",
+    body,
+    prefer:"resolution=merge-duplicates,return=minimal"
+  });
+
   await loadAll();
   renderFastValidation();
-  alert(`Certificat enregistré comme reçu et validé le ${today} — transmission : ${transmission==="mail"?"Mail":"Direct"}.`);
+  renderCertificateRecap();
+  try{setSyncStatus("synchronisé")}catch(e){}
 }
 function renderFastValidation(){
   const animals=fastAnimalsList();
@@ -1502,13 +1521,11 @@ function renderFastValidation(){
       </div>
     </div>`).join("");
 }
-async function fastFillPending(){
+async function fastFillPendingNoReload(){
   const animals=fastAnimalsList();
   if(!animals.length)return;
   const cid=document.getElementById("fastContest").value;
   const ops=[];
-
-  // Analyses: only pending values, never overwrite any existing non-pending state.
   animals.forEach(a=>{
     demandedDiseases(cid).forEach(d=>{
       const dr=getDiseaseResult(a,d);
@@ -1517,8 +1534,6 @@ async function fastFillPending(){
       }
     });
   });
-
-  // Qualifications: only a_verifier, preserve all previously entered statuses.
   qualificationDefs(cid).forEach(d=>{
     const key="cheptel:"+fastCurrentHerd;
     const r=getCheckResult(d.id,key);
@@ -1526,8 +1541,10 @@ async function fastFillPending(){
       ops.push(saveCheckResultNoReload(d.id,key,"conforme",r?.commentaire||""));
     }
   });
-
   await Promise.all(ops);
+}
+async function fastFillPending(){
+  await fastFillPendingNoReload();
   await loadAll();
   renderFastValidation();
 }
@@ -1544,9 +1561,14 @@ async function upsertResultNoReload(aid,analysis,patch){
   await sb("concours_resultats?on_conflict=animal_id,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
 }
 async function fastSelectAllCertificate(v){
-  const ids=fastAnimalsList().filter(a=>v?animalSanitaryOK(a):true).map(a=>a.id);
-  await Promise.all(ids.map(id=>sb("concours_animaux?id=eq."+id,{method:"PATCH",body:{sur_certificat:v,statut_certificat_animal:v?"present":"a_verifier"}})));
-  await loadAll(); renderFastValidation();
+  const animals=fastAnimalsList();
+  if(!animals.length)return;
+  await Promise.all(animals.map(a=>sb("concours_animaux?id=eq."+a.id,{
+    method:"PATCH",
+    body:{sur_certificat:!!v,statut_certificat_animal:v?"present":"a_verifier"}
+  })));
+  await loadAll();
+  renderFastValidation();
 }
 async function paperCheckBovin(){
   const input=document.getElementById("paperBovinInput");
