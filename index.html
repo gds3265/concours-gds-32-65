@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.4.14</title>
-<link rel="manifest" href="manifest.json?v=0414">
+<title>Suivi des concours v0.5.0</title>
+<link rel="manifest" href="manifest.json?v=050">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -97,6 +97,14 @@ th{background:#f2ebf0}
 .cert-animal-status{min-width:145px}
 .cert-refused{background:#fff0f0}
 .cert-absent{background:#fff8e8}
+
+.partner-grid{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;align-items:end}
+.partner-status-grid{display:grid;grid-template-columns:140px minmax(180px,1fr) minmax(220px,2fr) 160px 160px;gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}
+.partner-status-grid.header{font-weight:700;background:#f7f1f5;border-radius:8px 8px 0 0}
+.partner-bad{background:#fff0f0}.partner-ok{background:#eef8f0}
+.partner-permissions{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px}
+.partner-permissions label{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--line);border-radius:10px}
+@media(max-width:850px){.partner-grid,.partner-permissions{grid-template-columns:1fr}.partner-status-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -116,7 +124,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=0414" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=050" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -128,6 +136,7 @@ th{background:#f2ebf0}
     <button data-tab="qualifications">Qualifications</button>
     <button data-tab="controles">Autres contrôles</button>
     <button data-tab="validationrapide">Validation rapide</button>
+    <button data-tab="partenaires">Partenaires</button>
     <button data-tab="certificats">Certificats</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
@@ -459,6 +468,42 @@ th{background:#f2ebf0}
   </div>
 </section>
 
+
+<section id="partenaires" class="section">
+  <div class="card">
+    <h2>Partenaires / DDPP / autres GDS</h2>
+    <div class="muted">Accès simplifié par concours. Vérification amont facultative, validation finale obligatoire.</div>
+    <div class="partner-grid" style="margin-top:12px">
+      <div class="field"><label>Concours</label><select id="partnerMgmtContest"></select></div>
+      <div class="field"><label>Organisme</label><input id="partnerOrg" placeholder="Ex. DDPP 65"></div>
+      <div class="field"><label>Email</label><input id="partnerEmail" type="email"></div>
+      <div class="field"><label>Type</label><select id="partnerType"><option value="gds">GDS</option><option value="ddpp">DDPP</option><option value="autre">Autre</option></select></div>
+    </div>
+    <h3 style="margin-top:14px">Demandes à valider</h3>
+    <div class="partner-permissions">
+      <label><input type="checkbox" id="pQualIBR" checked> Qualification IBR</label>
+      <label><input type="checkbox" id="pQualBVD" checked> Qualification BVD</label>
+      <label><input type="checkbox" id="pQualBruc"> Qualification Brucellose</label>
+      <label><input type="checkbox" id="pQualLeuc"> Qualification Leucose</label>
+      <label><input type="checkbox" id="pQualTub"> Qualification Tuberculose</label>
+      <label><input type="checkbox" id="pQualDNC"> DNC</label>
+      <label><input type="checkbox" id="pIndIBR" checked> Analyse individuelle IBR</label>
+      <label><input type="checkbox" id="pBVDViro" checked> BVD virologie</label>
+      <label><input type="checkbox" id="pBesno"> Besnoitiose</label>
+      <label><input type="checkbox" id="pOther"> Autres contrôles</label>
+    </div>
+    <button class="action" style="margin-top:12px" onclick="addPartnerAccess()">Ajouter / enregistrer</button>
+  </div>
+  <div class="card"><h3>Partenaires invités</h3><div id="partnerAccessList"></div></div>
+  <div class="card">
+    <div class="topline"><div><h3>Vue simplifiée partenaire</h3><div class="muted">Une ligne par bovin, demandes regroupées.</div></div>
+      <div class="field"><label>Afficher comme</label><select id="partnerPreviewUser"></select></div></div>
+    <div class="row"><div class="field"><label>Recherche</label><input id="partnerSearch" placeholder="Cheptel, éleveur ou bovin"></div>
+      <button class="secondary" onclick="partnerSetAllVerification('conforme')">Tout conforme (vérification)</button></div>
+    <div id="partnerPreview"></div>
+  </div>
+</section>
+
 <section id="certificats" class="section">
   
   <div class="card">
@@ -599,7 +644,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.4.14";
+const APP_VERSION = "0.5.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -613,7 +658,7 @@ const STATUS=[
 let TOKEN=localStorage.getItem("concours_access_token")||"";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.4.14");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.0");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -666,7 +711,7 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
@@ -678,9 +723,11 @@ async function loadAll(){
     sb("concours_remboursement_lignes?select=*"),
     sb("concours_animaux?select=*&order=eleveur.asc,bovin.asc"),
     sb("concours_resultats?select=*"),
-    sb("concours_certificats?select=*")
+    sb("concours_certificats?select=*"),
+    sb("concours_acces_partenaires?select=*&order=organisme.asc"),
+    sb("concours_validations_partenaires?select=*")
   ]);
-  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.certificates={};
   (certs||[]).forEach(c=>{if(c.statut_certificat==="signe")c.statut_certificat="valide";db.certificates[c.concours_id+"|"+c.eleveur]=c});
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
   renderAll();
@@ -719,7 +766,7 @@ function optionize(id,values){
 function renderSelectors(){
   const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest","partnerMgmtContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
 }
 
@@ -1624,6 +1671,56 @@ async function resetPaperChecks(){
   await Promise.all(ids.map(id=>sb("concours_animaux?id=eq."+id,{method:"PATCH",body:{verifie_certificat_papier:false}})));
   await loadAll(); renderFastValidation();
 }
+
+function partnerPermissionObject(){return {qual_ibr:pQualIBR.checked,qual_bvd:pQualBVD.checked,qual_bruc:pQualBruc.checked,qual_leuc:pQualLeuc.checked,qual_tub:pQualTub.checked,qual_dnc:pQualDNC.checked,indiv_ibr:pIndIBR.checked,bvd_viro:pBVDViro.checked,besno:pBesno.checked,autres:pOther.checked}}
+async function addPartnerAccess(){
+  const body={concours_id:partnerMgmtContest.value,organisme:partnerOrg.value.trim(),email:partnerEmail.value.trim().toLowerCase(),type_partenaire:partnerType.value,permissions:partnerPermissionObject(),actif:true,updated_at:new Date().toISOString()};
+  if(!body.concours_id||!body.organisme||!body.email)return alert("Concours, organisme et email obligatoires.");
+  await sb("concours_acces_partenaires?on_conflict=concours_id,email",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  partnerOrg.value="";partnerEmail.value="";await loadAll();
+}
+async function deletePartnerAccess(id){if(confirm("Retirer cet accès partenaire ?")){await sb("concours_acces_partenaires?id=eq."+id,{method:"DELETE"});await loadAll()}}
+function partnerValidation(pid,t,k){return (db.partnerValidations||[]).find(v=>v.acces_partenaire_id===pid&&v.cible_type===t&&v.cible_cle===k)||{statut_verification:"attente",statut_validation:"attente"}}
+function partnerReq(access,a){
+  const p=access.permissions||{},r=[];
+  if(p.qual_ibr)r.push("Qualif IBR");if(p.qual_bvd)r.push("Qualif BVD");if(p.qual_bruc)r.push("Brucellose");if(p.qual_leuc)r.push("Leucose");if(p.qual_tub)r.push("Tuberculose");if(p.qual_dnc)r.push("DNC");
+  if(p.indiv_ibr)r.push("Indiv. IBR");if(p.bvd_viro)r.push("BVD viro");
+  if(p.besno){const age=ageMonths(a.naissance,contest(a.concours_id)?.date_concours);if(age!==null&&age>=6)r.push("Besnoitiose")}
+  if(p.autres)r.push("Autres contrôles");return r;
+}
+function renderPartnerAccess(){
+  const target=document.getElementById("partnerAccessList"),sel=document.getElementById("partnerPreviewUser");if(!target||!sel)return;
+  const cid=document.getElementById("partnerMgmtContest")?.value,rows=(db.partnerAccess||[]).filter(x=>x.concours_id===cid&&x.actif!==false);
+  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Type</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(x.type_partenaire)}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
+  const old=sel.value;sel.innerHTML=rows.map(x=>`<option value="${x.id}">${escapeHtml(x.organisme)} — ${escapeHtml(x.email)}</option>`).join("");if(rows.some(x=>x.id===old))sel.value=old;renderPartnerPreview();
+}
+function renderPartnerPreview(){
+  const target=document.getElementById("partnerPreview");if(!target)return;
+  const pid=partnerPreviewUser.value,access=(db.partnerAccess||[]).find(x=>x.id===pid);if(!access){target.innerHTML='<div class="muted">Choisir un partenaire.</div>';return}
+  const q=(partnerSearch.value||"").trim().toLowerCase();
+  const animals=db.animals.filter(a=>a.concours_id===access.concours_id&&(!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin+" "+(a.nom_animal||"")).toLowerCase().includes(q)));
+  const map=new Map();animals.forEach(a=>{const h=a.cheptel||"Sans EDE";if(!map.has(h))map.set(h,{herd:h,farmer:a.eleveur||"",animals:[]});map.get(h).animals.push(a)});
+  let out="";
+  [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})).forEach(h=>{
+    const hv=partnerValidation(pid,"cheptel",h.herd);
+    out+=`<div class="card" style="margin:10px 0"><div class="topline"><strong>${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</strong><select onchange="savePartnerValidation('${pid}','cheptel','${escapeHtml(h.herd)}','validation',this.value)"><option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option><option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option><option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option></select></div>`;
+    out+=`<div class="partner-status-grid header"><div>Bovin</div><div>Nom / sexe</div><div>Demandes</div><div>Vérification facultative</div><div>Validation</div></div>`;
+    h.animals.forEach(a=>{const v=partnerValidation(pid,"animal",a.id),req=partnerReq(access,a),cls=v.statut_validation==="conforme"?"partner-ok":v.statut_validation==="nonconforme"?"partner-bad":"";
+      out+=`<div class="partner-status-grid ${cls}"><div><div class="work-no">${String(a.bovin||"").slice(-4)}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></div><div>${escapeHtml(a.nom_animal||"")} ${escapeHtml(a.sexe||"")}</div><div>${escapeHtml(req.join(" · "))}</div><div><select onchange="savePartnerValidation('${pid}','animal','${a.id}','verification',this.value)"><option value="attente" ${v.statut_verification==="attente"?"selected":""}>En attente</option><option value="conforme" ${v.statut_verification==="conforme"?"selected":""}>Conforme</option><option value="nonconforme" ${v.statut_verification==="nonconforme"?"selected":""}>Non conforme</option></select></div><div><select onchange="savePartnerValidation('${pid}','animal','${a.id}','validation',this.value)"><option value="attente" ${v.statut_validation==="attente"?"selected":""}>En attente</option><option value="conforme" ${v.statut_validation==="conforme"?"selected":""}>Conforme</option><option value="nonconforme" ${v.statut_validation==="nonconforme"?"selected":""}>Non conforme</option></select></div></div>`});
+    out+="</div>";
+  });
+  target.innerHTML=out||'<div class="muted">Aucun animal.</div>';
+}
+async function savePartnerValidation(pid,t,k,kind,status){
+  const cur=partnerValidation(pid,t,k),body={acces_partenaire_id:pid,cible_type:t,cible_cle:k,statut_verification:kind==="verification"?status:cur.statut_verification,statut_validation:kind==="validation"?status:cur.statut_validation,updated_at:new Date().toISOString()};
+  await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll();
+}
+async function partnerSetAllVerification(status){
+  const pid=partnerPreviewUser.value,access=(db.partnerAccess||[]).find(x=>x.id===pid);if(!access)return;
+  const q=(partnerSearch.value||"").trim().toLowerCase(),animals=db.animals.filter(a=>a.concours_id===access.concours_id&&(!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin).toLowerCase().includes(q)));
+  const bodies=animals.map(a=>{const cur=partnerValidation(pid,"animal",a.id);return {acces_partenaire_id:pid,cible_type:"animal",cible_cle:a.id,statut_verification:status,statut_validation:cur.statut_validation,updated_at:new Date().toISOString()}});
+  if(bodies.length)await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body:bodies,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll();
+}
 function renderCertificates(){
   const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value;
   const cert=db.certificates[cid+"|"+farmer];
@@ -2272,7 +2369,7 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
@@ -2293,6 +2390,10 @@ document.getElementById("fastHerdSearch")?.addEventListener("keydown",e=>{
 });
 document.getElementById("paperBovinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();paperCheckBovin();}});
 document.getElementById("certRecapSearch")?.addEventListener("input",()=>renderCertificateRecap());
+
+document.getElementById("partnerMgmtContest")?.addEventListener("change",()=>renderPartnerAccess());
+document.getElementById("partnerPreviewUser")?.addEventListener("change",()=>renderPartnerPreview());
+document.getElementById("partnerSearch")?.addEventListener("input",()=>renderPartnerPreview());
 if(TOKEN)startApp();
 </script>
 </body>

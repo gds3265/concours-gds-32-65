@@ -316,3 +316,28 @@ where sur_certificat=true
 update public.concours_certificats
 set statut_certificat='valide'
 where statut_certificat='signe';
+
+-- v0.5.0 - espace partenaires
+create table if not exists public.concours_acces_partenaires (
+ id uuid primary key default gen_random_uuid(),
+ concours_id uuid not null references public.concours(id) on delete cascade,
+ organisme text not null,email text not null,type_partenaire text not null default 'autre',
+ permissions jsonb not null default '{}'::jsonb,actif boolean not null default true,
+ created_by uuid default auth.uid(),created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ unique(concours_id,email)
+);
+create table if not exists public.concours_validations_partenaires (
+ id uuid primary key default gen_random_uuid(),
+ acces_partenaire_id uuid not null references public.concours_acces_partenaires(id) on delete cascade,
+ cible_type text not null check(cible_type in ('cheptel','animal')),cible_cle text not null,
+ statut_verification text not null default 'attente' check(statut_verification in ('attente','conforme','nonconforme')),
+ statut_validation text not null default 'attente' check(statut_validation in ('attente','conforme','nonconforme')),
+ commentaire text,updated_at timestamptz not null default now(),updated_by uuid default auth.uid(),
+ unique(acces_partenaire_id,cible_type,cible_cle)
+);
+alter table public.concours_acces_partenaires enable row level security;
+alter table public.concours_validations_partenaires enable row level security;
+drop policy if exists concours_acces_partenaires_authenticated_all on public.concours_acces_partenaires;
+create policy concours_acces_partenaires_authenticated_all on public.concours_acces_partenaires for all to authenticated using(true) with check(true);
+drop policy if exists concours_validations_partenaires_authenticated_all on public.concours_validations_partenaires;
+create policy concours_validations_partenaires_authenticated_all on public.concours_validations_partenaires for all to authenticated using(true) with check(true);
