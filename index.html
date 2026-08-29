@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.1</title>
-<link rel="manifest" href="manifest.json?v=051">
+<title>Suivi des concours v0.5.2</title>
+<link rel="manifest" href="manifest.json?v=052">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=051" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=052" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -526,6 +526,7 @@ body.partner-mode .partner-only-header{display:block}
       <div class="field"><label>Concours</label><select id="partnerMgmtContest"></select></div>
       <div class="field"><label>Organisme</label><input id="partnerOrg" placeholder="Ex. DDPP 65"></div>
       <div class="field"><label>Email</label><input id="partnerEmail" type="email"></div>
+      <div class="field"><label>Mot de passe initial</label><input id="partnerPassword" type="password" minlength="8" placeholder="8 caractères minimum"></div>
       <div class="field"><label>Type</label><select id="partnerType"><option value="gds">GDS</option><option value="ddpp">DDPP</option><option value="autre">Autre</option></select></div>
     </div>
     <h3 style="margin-top:14px">Demandes à valider</h3>
@@ -541,7 +542,13 @@ body.partner-mode .partner-only-header{display:block}
       <label><input type="checkbox" id="pBesno"> Besnoitiose</label>
       <label><input type="checkbox" id="pOther"> Autres contrôles</label>
     </div>
-    <button class="action" style="margin-top:12px" onclick="addPartnerAccess()">Ajouter / enregistrer</button>
+    <div class="row" style="margin-top:12px">
+      <button class="action" onclick="createPartnerAccount()">Créer le compte + inviter</button>
+      <button class="secondary" onclick="addPartnerAccess()">Associer un compte existant</button>
+    </div>
+    <div id="partnerCreateMsg" class="muted" style="margin-top:8px">
+      Le mot de passe n'est jamais stocké dans l'application. Il sert uniquement à créer le compte Supabase.
+    </div>
   </div>
   <div class="card"><h3>Partenaires invités</h3><div id="partnerAccessList"></div></div>
   <div class="card">
@@ -693,7 +700,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.1";
+const APP_VERSION = "0.5.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -710,7 +717,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.2");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1904,6 +1911,47 @@ async function resetPaperChecks(){
 }
 
 function partnerPermissionObject(){return {qual_ibr:pQualIBR.checked,qual_bvd:pQualBVD.checked,qual_bruc:pQualBruc.checked,qual_leuc:pQualLeuc.checked,qual_tub:pQualTub.checked,qual_dnc:pQualDNC.checked,indiv_ibr:pIndIBR.checked,bvd_viro:pBVDViro.checked,besno:pBesno.checked,autres:pOther.checked}}
+
+async function createPartnerAccount(){
+  const msg=document.getElementById("partnerCreateMsg");
+  const email=(document.getElementById("partnerEmail")?.value||"").trim().toLowerCase();
+  const password=document.getElementById("partnerPassword")?.value||"";
+  const organisme=(document.getElementById("partnerOrg")?.value||"").trim();
+  const concours_id=document.getElementById("partnerMgmtContest")?.value||"";
+  const type_partenaire=document.getElementById("partnerType")?.value||"autre";
+  const permissions=partnerPermissionObject();
+
+  if(!concours_id||!organisme||!email||!password){
+    if(msg)msg.innerHTML='<span class="error">Concours, organisme, email et mot de passe obligatoires.</span>';
+    return;
+  }
+  if(password.length<8){
+    if(msg)msg.innerHTML='<span class="error">Mot de passe : 8 caractères minimum.</span>';
+    return;
+  }
+
+  if(msg)msg.textContent="Création du compte partenaire…";
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/create-partner-account",{
+      method:"POST",
+      headers:{
+        "Authorization":"Bearer "+TOKEN,
+        "apikey":SUPABASE_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({email,password,organisme,concours_id,type_partenaire,permissions})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data.error||data.message||("Erreur "+r.status));
+    document.getElementById("partnerPassword").value="";
+    document.getElementById("partnerOrg").value="";
+    document.getElementById("partnerEmail").value="";
+    if(msg)msg.innerHTML='<span class="success">Compte partenaire créé et associé au concours.</span>';
+    await loadAll();
+  }catch(e){
+    if(msg)msg.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>';
+  }
+}
 async function addPartnerAccess(){
   const body={concours_id:partnerMgmtContest.value,organisme:partnerOrg.value.trim(),email:partnerEmail.value.trim().toLowerCase(),type_partenaire:partnerType.value,permissions:partnerPermissionObject(),actif:true,updated_at:new Date().toISOString()};
   if(!body.concours_id||!body.organisme||!body.email)return alert("Concours, organisme et email obligatoires.");
@@ -1922,7 +1970,7 @@ function partnerReq(access,a){
 function renderPartnerAccess(){
   const target=document.getElementById("partnerAccessList"),sel=document.getElementById("partnerPreviewUser");if(!target||!sel)return;
   const cid=document.getElementById("partnerMgmtContest")?.value,rows=(db.partnerAccess||[]).filter(x=>x.concours_id===cid&&x.actif!==false);
-  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Type</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(x.type_partenaire)}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
+  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Type</th><th>Compte</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(x.type_partenaire)}</td><td>${x.auth_user_id?'<span class="badge ok">Créé</span>':'<span class="badge warn">À associer</span>'}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
   const old=sel.value;sel.innerHTML=rows.map(x=>`<option value="${x.id}">${escapeHtml(x.organisme)} — ${escapeHtml(x.email)}</option>`).join("");if(rows.some(x=>x.id===old))sel.value=old;renderPartnerPreview();
 }
 function renderPartnerPreview(){

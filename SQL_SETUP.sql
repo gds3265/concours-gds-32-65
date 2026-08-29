@@ -341,3 +341,35 @@ drop policy if exists concours_acces_partenaires_authenticated_all on public.con
 create policy concours_acces_partenaires_authenticated_all on public.concours_acces_partenaires for all to authenticated using(true) with check(true);
 drop policy if exists concours_validations_partenaires_authenticated_all on public.concours_validations_partenaires;
 create policy concours_validations_partenaires_authenticated_all on public.concours_validations_partenaires for all to authenticated using(true) with check(true);
+
+
+-- ============================================================
+-- v0.5.2 - COMPTES PARTENAIRES CREES DEPUIS L'APPLICATION
+-- ============================================================
+
+alter table public.concours_acces_partenaires
+  add column if not exists auth_user_id uuid unique;
+
+create table if not exists public.concours_admins (
+  user_id uuid primary key,
+  email text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.concours_admins enable row level security;
+
+drop policy if exists "concours_admins_self_read" on public.concours_admins;
+create policy "concours_admins_self_read"
+on public.concours_admins for select
+to authenticated
+using (auth.uid() = user_id);
+
+-- IMPORTANT :
+-- Pour autoriser un compte interne GDS à créer des comptes partenaires,
+-- ajouter son UUID Supabase Auth dans concours_admins.
+-- Exemple depuis l'éditeur SQL :
+--
+-- insert into public.concours_admins(user_id,email)
+-- select id,email from auth.users
+-- where email='VOTRE_EMAIL_GDS'
+-- on conflict (user_id) do update set email=excluded.email;
