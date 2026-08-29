@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.0</title>
-<link rel="manifest" href="manifest.json?v=050">
+<title>Suivi des concours v0.5.1</title>
+<link rel="manifest" href="manifest.json?v=051">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -105,6 +105,21 @@ th{background:#f2ebf0}
 .partner-permissions{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px}
 .partner-permissions label{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--line);border-radius:10px}
 @media(max-width:850px){.partner-grid,.partner-permissions{grid-template-columns:1fr}.partner-status-grid{grid-template-columns:1fr}}
+
+.partner-only-header{display:none}
+body.partner-mode nav button{display:none}
+body.partner-mode nav button[data-tab="partenaireportail"]{display:inline-flex}
+body.partner-mode #globalSearch{display:none}
+body.partner-mode .global-search-label{display:none}
+body.partner-mode .partner-only-header{display:block}
+.partner-portal-kpis{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:12px 0}
+.partner-portal-kpi{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
+.partner-portal-kpi strong{display:block;font-size:22px;color:var(--accent)}
+.partner-validation-row{display:grid;grid-template-columns:130px minmax(150px,1fr) minmax(230px,2fr) 150px 150px minmax(160px,1fr);gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}
+.partner-validation-row.head{font-weight:700;background:#f6eff4}
+.partner-validation-row.bad{background:#fff0f0}
+.partner-validation-row.ok{background:#eef8f0}
+@media(max-width:900px){.partner-portal-kpis{grid-template-columns:repeat(2,1fr)}.partner-validation-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -124,7 +139,7 @@ th{background:#f2ebf0}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=050" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=051" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -137,13 +152,14 @@ th{background:#f2ebf0}
     <button data-tab="controles">Autres contrôles</button>
     <button data-tab="validationrapide">Validation rapide</button>
     <button data-tab="partenaires">Partenaires</button>
+    <button data-tab="partenaireportail" style="display:none">Mon espace partenaire</button>
     <button data-tab="certificats">Certificats</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
   <div style="margin-top:10px;display:grid;grid-template-columns:minmax(220px,420px) auto;gap:8px;align-items:center">
     <input id="globalSearch" placeholder="Rechercher un éleveur ou n° cheptel…" style="width:100%;padding:8px 10px;border-radius:8px;border:0">
-    <span class="small" style="opacity:.9">Filtre les listes de l’écran affiché</span>
+    <span class="small" style="opacity:.9"><span class="global-search-label">Filtre les listes de l’écran affiché</span></span>
   </div>
 </header>
 
@@ -469,6 +485,39 @@ th{background:#f2ebf0}
 </section>
 
 
+
+<section id="partenaireportail" class="section">
+  <div class="card partner-only-header">
+    <h2 id="partnerPortalTitle">Espace partenaire</h2>
+    <div class="muted" id="partnerPortalIdentity"></div>
+  </div>
+
+  <div class="card">
+    <div class="partner-grid">
+      <div class="field"><label>Concours attribué</label><select id="portalContest"></select></div>
+      <div class="field"><label>Recherche</label><input id="portalSearch" placeholder="N° cheptel, éleveur ou bovin"></div>
+      <div class="field"><label>Affichage</label>
+        <select id="portalFilter">
+          <option value="">Tous</option>
+          <option value="attente">En attente</option>
+          <option value="conforme">Conformes</option>
+          <option value="nonconforme">Non conformes</option>
+        </select>
+      </div>
+      <div><button class="secondary" onclick="portalSetAllVerification()">Tout conforme en vérification</button></div>
+    </div>
+
+    <div id="portalConditions" style="margin-top:12px"></div>
+    <div class="partner-portal-kpis" id="portalKpis"></div>
+  </div>
+
+  <div class="card">
+    <h3>Validation des cheptels et bovins</h3>
+    <div class="muted">La vérification est une aide facultative. La colonne Validation correspond à la décision finale du partenaire.</div>
+    <div id="portalValidationTable" style="margin-top:12px"></div>
+  </div>
+</section>
+
 <section id="partenaires" class="section">
   <div class="card">
     <h2>Partenaires / DDPP / autres GDS</h2>
@@ -644,7 +693,7 @@ th{background:#f2ebf0}
 </div>
 
 <script>
-const APP_VERSION = "0.5.0";
+const APP_VERSION = "0.5.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -656,13 +705,195 @@ const STATUS=[
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
+let CURRENT_EMAIL="";
+let APP_MODE="admin";
+let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.1");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
   e.textContent=(bad?"● ":"● ")+text; e.style.color=bad?"#ffd0d0":"#d8ffe0";
+}
+
+function decodeJwtPayload(token){
+  try{
+    const part=token.split(".")[1];
+    const normalized=part.replace(/-/g,"+").replace(/_/g,"/");
+    const json=decodeURIComponent(atob(normalized).split("").map(c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));
+    return JSON.parse(json);
+  }catch(e){return {}}
+}
+function currentLoginEmail(){
+  const payload=decodeJwtPayload(TOKEN);
+  return String(payload.email||payload.user_metadata?.email||"").trim().toLowerCase();
+}
+function accessForCurrentUser(){
+  const email=currentLoginEmail();
+  return (db.partnerAccess||[]).filter(a=>a.actif!==false && String(a.email||"").trim().toLowerCase()===email);
+}
+function applyAccessMode(){
+  CURRENT_EMAIL=currentLoginEmail();
+  CURRENT_PARTNER_ACCESSES=accessForCurrentUser();
+  APP_MODE=CURRENT_PARTNER_ACCESSES.length?"partner":"admin";
+  document.body.classList.toggle("partner-mode",APP_MODE==="partner");
+
+  const portalBtn=document.querySelector('nav button[data-tab="partenaireportail"]');
+  if(portalBtn)portalBtn.style.display=APP_MODE==="partner"?"inline-flex":"none";
+
+  if(APP_MODE==="partner"){
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.getElementById("partenaireportail")?.classList.add("active");
+    renderPartnerPortal();
+  }
+}
+function portalAccess(){
+  const cid=document.getElementById("portalContest")?.value;
+  return CURRENT_PARTNER_ACCESSES.find(a=>a.concours_id===cid)||CURRENT_PARTNER_ACCESSES[0]||null;
+}
+function portalPermissionLabels(access){
+  const p=access?.permissions||{},r=[];
+  if(p.qual_ibr)r.push("Qualification IBR");
+  if(p.qual_bvd)r.push("Qualification BVD");
+  if(p.qual_bruc)r.push("Brucellose");
+  if(p.qual_leuc)r.push("Leucose");
+  if(p.qual_tub)r.push("Tuberculose");
+  if(p.qual_dnc)r.push("DNC");
+  if(p.indiv_ibr)r.push("IBR individuel");
+  if(p.bvd_viro)r.push("BVD virologie");
+  if(p.besno)r.push("Besnoitiose > 6 mois");
+  if(p.autres)r.push("Autres contrôles");
+  return r;
+}
+function portalAnimalRequirements(access,a){
+  return partnerReq(access,a);
+}
+function renderPartnerPortal(){
+  if(APP_MODE!=="partner")return;
+  const title=document.getElementById("partnerPortalTitle");
+  const ident=document.getElementById("partnerPortalIdentity");
+  if(title)title.textContent="Espace partenaire";
+  if(ident)ident.textContent=`${CURRENT_EMAIL} — seuls les concours qui vous sont attribués sont affichés.`;
+
+  const sel=document.getElementById("portalContest");
+  if(!sel)return;
+  const old=sel.value;
+  sel.innerHTML=CURRENT_PARTNER_ACCESSES.map(a=>{
+    const c=contest(a.concours_id);
+    return `<option value="${a.concours_id}">${escapeHtml(c?.nom||"Concours")} — ${escapeHtml(c?.date_concours||"")} — ${escapeHtml(a.organisme||"")}</option>`;
+  }).join("");
+  if(CURRENT_PARTNER_ACCESSES.some(a=>a.concours_id===old))sel.value=old;
+
+  const access=portalAccess();
+  if(!access)return;
+  const cid=access.concours_id;
+  const q=(document.getElementById("portalSearch")?.value||"").trim().toLowerCase();
+  const filter=document.getElementById("portalFilter")?.value||"";
+
+  const conditions=portalPermissionLabels(access);
+  document.getElementById("portalConditions").innerHTML=`<strong>Conditions à valider :</strong> ${escapeHtml(conditions.join(" · ")||"Aucune condition paramétrée")}`;
+
+  let animals=db.animals.filter(a=>a.concours_id===cid);
+  if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q));
+
+  const herdMap=new Map();
+  animals.forEach(a=>{
+    const h=a.cheptel||"Sans EDE";
+    if(!herdMap.has(h))herdMap.set(h,{herd:h,farmer:a.eleveur||"",animals:[]});
+    herdMap.get(h).animals.push(a);
+  });
+  const herds=[...herdMap.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true}));
+
+  let waiting=0,ok=0,bad=0;
+  animals.forEach(a=>{
+    const v=partnerValidation(access.id,"animal",a.id);
+    if(v.statut_validation==="conforme")ok++;
+    else if(v.statut_validation==="nonconforme")bad++;
+    else waiting++;
+  });
+  document.getElementById("portalKpis").innerHTML=[
+    ["Cheptels",herds.length],["Bovins",animals.length],["Validés",ok],["En attente",waiting]
+  ].map(([l,v])=>`<div class="partner-portal-kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
+
+  let out="";
+  herds.forEach(h=>{
+    const hv=partnerValidation(access.id,"cheptel",h.herd);
+    if(filter && hv.statut_validation!==filter && !h.animals.some(a=>partnerValidation(access.id,"animal",a.id).statut_validation===filter))return;
+    out+=`<div class="card" style="margin:10px 0">
+      <div class="topline">
+        <div><strong>${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</strong></div>
+        <div>
+          <select onchange="portalSaveValidation('cheptel','${escapeHtml(h.herd)}','validation',this.value)">
+            <option value="attente" ${hv.statut_validation==="attente"?"selected":""}>En attente</option>
+            <option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Conforme</option>
+            <option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Non conforme</option>
+          </select>
+        </div>
+      </div>
+      <div class="partner-validation-row head">
+        <div>Bovin</div><div>Nom / sexe</div><div>Demandes regroupées</div><div>Vérification</div><div>Validation</div><div>Commentaire</div>
+      </div>`;
+
+    h.animals.sort((a,b)=>String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true})).forEach(a=>{
+      const v=partnerValidation(access.id,"animal",a.id);
+      if(filter && v.statut_validation!==filter)return;
+      const req=portalAnimalRequirements(access,a);
+      const cls=v.statut_validation==="conforme"?"ok":v.statut_validation==="nonconforme"?"bad":"";
+      out+=`<div class="partner-validation-row ${cls}">
+        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></div>
+        <div>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
+        <div>${escapeHtml(req.join(" · ")||"Aucune demande")}</div>
+        <div><select onchange="portalSaveValidation('animal','${a.id}','verification',this.value)">
+          <option value="attente" ${v.statut_verification==="attente"?"selected":""}>En attente</option>
+          <option value="conforme" ${v.statut_verification==="conforme"?"selected":""}>Conforme</option>
+          <option value="nonconforme" ${v.statut_verification==="nonconforme"?"selected":""}>Non conforme</option>
+        </select></div>
+        <div><select onchange="portalSaveValidation('animal','${a.id}','validation',this.value)">
+          <option value="attente" ${v.statut_validation==="attente"?"selected":""}>En attente</option>
+          <option value="conforme" ${v.statut_validation==="conforme"?"selected":""}>Conforme</option>
+          <option value="nonconforme" ${v.statut_validation==="nonconforme"?"selected":""}>Non conforme</option>
+        </select></div>
+        <div><input value="${escapeHtml(v.commentaire||"")}" onchange="portalSaveComment('animal','${a.id}',this.value)" placeholder="Observation"></div>
+      </div>`;
+    });
+    out+="</div>";
+  });
+  document.getElementById("portalValidationTable").innerHTML=out||'<div class="muted">Aucun bovin pour cette recherche.</div>';
+}
+async function portalSaveValidation(type,key,kind,status){
+  const access=portalAccess();if(!access)return;
+  const cur=partnerValidation(access.id,type,key);
+  const body={
+    acces_partenaire_id:access.id,cible_type:type,cible_cle:key,
+    statut_verification:kind==="verification"?status:cur.statut_verification,
+    statut_validation:kind==="validation"?status:cur.statut_validation,
+    commentaire:cur.commentaire||null,updated_at:new Date().toISOString()
+  };
+  await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();applyAccessMode();
+}
+async function portalSaveComment(type,key,comment){
+  const access=portalAccess();if(!access)return;
+  const cur=partnerValidation(access.id,type,key);
+  await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body:{
+    acces_partenaire_id:access.id,cible_type:type,cible_cle:key,
+    statut_verification:cur.statut_verification,statut_validation:cur.statut_validation,
+    commentaire:comment||null,updated_at:new Date().toISOString()
+  },prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();applyAccessMode();
+}
+async function portalSetAllVerification(){
+  const access=portalAccess();if(!access)return;
+  const q=(document.getElementById("portalSearch")?.value||"").trim().toLowerCase();
+  let animals=db.animals.filter(a=>a.concours_id===access.concours_id);
+  if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""}`).toLowerCase().includes(q));
+  const bodies=animals.map(a=>{
+    const cur=partnerValidation(access.id,"animal",a.id);
+    return {acces_partenaire_id:access.id,cible_type:"animal",cible_cle:a.id,statut_verification:"conforme",statut_validation:cur.statut_validation,commentaire:cur.commentaire||null,updated_at:new Date().toISOString()}
+  });
+  if(bodies.length)await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body:bodies,prefer:"resolution=merge-duplicates,return=minimal"});
+  await loadAll();applyAccessMode();
 }
 async function sb(path,{method="GET",body=null,prefer=""}={}){
   setSync("synchronisation…");
@@ -703,7 +934,7 @@ function logout(){
 async function startApp(){
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="block";
-  try{await loadAll();}catch(e){
+  try{await loadAll();applyAccessMode();}catch(e){
     if(String(e.message).includes("JWT")||String(e.message).includes("401")){
       logout();return;
     }
@@ -2369,8 +2600,13 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation()}
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));document.getElementById(b.dataset.tab).classList.add("active");renderAll()});
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(b.dataset.tab).classList.add("active");
+  renderAll();
+});
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
@@ -2394,6 +2630,10 @@ document.getElementById("certRecapSearch")?.addEventListener("input",()=>renderC
 document.getElementById("partnerMgmtContest")?.addEventListener("change",()=>renderPartnerAccess());
 document.getElementById("partnerPreviewUser")?.addEventListener("change",()=>renderPartnerPreview());
 document.getElementById("partnerSearch")?.addEventListener("input",()=>renderPartnerPreview());
+
+document.getElementById("portalContest")?.addEventListener("change",()=>renderPartnerPortal());
+document.getElementById("portalSearch")?.addEventListener("input",()=>renderPartnerPortal());
+document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 if(TOKEN)startApp();
 </script>
 </body>
