@@ -1,47 +1,50 @@
-SUIVI DES CONCOURS v0.5.2
-Création sécurisée de comptes partenaires depuis l'application
+SUIVI DES CONCOURS v0.6.1
+INVITATIONS PARTENAIRES + DEPARTEMENTS
 
-1) EXÉCUTER SQL_SETUP.sql
-   Cela ajoute :
-   - auth_user_id dans concours_acces_partenaires
-   - la table concours_admins
+1) EXECUTER LE NOUVEAU SQL_SETUP.sql
+   Il ajoute :
+   - departements[] dans concours_acces_partenaires
+   - invitation_envoyee_at
 
-2) AUTORISER TON COMPTE GDS À CRÉER DES PARTENAIRES
-   Dans Supabase > SQL Editor, exécuter en remplaçant l'email :
-
-   insert into public.concours_admins(user_id,email)
-   select id,email from auth.users
-   where email='VOTRE_EMAIL_GDS'
-   on conflict (user_id) do update set email=excluded.email;
-
-   Faire la même chose pour chaque collègue interne qui doit pouvoir créer des comptes partenaires.
-
-3) DÉPLOYER L'EDGE FUNCTION
-   Le dossier fourni est :
+2) REDEPLOYER L'EDGE FUNCTION
+   La fonction create-partner-account a changé.
+   Dans Supabase > Edge Functions > create-partner-account :
+   remplacer le code par :
    supabase/functions/create-partner-account/index.ts
+   puis redéployer.
 
-   Avec Supabase CLI :
-   supabase functions deploy create-partner-account
+3) CONFIGURER L'URL DE RETOUR DES EMAILS
+   Dans Supabase > Authentication > URL Configuration :
+   - Site URL : mettre l'adresse de l'application GitHub Pages
+   - Redirect URLs : ajouter l'adresse exacte de l'application
+     Exemple :
+     https://gds3265.github.io/concours-gds-32-65/
 
-   Les variables SUPABASE_URL, SUPABASE_ANON_KEY et SUPABASE_SERVICE_ROLE_KEY
-   sont disponibles côté Edge Function / projet Supabase.
-   NE JAMAIS mettre SUPABASE_SERVICE_ROLE_KEY dans index.html ou GitHub Pages.
+   Sans cette autorisation, le lien reçu par email peut ne pas revenir correctement vers l'application.
 
-4) GITHUB PAGES
-   Remplacer les fichiers habituels de l'application par ceux de la v0.5.2.
-
-5) UTILISATION
+4) UTILISATION COTE GDS
    Onglet Partenaires :
    - choisir le concours
    - organisme
    - email
-   - mot de passe initial (8 caractères minimum)
-   - type + droits
-   - cliquer "Créer le compte + inviter"
+   - type
+   - choisir Tous les départements OU cocher 32 / 65 / autre
+   - choisir les contrôles dont le partenaire est responsable
+   - cliquer "Envoyer l'invitation par email"
 
-   Le partenaire peut ensuite se connecter avec cet email + ce mot de passe.
-   À sa connexion, l'application bascule automatiquement sur son espace partenaire.
+5) UTILISATION COTE PARTENAIRE
+   - le partenaire reçoit un email Supabase
+   - il clique sur le lien
+   - l'application affiche "Créer mon mot de passe"
+   - il choisit son mot de passe
+   - il arrive ensuite directement dans son espace partenaire
 
-IMPORTANT
-Le mot de passe initial n'est jamais enregistré dans les tables de l'application.
-Il est transmis une seule fois à l'Edge Function qui crée le compte Supabase Auth.
+6) PERIMETRE
+   Le partenaire ne voit que :
+   - le ou les concours auxquels son email est rattaché
+   - les bovins des départements qui lui sont attribués
+   - les contrôles cochés dans ses droits
+
+7) ANCIENS PARTENAIRES
+   Un tableau departements vide signifie "Tous les départements".
+   Cela évite de casser les invitations déjà créées.

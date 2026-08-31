@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.6.0</title>
-<link rel="manifest" href="manifest.json?v=060">
+<title>Suivi des concours v0.6.1</title>
+<link rel="manifest" href="manifest.json?v=061">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -132,6 +132,25 @@ body.partner-mode .partner-only-header{display:block}
 </head>
 <body>
 
+
+<div id="inviteScreen" style="display:none">
+  <div class="card">
+    <h2>Créer mon mot de passe</h2>
+    <div class="muted">Votre compte partenaire a été invité. Choisissez votre mot de passe pour accéder au concours.</div>
+    <div class="field" style="margin-top:14px">
+      <label>Nouveau mot de passe</label>
+      <input id="invitePassword" type="password" minlength="8" autocomplete="new-password">
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Confirmer le mot de passe</label>
+      <input id="invitePasswordConfirm" type="password" minlength="8" autocomplete="new-password">
+    </div>
+    <button class="action" style="margin-top:14px;width:100%" onclick="finishPartnerInvitation()">Enregistrer mon mot de passe</button>
+    <div id="inviteMsg" style="margin-top:10px"></div>
+    <div class="muted" style="margin-top:12px">Version <span class="version"></span></div>
+  </div>
+</div>
+
 <div id="loginScreen">
   <div class="card">
     <h2>Suivi des concours</h2>
@@ -147,7 +166,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=060" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=061" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -584,9 +603,12 @@ body.partner-mode .partner-only-header{display:block}
       <div class="field"><label>Concours</label><select id="partnerMgmtContest"></select></div>
       <div class="field"><label>Organisme</label><input id="partnerOrg" placeholder="Ex. DDPP 65"></div>
       <div class="field"><label>Email</label><input id="partnerEmail" type="email"></div>
-      <div class="field"><label>Mot de passe initial</label><input id="partnerPassword" type="password" minlength="8" placeholder="8 caractères minimum"></div>
       <div class="field"><label>Type</label><select id="partnerType"><option value="gds">GDS</option><option value="ddpp">DDPP</option><option value="autre">Autre</option></select></div>
     </div>
+
+    <h3 style="margin-top:14px">Départements attribués</h3>
+    <div class="muted">Le partenaire ne verra que les cheptels et bovins des départements cochés. Si “Tous” est coché, il voit tout le concours.</div>
+    <div id="partnerDepartmentScope" class="partner-permissions" style="margin-top:8px"></div>
     <h3 style="margin-top:14px">Demandes à valider</h3>
     <div class="partner-permissions">
       <label><input type="checkbox" id="pQualIBR" checked> Qualification IBR</label>
@@ -601,11 +623,11 @@ body.partner-mode .partner-only-header{display:block}
       <label><input type="checkbox" id="pOther"> Autres contrôles</label>
     </div>
     <div class="row" style="margin-top:12px">
-      <button class="action" onclick="createPartnerAccount()">Créer le compte + inviter</button>
+      <button class="action" onclick="createPartnerAccount()">Envoyer l’invitation par email</button>
       <button class="secondary" onclick="addPartnerAccess()">Associer un compte existant</button>
     </div>
     <div id="partnerCreateMsg" class="muted" style="margin-top:8px">
-      Le mot de passe n'est jamais stocké dans l'application. Il sert uniquement à créer le compte Supabase.
+      Le partenaire recevra un email d’invitation et choisira lui-même son mot de passe. Tu ne connais pas son mot de passe.
     </div>
   </div>
   <div class="card"><h3>Partenaires invités</h3><div id="partnerAccessList"></div></div>
@@ -781,7 +803,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.6.0";
+const APP_VERSION = "0.6.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -793,16 +815,68 @@ const STATUS=[
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
+let INVITE_TOKEN="";
+let INVITE_REFRESH_TOKEN="";
 let CURRENT_EMAIL="";
 let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.1");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
   e.textContent=(bad?"● ":"● ")+text; e.style.color=bad?"#ffd0d0":"#d8ffe0";
+}
+
+
+function authLinkParams(){
+  const hash=new URLSearchParams(String(location.hash||"").replace(/^#/,""));
+  const query=new URLSearchParams(location.search);
+  return {
+    access_token:hash.get("access_token")||"",
+    refresh_token:hash.get("refresh_token")||"",
+    type:hash.get("type")||query.get("type")||""
+  };
+}
+function handlePartnerInvitationLink(){
+  const p=authLinkParams();
+  if(!p.access_token || !["invite","recovery"].includes(p.type))return false;
+  INVITE_TOKEN=p.access_token;
+  INVITE_REFRESH_TOKEN=p.refresh_token||"";
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("app").style.display="none";
+  document.getElementById("inviteScreen").style.display="block";
+  return true;
+}
+async function finishPartnerInvitation(){
+  const p1=document.getElementById("invitePassword")?.value||"";
+  const p2=document.getElementById("invitePasswordConfirm")?.value||"";
+  const msg=document.getElementById("inviteMsg");
+  if(p1.length<8){msg.innerHTML='<div class="error">Le mot de passe doit contenir au moins 8 caractères.</div>';return}
+  if(p1!==p2){msg.innerHTML='<div class="error">Les deux mots de passe ne sont pas identiques.</div>';return}
+  msg.textContent="Enregistrement du mot de passe…";
+  try{
+    const r=await fetch(SUPABASE_URL+"/auth/v1/user",{
+      method:"PUT",
+      headers:{
+        "apikey":SUPABASE_KEY,
+        "Authorization":"Bearer "+INVITE_TOKEN,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({password:p1})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data.msg||data.message||data.error_description||"Impossible d'enregistrer le mot de passe.");
+    TOKEN=INVITE_TOKEN;
+    localStorage.setItem("concours_access_token",TOKEN);
+    if(INVITE_REFRESH_TOKEN)localStorage.setItem("concours_refresh_token",INVITE_REFRESH_TOKEN);
+    history.replaceState(null,"",location.pathname+location.search.replace(/([?&])type=[^&]*/,"$1").replace(/[?&]$/,""));
+    document.getElementById("inviteScreen").style.display="none";
+    await startApp();
+  }catch(e){
+    msg.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';
+  }
 }
 
 function decodeJwtPayload(token){
@@ -880,9 +954,9 @@ function renderPartnerPortal(){
   const filter=document.getElementById("portalFilter")?.value||"";
 
   const conditions=portalPermissionLabels(access);
-  document.getElementById("portalConditions").innerHTML=`<strong>Conditions à valider :</strong> ${escapeHtml(conditions.join(" · ")||"Aucune condition paramétrée")}`;
+  document.getElementById("portalConditions").innerHTML=`<strong>Département(s) attribué(s) :</strong> ${escapeHtml(partnerDepartmentLabel(access))}<br><strong>Conditions à valider :</strong> ${escapeHtml(conditions.join(" · ")||"Aucune condition paramétrée")}`;
 
-  let animals=db.animals.filter(a=>a.concours_id===cid);
+  let animals=partnerAccessAnimals(access);
   if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q));
 
   const herdMap=new Map();
@@ -974,7 +1048,7 @@ async function portalSaveComment(type,key,comment){
 async function portalSetAllVerification(){
   const access=portalAccess();if(!access)return;
   const q=(document.getElementById("portalSearch")?.value||"").trim().toLowerCase();
-  let animals=db.animals.filter(a=>a.concours_id===access.concours_id);
+  let animals=partnerAccessAnimals(access);
   if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""}`).toLowerCase().includes(q));
   const bodies=animals.map(a=>{
     const cur=partnerValidation(access.id,"animal",a.id);
@@ -2128,28 +2202,66 @@ async function resetPaperChecks(){
   await loadAll(); renderFastValidation();
 }
 
+
+function contestDepartmentValues(cid){
+  const fromConfig=(db.departments||[]).filter(d=>d.concours_id===cid).map(d=>String(d.departement||"").trim()).filter(Boolean);
+  const fromAnimals=db.animals.filter(a=>a.concours_id===cid).map(a=>String(a.departement||"").trim()).filter(Boolean);
+  return [...new Set([...fromConfig,...fromAnimals])].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+}
+function renderPartnerDepartmentScope(){
+  const target=document.getElementById("partnerDepartmentScope");
+  if(!target)return;
+  const cid=document.getElementById("partnerMgmtContest")?.value||"";
+  const depts=contestDepartmentValues(cid);
+  target.innerHTML=`<label><input type="checkbox" id="pDeptAll" checked> Tous les départements du concours</label>`+
+    depts.map(d=>`<label><input type="checkbox" class="pDeptChoice" value="${escapeHtml(d)}"> Département ${escapeHtml(d)}</label>`).join("");
+  const all=document.getElementById("pDeptAll");
+  const choices=[...document.querySelectorAll(".pDeptChoice")];
+  all?.addEventListener("change",()=>{
+    if(all.checked)choices.forEach(c=>c.checked=false);
+  });
+  choices.forEach(c=>c.addEventListener("change",()=>{
+    if(c.checked && all)all.checked=false;
+    if(!choices.some(x=>x.checked) && all)all.checked=true;
+  }));
+}
+function selectedPartnerDepartments(){
+  if(document.getElementById("pDeptAll")?.checked)return [];
+  return [...document.querySelectorAll(".pDeptChoice:checked")].map(x=>String(x.value));
+}
+function partnerDepartmentLabel(access){
+  const ds=Array.isArray(access?.departements)?access.departements.filter(Boolean):[];
+  return ds.length?ds.join(", "):"Tous";
+}
+function partnerAccessAnimals(access){
+  if(!access)return [];
+  const ds=Array.isArray(access.departements)?access.departements.map(String).filter(Boolean):[];
+  return db.animals.filter(a=>{
+    if(a.concours_id!==access.concours_id)return false;
+    if(!ds.length)return true;
+    return ds.includes(String(a.departement||"").trim());
+  });
+}
+
 function partnerPermissionObject(){return {qual_ibr:pQualIBR.checked,qual_bvd:pQualBVD.checked,qual_bruc:pQualBruc.checked,qual_leuc:pQualLeuc.checked,qual_tub:pQualTub.checked,qual_dnc:pQualDNC.checked,indiv_ibr:pIndIBR.checked,bvd_viro:pBVDViro.checked,besno:pBesno.checked,autres:pOther.checked}}
 
 async function createPartnerAccount(){
   const msg=document.getElementById("partnerCreateMsg");
   const email=(document.getElementById("partnerEmail")?.value||"").trim().toLowerCase();
-  const password=document.getElementById("partnerPassword")?.value||"";
   const organisme=(document.getElementById("partnerOrg")?.value||"").trim();
   const concours_id=document.getElementById("partnerMgmtContest")?.value||"";
   const type_partenaire=document.getElementById("partnerType")?.value||"autre";
   const permissions=partnerPermissionObject();
+  const departements=selectedPartnerDepartments();
 
-  if(!concours_id||!organisme||!email||!password){
-    if(msg)msg.innerHTML='<span class="error">Concours, organisme, email et mot de passe obligatoires.</span>';
-    return;
-  }
-  if(password.length<8){
-    if(msg)msg.innerHTML='<span class="error">Mot de passe : 8 caractères minimum.</span>';
+  if(!concours_id||!organisme||!email){
+    if(msg)msg.innerHTML='<span class="error">Concours, organisme et email obligatoires.</span>';
     return;
   }
 
-  if(msg)msg.textContent="Création du compte partenaire…";
+  if(msg)msg.textContent="Envoi de l’invitation…";
   try{
+    const redirect_to=location.origin+location.pathname;
     const r=await fetch(SUPABASE_URL+"/functions/v1/create-partner-account",{
       method:"POST",
       headers:{
@@ -2157,24 +2269,40 @@ async function createPartnerAccount(){
         "apikey":SUPABASE_KEY,
         "Content-Type":"application/json"
       },
-      body:JSON.stringify({email,password,organisme,concours_id,type_partenaire,permissions})
+      body:JSON.stringify({email,organisme,concours_id,type_partenaire,permissions,departements,redirect_to})
     });
     const data=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(data.error||data.message||("Erreur "+r.status));
-    document.getElementById("partnerPassword").value="";
+
     document.getElementById("partnerOrg").value="";
     document.getElementById("partnerEmail").value="";
-    if(msg)msg.innerHTML='<span class="success">Compte partenaire créé et associé au concours.</span>';
+    renderPartnerDepartmentScope();
+
+    if(data.existing_user){
+      if(msg)msg.innerHTML='<span class="success">Compte existant associé au concours. Un email pour définir/changer le mot de passe a été envoyé.</span>';
+    }else{
+      if(msg)msg.innerHTML='<span class="success">Invitation envoyée par email. Le partenaire pourra choisir son mot de passe depuis le lien reçu.</span>';
+    }
     await loadAll();
+    renderPartnerAccess();
   }catch(e){
     if(msg)msg.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>';
   }
 }
 async function addPartnerAccess(){
-  const body={concours_id:partnerMgmtContest.value,organisme:partnerOrg.value.trim(),email:partnerEmail.value.trim().toLowerCase(),type_partenaire:partnerType.value,permissions:partnerPermissionObject(),actif:true,updated_at:new Date().toISOString()};
+  const body={
+    concours_id:partnerMgmtContest.value,
+    organisme:partnerOrg.value.trim(),
+    email:partnerEmail.value.trim().toLowerCase(),
+    type_partenaire:partnerType.value,
+    permissions:partnerPermissionObject(),
+    departements:selectedPartnerDepartments(),
+    actif:true,
+    updated_at:new Date().toISOString()
+  };
   if(!body.concours_id||!body.organisme||!body.email)return alert("Concours, organisme et email obligatoires.");
   await sb("concours_acces_partenaires?on_conflict=concours_id,email",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
-  partnerOrg.value="";partnerEmail.value="";await loadAll();
+  partnerOrg.value="";partnerEmail.value="";renderPartnerDepartmentScope();await loadAll();
 }
 async function deletePartnerAccess(id){if(confirm("Retirer cet accès partenaire ?")){await sb("concours_acces_partenaires?id=eq."+id,{method:"DELETE"});await loadAll()}}
 function partnerValidation(pid,t,k){return (db.partnerValidations||[]).find(v=>v.acces_partenaire_id===pid&&v.cible_type===t&&v.cible_cle===k)||{statut_verification:"attente",statut_validation:"attente"}}
@@ -2187,7 +2315,7 @@ function partnerReq(access,a){
 }
 
 function partnerProgressForAccess(access){
-  const animals=db.animals.filter(a=>a.concours_id===access.concours_id);
+  const animals=partnerAccessAnimals(access);
   const herds=[...new Set(animals.map(a=>a.cheptel).filter(Boolean))];
 
   let aWait=0,aOk=0,aBad=0;
@@ -2248,11 +2376,12 @@ function renderPartnerProgress(){
   }
 
   target.innerHTML=`<div class="scroll"><table>
-    <thead><tr><th>Partenaire</th><th>Demandes</th><th>Bovins</th><th>Cheptels</th><th>Avancement</th><th>Dernière modification</th></tr></thead>
+    <thead><tr><th>Partenaire</th><th>Département(s)</th><th>Demandes</th><th>Bovins</th><th>Cheptels</th><th>Avancement</th><th>Dernière modification</th></tr></thead>
     <tbody>${accesses.map(({access:a,progress:p})=>{
       const req=portalPermissionLabels(a);
       return `<tr>
         <td><strong>${escapeHtml(a.organisme||"")}</strong><br><span class="muted">${escapeHtml(a.email||"")}</span></td>
+        <td>${escapeHtml(partnerDepartmentLabel(a))}</td>
         <td>${escapeHtml(req.join(" · ")||"—")}</td>
         <td><span class="badge ok">${p.aOk} validé(s)</span>${p.aWait?` <span class="badge warn">${p.aWait} attente</span>`:""}${p.aBad?` <span class="badge bad">${p.aBad} non conforme(s)</span>`:""}</td>
         <td><span class="badge ok">${p.hOk} validé(s)</span>${p.hWait?` <span class="badge warn">${p.hWait} attente</span>`:""}${p.hBad?` <span class="badge bad">${p.hBad} non conforme(s)</span>`:""}</td>
@@ -2265,17 +2394,17 @@ function exportPartnerProgress(){
   const cid=document.getElementById("partnerMgmtContest")?.value;
   if(!cid)return alert("Choisir un concours.");
   const c=contest(cid);
-  const rows=[["Concours","Partenaire","Email","Type","Bovins validés","Bovins en attente","Bovins non conformes","Cheptels validés","Cheptels en attente","Cheptels non conformes","Avancement %","Dernière modification"]];
+  const rows=[["Concours","Partenaire","Email","Départements","Type","Bovins validés","Bovins en attente","Bovins non conformes","Cheptels validés","Cheptels en attente","Cheptels non conformes","Avancement %","Dernière modification"]];
   (db.partnerAccess||[]).filter(a=>a.concours_id===cid&&a.actif!==false).forEach(a=>{
     const p=partnerProgressForAccess(a);
-    rows.push([c?.nom||"",a.organisme||"",a.email||"",a.type_partenaire||"",p.aOk,p.aWait,p.aBad,p.hOk,p.hWait,p.hBad,p.pct,formatDateTimeLocal(p.last)]);
+    rows.push([c?.nom||"",a.organisme||"",a.email||"",partnerDepartmentLabel(a),a.type_partenaire||"",p.aOk,p.aWait,p.aBad,p.hOk,p.hWait,p.hBad,p.pct,formatDateTimeLocal(p.last)]);
   });
   downloadCsv(`Suivi_validations_partenaires_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
 function renderPartnerAccess(){
   const target=document.getElementById("partnerAccessList"),sel=document.getElementById("partnerPreviewUser");if(!target||!sel)return;
   const cid=document.getElementById("partnerMgmtContest")?.value,rows=(db.partnerAccess||[]).filter(x=>x.concours_id===cid&&x.actif!==false);
-  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Type</th><th>Compte</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(x.type_partenaire)}</td><td>${x.auth_user_id?'<span class="badge ok">Créé</span>':'<span class="badge warn">À associer</span>'}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
+  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Département(s)</th><th>Type</th><th>Compte</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(partnerDepartmentLabel(x))}</td><td>${escapeHtml(x.type_partenaire)}</td><td>${x.auth_user_id?'<span class="badge ok">Créé / invité</span>':'<span class="badge warn">À associer</span>'}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
   const old=sel.value;
   sel.innerHTML=rows.map(x=>`<option value="${x.id}">${escapeHtml(x.organisme)} — ${escapeHtml(x.email)}</option>`).join("");
   if(rows.some(x=>x.id===old))sel.value=old;
@@ -2286,7 +2415,7 @@ function renderPartnerPreview(){
   const target=document.getElementById("partnerPreview");if(!target)return;
   const pid=partnerPreviewUser.value,access=(db.partnerAccess||[]).find(x=>x.id===pid);if(!access){target.innerHTML='<div class="muted">Choisir un partenaire.</div>';return}
   const q=(partnerSearch.value||"").trim().toLowerCase();
-  const animals=db.animals.filter(a=>a.concours_id===access.concours_id&&(!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin+" "+(a.nom_animal||"")).toLowerCase().includes(q)));
+  const animals=partnerAccessAnimals(access).filter(a=>!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin+" "+(a.nom_animal||"")).toLowerCase().includes(q));
   const map=new Map();animals.forEach(a=>{const h=a.cheptel||"Sans EDE";if(!map.has(h))map.set(h,{herd:h,farmer:a.eleveur||"",animals:[]});map.get(h).animals.push(a)});
   let out="";
   [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})).forEach(h=>{
@@ -2305,7 +2434,7 @@ async function savePartnerValidation(pid,t,k,kind,status){
 }
 async function partnerSetAllVerification(status){
   const pid=partnerPreviewUser.value,access=(db.partnerAccess||[]).find(x=>x.id===pid);if(!access)return;
-  const q=(partnerSearch.value||"").trim().toLowerCase(),animals=db.animals.filter(a=>a.concours_id===access.concours_id&&(!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin).toLowerCase().includes(q)));
+  const q=(partnerSearch.value||"").trim().toLowerCase(),animals=partnerAccessAnimals(access).filter(a=>!q||(String(a.cheptel)+" "+a.eleveur+" "+a.bovin).toLowerCase().includes(q));
   const bodies=animals.map(a=>{const cur=partnerValidation(pid,"animal",a.id);return {acces_partenaire_id:pid,cible_type:"animal",cible_cle:a.id,statut_verification:status,statut_validation:cur.statut_validation,updated_at:new Date().toISOString()}});
   if(bodies.length)await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body:bodies,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll();
 }
@@ -3282,7 +3411,7 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -3309,7 +3438,7 @@ document.getElementById("fastHerdSearch")?.addEventListener("keydown",e=>{
 document.getElementById("paperBovinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();paperCheckBovin();}});
 document.getElementById("certRecapSearch")?.addEventListener("input",()=>renderCertificateRecap());
 
-document.getElementById("partnerMgmtContest")?.addEventListener("change",()=>renderPartnerAccess());
+document.getElementById("partnerMgmtContest")?.addEventListener("change",()=>{renderPartnerDepartmentScope();renderPartnerAccess()});
 document.getElementById("partnerPreviewUser")?.addEventListener("change",()=>renderPartnerPreview());
 document.getElementById("partnerSearch")?.addEventListener("input",()=>renderPartnerPreview());
 
@@ -3317,7 +3446,7 @@ document.getElementById("portalContest")?.addEventListener("change",()=>renderPa
 document.getElementById("portalSearch")?.addEventListener("input",()=>renderPartnerPortal());
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
-if(TOKEN)startApp();
+if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
 </html>

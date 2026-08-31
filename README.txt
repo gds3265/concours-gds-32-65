@@ -147,7 +147,7 @@ NOUVEAUTES v0.3.11
 - Validation sanitaire par maladie : une methode recevable conforme suffit.
 - Vue globale Qualifications des cheptels avec tous les EDE et validation en serie.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Recherche globale par éleveur ou n° cheptel.
 - Onglet Animaux renommé Liste inscrits.
 - Analyses : vue tout le concours, ajout rapide d'un animal, ajout d'une analyse non prévue.
@@ -161,7 +161,7 @@ NOUVEAUTÉS v0.6.0
 - Cases Justificatif reçu / À rembourser.
 - Export CSV pour publipostage.
 
-CORRECTION / ÉVOLUTION v0.6.0
+CORRECTION / ÉVOLUTION v0.6.1
 - Correction de l'affichage de l'onglet Autres contrôles.
 - Remboursements gérés à l'année civile.
 - Filtres : année / concours / éleveur-EDE.
@@ -175,7 +175,7 @@ CORRECTION / ÉVOLUTION v0.6.0
   * total annuel HT.
 - Export publipostage : une ligne par éleveur avec total annuel HT et détail par concours.
 
-CORRECTIONS v0.6.0
+CORRECTIONS v0.6.1
 - Qualifications visibles par défaut.
 - Mise en page Autres contrôles reprise.
 - Retrait des qualifications dans Certificats.
@@ -183,7 +183,7 @@ CORRECTIONS v0.6.0
 - 4 derniers chiffres du bovin affichés en grand.
 - Export remboursements détaillé par maladie et méthode.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Compteurs Accueil recalculés uniquement sur les maladies réellement demandées et les méthodes retenues.
 - Résultats manquants / labo / non conformes cohérents avec l'écran Analyses.
 - Remboursements : statut Remboursé + date de remboursement.
@@ -192,13 +192,13 @@ NOUVEAUTÉS v0.6.0
   * Déjà remboursé
 - Filtre Tout / À rembourser / Remboursé.
 
-CORRECTION v0.6.0
+CORRECTION v0.6.1
 - Export remboursements détaillé par catégorie d'analyse.
 - Exemple : BVD Ag : 5 analyses éligibles | IBR : 5 analyses éligibles.
 - Ajout de colonnes séparées Nb BVD Ag, Nb BVD PCR, Nb IBR, etc. selon les analyses présentes.
 - Total annuel et détail par concours conservés.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Nouvel onglet Validation rapide, uniquement par éleveur / n° cheptel.
 - Mode Validation sur ordinateur :
   * affiche bovins, analyses déjà saisies et qualifications ;
@@ -211,7 +211,7 @@ NOUVEAUTÉS v0.6.0
   * le bovin pointé passe directement Sur certificat final.
 - Compteur des bovins vérifiés sur papier.
 
-CORRECTIONS v0.6.0
+CORRECTIONS v0.6.1
 - Les listes de concours sont maintenant alimentées dans Autres contrôles et Validation rapide.
 - Validation rapide déplacée entre Certificats et Remboursements dans la navigation et dans l'application.
 - Ajout d'une liste des concours enregistrés avec possibilité de suppression.
@@ -219,7 +219,7 @@ CORRECTIONS v0.6.0
 - La suppression d'un concours supprime automatiquement ses données liées grâce aux relations Supabase en cascade.
 - Aucun changement SQL requis.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Validation rapide : choix Mail / Direct.
 - Bouton de validation du certificat :
   * passe le certificat en reçu + validé ;
@@ -232,7 +232,7 @@ NOUVEAUTÉS v0.6.0
   * contrôle complémentaire cheptel ou animal non conforme / à vérifier.
 - Aucune modification SQL requise.
 
-MODIFICATIONS v0.6.0
+MODIFICATIONS v0.6.1
 - Validation rapide simplifiée en un seul flux.
 - Suppression des boutons Validation sur ordinateur / Contrôle certificat papier.
 - Suppression des boutons Tous les bovins / Aucun bovin.
@@ -243,7 +243,7 @@ MODIFICATIONS v0.6.0
 - Certificats : dates Reçu le et Validé le modifiables directement dans le récapitulatif.
 - Aucun changement SQL requis.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Logo GDS 32-65 intégré.
 - Suivi certificats : recherche par n° cheptel ou nom.
 - Clic sur N° cheptel ou Éleveur pour trier croissant/décroissant.
@@ -251,7 +251,7 @@ NOUVEAUTÉS v0.6.0
 - Non présent et Refusé sont exclus du certificat final et des remboursements.
 - Contrôle papier exact 10 chiffres => Présent.
 
-CORRECTIONS v0.6.0
+CORRECTIONS v0.6.1
 - Libellé Présent remplacé par Validé.
 - Libellé Non présent remplacé par Pas sur certif.
 - À vérifier n'est plus proposé comme choix dans Validation rapide / Certificats.
@@ -262,7 +262,7 @@ CORRECTIONS v0.6.0
   * Refusé
 - Aucun changement SQL requis.
 
-CORRECTIONS v0.6.0
+CORRECTIONS v0.6.1
 - Validation rapide : enregistrement fiable du certificat en reçu / validé.
 - Sélectionner tout : tous les bovins passent réellement en Validé.
 - Suppression du conflit entre ancien sur_certificat et nouveau statut animal.
@@ -270,19 +270,19 @@ CORRECTIONS v0.6.0
 - Le statut d'erreur de synchronisation est remis à jour après succès.
 - Aucun changement SQL requis.
 
-CORRECTIONS v0.6.0
+CORRECTIONS v0.6.1
 - Le certificat est enregistré avant la complétion automatique des analyses.
 - Vérification après rechargement que statut et dates ont bien été récupérés depuis Supabase.
 - Analyses et qualifications mises à jour en lots.
 - Le bandeau de synchronisation affiche le détail réel d'une erreur API.
 - Aucun changement SQL requis.
 
-MODIFICATIONS v0.6.0
+MODIFICATIONS v0.6.1
 - Validation rapide déplacée avant Certificats dans la navigation et dans l'application.
 - Dans Validation rapide, Entrée dans le champ N° cheptel / éleveur lance directement la recherche.
 - Aucun changement SQL requis.
 
-MODIFICATIONS v0.6.0
+MODIFICATIONS v0.6.1
 - Statuts certificats simplifiés à :
   * Non reçu
   * Reçu / en attente
@@ -291,9 +291,9 @@ MODIFICATIONS v0.6.0
 - Les anciens certificats Signé sont convertis en Validé.
 
 
-v0.6.0 : espace partenaires, accès par concours, vérification facultative et validation finale simplifiée.
+v0.6.1 : espace partenaires, accès par concours, vérification facultative et validation finale simplifiée.
 
-NOUVEAUTÉS v0.6.0 — MODE PARTENAIRE AUTOMATIQUE
+NOUVEAUTÉS v0.6.1 — MODE PARTENAIRE AUTOMATIQUE
 - L'adresse email du compte Supabase connecté est comparée aux invitations partenaires.
 - Si le compte est invité, l'application bascule automatiquement en mode partenaire.
 - Les onglets internes GDS sont masqués dans ce mode.
@@ -304,7 +304,7 @@ NOUVEAUTÉS v0.6.0 — MODE PARTENAIRE AUTOMATIQUE
 - Compteurs Validés / En attente.
 IMPORTANT : cette version applique la restriction dans l'interface. Le verrouillage RLS complet des tables métier sera traité séparément afin de ne pas bloquer les comptes GDS existants.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Création d'un vrai compte partenaire directement depuis l'application.
 - Saisie email + mot de passe initial + organisme + concours + droits.
 - Création sécurisée via Supabase Edge Function.
@@ -313,7 +313,7 @@ NOUVEAUTÉS v0.6.0
 - Association automatique du nouvel utilisateur Auth à concours_acces_partenaires.
 - Aucun mot de passe partenaire n'est stocké dans l'application.
 
-NOUVEAUTÉS v0.6.0 — IMPORT CSV INTELLIGENT
+NOUVEAUTÉS v0.6.1 — IMPORT CSV INTELLIGENT
 - Reconnaissance des colonnes indépendamment de leur intitulé.
 - Détection d'un n° bovin par valeurs à 10 chiffres.
 - Détection d'un n° EDE/cheptel par valeurs à 8 chiffres.
@@ -325,14 +325,14 @@ NOUVEAUTÉS v0.6.0 — IMPORT CSV INTELLIGENT
 - Résumé d'import enrichi avec les colonnes détectées et le nombre de rapprochements par nom.
 AUCUN SQL SUPPLÉMENTAIRE.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Aide visible dans 1. Importer la liste des inscrits.
 - Entêtes recommandées : NUMANIM, DATE_NAISS, N°Travail, DETENTEUR.
 - Rappel qu'une colonne EDE à 8 chiffres est détectée automatiquement.
 - Onglet Partenaires déplacé juste après Certificats.
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0 — QUALIFICATIONS EN MASSE
+NOUVEAUTÉS v0.6.1 — QUALIFICATIONS EN MASSE
 - Tout est regroupé dans l'onglet Qualifications.
 - Export CSV des n° EDE uniques du concours.
 - Import automatique d'un fichier IBR, BVD ou SIGAL Bru/Leu/Tub.
@@ -345,7 +345,7 @@ NOUVEAUTÉS v0.6.0 — QUALIFICATIONS EN MASSE
 - Le commentaire conserve le code trouvé et l'origine de l'import.
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0 — CORRECTION IMPORT QUALIFICATIONS
+NOUVEAUTÉS v0.6.1 — CORRECTION IMPORT QUALIFICATIONS
 - Lecture des fichiers séparés par ; , tabulation ou |.
 - Recherche automatique de la vraie ligne d'entête dans les 20 premières lignes.
 - Détection IBR/BVD sur toutes les colonnes liées à la maladie, pas uniquement Code maladie.
@@ -354,7 +354,7 @@ NOUVEAUTÉS v0.6.0 — CORRECTION IMPORT QUALIFICATIONS
 - Message d'erreur enrichi avec les entêtes réellement détectées.
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0
+NOUVEAUTÉS v0.6.1
 - Trois imports séparés dans Qualifications : IBR, BVD, SIGAL.
 - BVD : EDE absent du fichier = conforme.
 - IBR : EDE absent = à vérifier.
@@ -363,7 +363,7 @@ NOUVEAUTÉS v0.6.0
 - Résumé distinct pour chaque import.
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0 — CORRECTION RAPPROCHEMENT QUALIFICATIONS
+NOUVEAUTÉS v0.6.1 — CORRECTION RAPPROCHEMENT QUALIFICATIONS
 - Priorité à la colonne "Code maladie" plutôt qu'à "Maladie sélectionnée".
 - Les valeurs descriptives du type "IBR - IBR" ou "BVD - B.V.D (...)" sont acceptées.
 - Correction du bug qui rejetait toutes les lignes avant le rapprochement EDE.
@@ -372,7 +372,7 @@ NOUVEAUTÉS v0.6.0 — CORRECTION RAPPROCHEMENT QUALIFICATIONS
 - Le résumé affiche maintenant le nombre de lignes qualifications réellement reconnues.
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0 — CORRECTION FICHIERS QUALIFICATIONS EXCEL
+NOUVEAUTÉS v0.6.1 — CORRECTION FICHIERS QUALIFICATIONS EXCEL
 - Correction du parseur pour les cellules Excel au format ="valeur".
 - Les guillemets de ="65039026", ="IBR", ="AA", etc. ne perturbent plus le découpage des colonnes.
 - IBR : les EDE et codes AA/A sont maintenant lus correctement.
@@ -381,7 +381,7 @@ NOUVEAUTÉS v0.6.0 — CORRECTION FICHIERS QUALIFICATIONS EXCEL
 - Nettoyage renforcé des cellules Excel ="...".
 - Aucun SQL supplémentaire.
 
-NOUVEAUTÉS v0.6.0 — SUIVI GESTIONNAIRE DES PARTENAIRES
+NOUVEAUTÉS v0.6.1 — SUIVI GESTIONNAIRE DES PARTENAIRES
 - Vue d'avancement des validations partenaires dans l'onglet Partenaires.
 - Compteurs bovins validés / en attente / non conformes.
 - Même suivi au niveau cheptel.
@@ -390,3 +390,17 @@ NOUVEAUTÉS v0.6.0 — SUIVI GESTIONNAIRE DES PARTENAIRES
 - Compteurs globaux de partenaires.
 - Export CSV du suivi.
 - Aucun SQL supplémentaire.
+
+NOUVEAUTÉS v0.6.1 — PARTENAIRES UTILISABLES DE BOUT EN BOUT
+- Attribution d'un partenaire à un ou plusieurs départements.
+- Un tableau départements vide = tous les départements (compatibilité ancienne).
+- Le portail partenaire filtre automatiquement les bovins selon le périmètre attribué.
+- La prévisualisation et le suivi gestionnaire utilisent le même périmètre.
+- Les compteurs d'avancement ne comptent plus les animaux hors périmètre.
+- Suppression du mot de passe initial choisi par le GDS.
+- Envoi d'une vraie invitation Supabase par email.
+- Le partenaire choisit lui-même son mot de passe depuis le lien reçu.
+- Pour un compte déjà existant, envoi d'un email de définition/changement du mot de passe.
+- Écran intégré "Créer mon mot de passe" lorsque le lien d'invitation revient dans l'application.
+- La liste des partenaires et l'export de suivi affichent les départements attribués.
+SQL + redéploiement Edge Function nécessaires.

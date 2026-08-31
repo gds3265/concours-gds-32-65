@@ -373,3 +373,19 @@ using (auth.uid() = user_id);
 -- select id,email from auth.users
 -- where email='VOTRE_EMAIL_GDS'
 -- on conflict (user_id) do update set email=excluded.email;
+
+
+-- ============================================================
+-- v0.6.1 - PERIMETRE PARTENAIRES PAR DEPARTEMENT + INVITATION
+-- ============================================================
+
+alter table public.concours_acces_partenaires
+  add column if not exists departements text[] not null default '{}'::text[];
+
+alter table public.concours_acces_partenaires
+  add column if not exists invitation_envoyee_at timestamptz;
+
+-- Convention :
+-- departements = tableau vide => tous les départements du concours
+-- departements = {'65'} => uniquement le 65
+-- departements = {'32','65'} => uniquement 32 et 65
