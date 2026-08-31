@@ -414,3 +414,29 @@ alter table public.concours_animaux
 -- engage          = bovin actuellement engagé / attendu
 -- non_participant = l'engagement est conservé mais le bovin n'assistera pas
 -- retire          = retiré de la liste active, conservé pour la traçabilité
+
+
+-- ============================================================
+-- v0.7.0 - CONTROLE A L'ENTREE DU CONCOURS
+-- ============================================================
+
+alter table public.concours_animaux
+  add column if not exists entree_statut text not null default 'attente';
+
+alter table public.concours_animaux
+  add column if not exists entree_controle_at timestamptz;
+
+alter table public.concours_animaux
+  add column if not exists entree_controle_par text;
+
+alter table public.concours_animaux
+  add column if not exists entree_motif_refus text;
+
+alter table public.concours_animaux
+  add column if not exists entree_commentaire text;
+
+-- entree_statut :
+-- attente = pas encore contrôlé à l'entrée
+-- present = accepté / arrivé
+-- refuse  = refusé à l'entrée
+-- absent  = attendu mais absent

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.6.3</title>
-<link rel="manifest" href="manifest.json?v=063">
+<title>Suivi des concours v0.7.0</title>
+<link rel="manifest" href="manifest.json?v=070">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -145,6 +145,19 @@ body.partner-mode .partner-only-header{display:block}
 .partner-participation{display:flex;flex-wrap:wrap;gap:6px}
 .status-out{opacity:.65;background:#faf7f8}
 @media(max-width:1000px){.partner-simple-row{grid-template-columns:1fr}}
+
+.entry-herd{border-left:5px solid var(--accent)}
+.entry-herd-arrived{border-left-color:#4d9958}
+.entry-row{display:grid;grid-template-columns:145px 1.05fr 130px 160px 1.5fr 135px;gap:8px;align-items:center;padding:9px;border-bottom:1px solid var(--line)}
+.entry-row.head{font-weight:700;background:#f6eef3}
+.entry-row.entry-refused{background:#ffe7e7}
+.entry-row.entry-present{background:#eff9f0}
+.entry-row.entry-absent{background:#f7f4f5;opacity:.8}
+.entry-row.entry-nonparticipant{background:#faf7f8;opacity:.65}
+.entry-time{font-size:12px;color:var(--muted)}
+.entry-actions{display:flex;gap:5px;flex-wrap:wrap}
+.entry-actions button{padding:6px 9px}
+@media(max-width:950px){.entry-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -183,7 +196,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=063" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=070" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -198,6 +211,7 @@ body.partner-mode .partner-only-header{display:block}
     <button data-tab="partenaireportail" style="display:none">Mon espace partenaire</button>
     <button data-tab="certificats">Certificats</button>
     <button data-tab="partenaires">Partenaires</button>
+    <button data-tab="entreeconcours">Entrée concours</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
@@ -777,6 +791,47 @@ body.partner-mode .partner-only-header{display:block}
 
 
 
+
+<section id="entreeconcours" class="section">
+  <div class="card">
+    <div class="topline">
+      <div>
+        <h2>Contrôle à l’entrée du concours</h2>
+        <div class="muted">Suivi en direct des éleveurs et bovins attendus, présents, refusés ou absents.</div>
+      </div>
+      <div class="field"><label>Concours</label><select id="entryContest"></select></div>
+    </div>
+    <div id="entryKpis" class="kpis" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="field" style="min-width:280px;flex:2"><label>Recherche rapide</label><input id="entrySearch" placeholder="N° EDE, éleveur, n° bovin ou n° travail"></div>
+      <div class="field"><label>Statut</label>
+        <select id="entryFilter">
+          <option value="">Tous</option>
+          <option value="attente">En attente</option>
+          <option value="present">Présents</option>
+          <option value="refuse">Refusés</option>
+          <option value="absent">Absents</option>
+          <option value="non_participant">N’assisteront pas</option>
+        </select>
+      </div>
+      <div class="field"><label>Tri</label>
+        <select id="entrySort">
+          <option value="ede">N° EDE</option>
+          <option value="eleveur">Éleveur</option>
+          <option value="bovin">N° bovin</option>
+          <option value="statut">Statut</option>
+        </select>
+      </div>
+      <button class="secondary" onclick="exportEntryCsv()">Exporter le contrôle CSV</button>
+    </div>
+  </div>
+
+  <div id="entryList"></div>
+</section>
+
 <section id="remboursements" class="section">
   <div class="card">
     <h2>Remboursements</h2>
@@ -842,7 +897,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.6.3";
+const APP_VERSION = "0.7.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -861,7 +916,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.0");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1455,6 +1510,8 @@ async function addContest(){
   if(!nom||!date)return alert("Nom et date obligatoires");
   await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value},prefer:"return=representation"});
   document.getElementById("cName").value="";document.getElementById("cDate").value="";await loadAll();
+
+  optionize("entryContest",db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`})));
 }
 
 function renderContestList(){
@@ -3656,7 +3713,159 @@ function exportRecapCSV(){
   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=`recap_${c.nom.replaceAll(" ","_")}.csv`;a.click();URL.revokeObjectURL(url);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
+
+function entryStatus(a){
+  if(participationStatus(a)==="non_participant")return "non_participant";
+  return String(a.entree_statut||"attente");
+}
+function entryStatusLabel(a){
+  const s=entryStatus(a);
+  return s==="present"?"Présent":s==="refuse"?"Refusé":s==="absent"?"Absent":s==="non_participant"?"N’assistera pas":"En attente";
+}
+function entryStatusBadge(a){
+  const s=entryStatus(a),cls=s==="present"?"ok":s==="refuse"?"bad":s==="attente"?"warn":"na";
+  return `<span class="badge ${cls}">${escapeHtml(entryStatusLabel(a))}</span>`;
+}
+function entryTimestamp(a){return a.entree_controle_at?formatDateTimeLocal(a.entree_controle_at):"—"}
+function entryAnimals(cid){return db.animals.filter(a=>a.concours_id===cid && participationStatus(a)!=="retire")}
+function entryExpectedAnimals(cid){return entryAnimals(cid).filter(a=>participationStatus(a)!=="non_participant")}
+function entryHerds(cid){
+  const map=new Map();
+  entryAnimals(cid).forEach(a=>{
+    const k=a.cheptel||"Sans EDE";
+    if(!map.has(k))map.set(k,{ede:k,farmer:a.eleveur||"",dept:a.departement||"",animals:[]});
+    map.get(k).animals.push(a);
+  });
+  return [...map.values()];
+}
+function entryHerdArrived(h){return h.animals.some(a=>["present","refuse"].includes(entryStatus(a)))}
+async function setEntryStatus(animalId,status){
+  const a=db.animals.find(x=>x.id===animalId);if(!a)return;
+  let motif=a.entree_motif_refus||"";
+  if(status==="refuse"){
+    motif=prompt("Motif du refus :",motif)||"";
+    if(!motif.trim()){alert("Merci d’indiquer le motif du refus.");return}
+  }
+  const now=new Date().toISOString();
+  await sb(`concours_animaux?id=eq.${encodeURIComponent(animalId)}`,{
+    method:"PATCH",
+    body:{
+      entree_statut:status,
+      entree_motif_refus:status==="refuse"?motif:null,
+      entree_controle_at:now,
+      entree_controle_par:CURRENT_EMAIL||currentLoginEmail()||""
+    },
+    prefer:"return=minimal"
+  });
+  await loadAll();renderEntry();
+}
+async function setEntryComment(animalId,value){
+  const now=new Date().toISOString();
+  await sb(`concours_animaux?id=eq.${encodeURIComponent(animalId)}`,{
+    method:"PATCH",
+    body:{entree_commentaire:value,entree_controle_at:now,entree_controle_par:CURRENT_EMAIL||currentLoginEmail()||""},
+    prefer:"return=minimal"
+  });
+  await loadAll();renderEntry();
+}
+async function entrySetHerdPresent(ede){
+  const cid=document.getElementById("entryContest")?.value;
+  const rows=entryExpectedAnimals(cid).filter(a=>(a.cheptel||"Sans EDE")===ede && entryStatus(a)==="attente");
+  if(!rows.length)return;
+  if(!confirm(`Marquer ${rows.length} bovin(s) en attente de ce cheptel comme présents ?`))return;
+  const now=new Date().toISOString(),by=CURRENT_EMAIL||currentLoginEmail()||"";
+  for(const a of rows){
+    await sb(`concours_animaux?id=eq.${encodeURIComponent(a.id)}`,{
+      method:"PATCH",
+      body:{entree_statut:"present",entree_controle_at:now,entree_controle_par:by},
+      prefer:"return=minimal"
+    });
+  }
+  await loadAll();renderEntry();
+}
+function renderEntry(){
+  const cid=document.getElementById("entryContest")?.value;
+  const target=document.getElementById("entryList"),kpis=document.getElementById("entryKpis");
+  if(!target||!kpis)return;
+  if(!cid){target.innerHTML='<div class="card muted">Choisir un concours.</div>';kpis.innerHTML="";return}
+
+  const all=entryAnimals(cid),expected=entryExpectedAnimals(cid),allHerds=entryHerds(cid);
+  const expectedHerds=allHerds.filter(h=>h.animals.some(a=>participationStatus(a)!=="non_participant"));
+  const arrivedHerds=expectedHerds.filter(entryHerdArrived).length;
+  const counts={
+    present:expected.filter(a=>entryStatus(a)==="present").length,
+    refuse:expected.filter(a=>entryStatus(a)==="refuse").length,
+    absent:expected.filter(a=>entryStatus(a)==="absent").length,
+    attente:expected.filter(a=>entryStatus(a)==="attente").length,
+    nonparticipant:all.filter(a=>participationStatus(a)==="non_participant").length
+  };
+  kpis.innerHTML=[
+    ["Éleveurs attendus",expectedHerds.length],["Éleveurs arrivés",arrivedHerds],["Bovins attendus",expected.length],
+    ["Présents",counts.present],["Refusés",counts.refuse],["Absents",counts.absent],["N’assisteront pas",counts.nonparticipant],["En attente",counts.attente]
+  ].map(([l,v])=>`<div class="kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
+
+  const q=(document.getElementById("entrySearch")?.value||"").trim().toLowerCase();
+  const filter=document.getElementById("entryFilter")?.value||"";
+  const sort=document.getElementById("entrySort")?.value||"ede";
+  let herds=allHerds.map(h=>({...h,animals:h.animals.filter(a=>{
+    const text=`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${String(a.bovin||"").slice(-4)} ${a.nom_animal||""}`.toLowerCase();
+    return (!q||text.includes(q)) && (!filter||entryStatus(a)===filter);
+  })})).filter(h=>h.animals.length);
+
+  herds.sort((a,b)=>sort==="eleveur"?a.farmer.localeCompare(b.farmer):a.ede.localeCompare(b.ede,undefined,{numeric:true}));
+
+  let out="";
+  herds.forEach(h=>{
+    if(sort==="statut")h.animals.sort((a,b)=>entryStatusLabel(a).localeCompare(entryStatusLabel(b)));
+    else h.animals.sort((a,b)=>String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true}));
+
+    const arrived=entryHerdArrived(h);
+    const expectedCount=h.animals.filter(a=>participationStatus(a)!=="non_participant").length;
+    const presentCount=h.animals.filter(a=>entryStatus(a)==="present").length;
+    out+=`<div class="card entry-herd ${arrived?"entry-herd-arrived":""}">
+      <div class="topline">
+        <div><h3 style="margin-bottom:4px">EDE ${escapeHtml(h.ede)} — ${escapeHtml(h.farmer||"—")}</h3>
+        <div class="muted">Département ${escapeHtml(h.dept||"—")} · ${presentCount}/${expectedCount} bovin(s) présent(s)</div></div>
+        <button class="secondary" onclick="entrySetHerdPresent('${escapeHtml(h.ede)}')">Tout le cheptel présent</button>
+      </div>
+      <div class="entry-row head"><div>Bovin</div><div>Nom / sexe</div><div>Statut</div><div>Heure contrôle</div><div>Observation / motif</div><div>Actions</div></div>`;
+
+    h.animals.forEach(a=>{
+      const s=entryStatus(a);
+      const rowClass=s==="present"?"entry-present":s==="refuse"?"entry-refused":s==="absent"?"entry-absent":s==="non_participant"?"entry-nonparticipant":"";
+      const reason=a.entree_motif_refus?`<div><strong>Motif refus :</strong> ${escapeHtml(a.entree_motif_refus)}</div>`:"";
+      const pcom=a.participation_commentaire?`<div class="muted">Partenaire : ${escapeHtml(a.participation_commentaire)}</div>`:"";
+      out+=`<div class="entry-row ${rowClass}">
+        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin||"")}</div></div>
+        <div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
+        <div>${entryStatusBadge(a)}${a.ajoute_par_partenaire?'<br><span class="muted">Ajout partenaire</span>':""}</div>
+        <div><strong>${entryTimestamp(a)}</strong>${a.entree_controle_par?`<div class="entry-time">${escapeHtml(a.entree_controle_par)}</div>`:""}</div>
+        <div>${reason}${pcom}<textarea rows="2" placeholder="Observation entrée" onchange="setEntryComment('${a.id}',this.value)">${escapeHtml(a.entree_commentaire||"")}</textarea></div>
+        <div class="entry-actions">
+          ${s!=="non_participant"?`
+          <button class="secondary" onclick="setEntryStatus('${a.id}','present')">Présent</button>
+          <button class="danger" onclick="setEntryStatus('${a.id}','refuse')">Refusé</button>
+          <button class="secondary" onclick="setEntryStatus('${a.id}','absent')">Absent</button>
+          <button class="secondary" onclick="setEntryStatus('${a.id}','attente')">Attente</button>`:'<span class="muted">Déclaré non participant en amont</span>'}
+        </div>
+      </div>`;
+    });
+    out+="</div>";
+  });
+  target.innerHTML=out||'<div class="card muted">Aucun bovin pour ce filtre.</div>';
+}
+function exportEntryCsv(){
+  const cid=document.getElementById("entryContest")?.value;
+  if(!cid)return alert("Choisir un concours.");
+  const c=contest(cid);
+  const rows=[["Concours","N° EDE","Éleveur","Département","N° bovin","N° travail","Nom","Sexe","Participation amont","Statut entrée","Heure contrôle","Contrôlé par","Motif refus","Observation entrée","Commentaire participation"]];
+  entryAnimals(cid).forEach(a=>rows.push([
+    c?.nom||"",a.cheptel||"",a.eleveur||"",a.departement||"",a.bovin||"",String(a.bovin||"").slice(-4),a.nom_animal||"",a.sexe||"",
+    participationLabel(a),entryStatusLabel(a),a.entree_controle_at||"",a.entree_controle_par||"",a.entree_motif_refus||"",a.entree_commentaire||"",a.participation_commentaire||""
+  ]));
+  downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
+}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -3664,7 +3873,7 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   renderAll();
 });
 document.addEventListener("change",e=>{
-  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest"].includes(e.target.id)){
+  if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest","entryContest","entryFilter","entrySort"].includes(e.target.id)){
     if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
   }
 });
@@ -3691,6 +3900,7 @@ document.getElementById("portalContest")?.addEventListener("change",()=>renderPa
 document.getElementById("portalSearch")?.addEventListener("input",()=>renderPartnerPortal());
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
+document.getElementById("entrySearch")?.addEventListener("input",()=>renderEntry());
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
