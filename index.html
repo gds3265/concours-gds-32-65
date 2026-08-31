@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.9</title>
-<link rel="manifest" href="manifest.json?v=059">
+<title>Suivi des concours v0.6.0</title>
+<link rel="manifest" href="manifest.json?v=060">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -120,6 +120,14 @@ body.partner-mode .partner-only-header{display:block}
 .partner-validation-row.bad{background:#fff0f0}
 .partner-validation-row.ok{background:#eef8f0}
 @media(max-width:900px){.partner-portal-kpis{grid-template-columns:repeat(2,1fr)}.partner-validation-row{grid-template-columns:1fr}}
+
+.progress-wrap{display:flex;align-items:center;gap:8px;min-width:150px}
+.progress-track{height:8px;background:#eee;border-radius:999px;overflow:hidden;flex:1}
+.progress-fill{height:100%;background:var(--accent);border-radius:999px}
+.progress-kpis{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px}
+.progress-kpi{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
+.progress-kpi strong{display:block;font-size:20px}
+@media(max-width:700px){.progress-kpis{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -139,7 +147,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=059" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=060" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -601,6 +609,29 @@ body.partner-mode .partner-only-header{display:block}
     </div>
   </div>
   <div class="card"><h3>Partenaires invités</h3><div id="partnerAccessList"></div></div>
+
+  <div class="card">
+    <div class="topline">
+      <div>
+        <h3>Suivi des validations partenaires</h3>
+        <div class="muted">Vue gestionnaire de l’avancement avant le concours.</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Filtrer</label>
+          <select id="partnerProgressFilter">
+            <option value="">Tous</option>
+            <option value="attente">Avec attente</option>
+            <option value="nonconforme">Avec non conforme</option>
+            <option value="termine">Terminés</option>
+          </select>
+        </div>
+        <button class="secondary" onclick="exportPartnerProgress()">Exporter le suivi CSV</button>
+      </div>
+    </div>
+    <div id="partnerProgressSummary" style="margin-top:12px"></div>
+    <div id="partnerProgressTable" style="margin-top:10px"></div>
+  </div>
   <div class="card">
     <div class="topline"><div><h3>Vue simplifiée partenaire</h3><div class="muted">Une ligne par bovin, demandes regroupées.</div></div>
       <div class="field"><label>Afficher comme</label><select id="partnerPreviewUser"></select></div></div>
@@ -750,7 +781,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.9";
+const APP_VERSION = "0.6.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -767,7 +798,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.0");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -2154,11 +2185,102 @@ function partnerReq(access,a){
   if(p.besno){const age=ageMonths(a.naissance,contest(a.concours_id)?.date_concours);if(age!==null&&age>=6)r.push("Besnoitiose")}
   if(p.autres)r.push("Autres contrôles");return r;
 }
+
+function partnerProgressForAccess(access){
+  const animals=db.animals.filter(a=>a.concours_id===access.concours_id);
+  const herds=[...new Set(animals.map(a=>a.cheptel).filter(Boolean))];
+
+  let aWait=0,aOk=0,aBad=0;
+  animals.forEach(a=>{
+    const v=partnerValidation(access.id,"animal",a.id);
+    if(v.statut_validation==="conforme")aOk++;
+    else if(v.statut_validation==="nonconforme")aBad++;
+    else aWait++;
+  });
+
+  let hWait=0,hOk=0,hBad=0;
+  herds.forEach(h=>{
+    const v=partnerValidation(access.id,"cheptel",h);
+    if(v.statut_validation==="conforme")hOk++;
+    else if(v.statut_validation==="nonconforme")hBad++;
+    else hWait++;
+  });
+
+  const relevant=(db.partnerValidations||[]).filter(v=>v.acces_partenaire_id===access.id);
+  const dates=relevant.map(v=>v.updated_at).filter(Boolean).sort();
+  const last=dates.length?dates[dates.length-1]:(access.updated_at||access.created_at||null);
+  const total=animals.length;
+  const pct=total?Math.round((aOk+aBad)*100/total):0;
+  const complete=total>0 && aWait===0 && hWait===0;
+  return {animals:total,herds:herds.length,aWait,aOk,aBad,hWait,hOk,hBad,last,pct,complete};
+}
+function formatDateTimeLocal(v){
+  if(!v)return "—";
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return "—";
+  return d.toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"});
+}
+function renderPartnerProgress(){
+  const cid=document.getElementById("partnerMgmtContest")?.value;
+  const target=document.getElementById("partnerProgressTable");
+  const summary=document.getElementById("partnerProgressSummary");
+  if(!target||!summary)return;
+
+  const filter=document.getElementById("partnerProgressFilter")?.value||"";
+  let accesses=(db.partnerAccess||[]).filter(a=>a.concours_id===cid&&a.actif!==false)
+    .map(a=>({access:a,progress:partnerProgressForAccess(a)}));
+  const all=accesses.slice();
+
+  if(filter==="attente")accesses=accesses.filter(x=>x.progress.aWait>0||x.progress.hWait>0);
+  if(filter==="nonconforme")accesses=accesses.filter(x=>x.progress.aBad>0||x.progress.hBad>0);
+  if(filter==="termine")accesses=accesses.filter(x=>x.progress.complete);
+
+  summary.innerHTML=`<div class="progress-kpis">
+    <div class="progress-kpi"><span>Partenaires</span><strong>${all.length}</strong></div>
+    <div class="progress-kpi"><span>Terminés</span><strong>${all.filter(x=>x.progress.complete).length}</strong></div>
+    <div class="progress-kpi"><span>Avec attente</span><strong>${all.filter(x=>x.progress.aWait>0||x.progress.hWait>0).length}</strong></div>
+    <div class="progress-kpi"><span>Avec non conforme</span><strong>${all.filter(x=>x.progress.aBad>0||x.progress.hBad>0).length}</strong></div>
+  </div>`;
+
+  if(!accesses.length){
+    target.innerHTML='<div class="muted">Aucun partenaire pour ce filtre.</div>';
+    return;
+  }
+
+  target.innerHTML=`<div class="scroll"><table>
+    <thead><tr><th>Partenaire</th><th>Demandes</th><th>Bovins</th><th>Cheptels</th><th>Avancement</th><th>Dernière modification</th></tr></thead>
+    <tbody>${accesses.map(({access:a,progress:p})=>{
+      const req=portalPermissionLabels(a);
+      return `<tr>
+        <td><strong>${escapeHtml(a.organisme||"")}</strong><br><span class="muted">${escapeHtml(a.email||"")}</span></td>
+        <td>${escapeHtml(req.join(" · ")||"—")}</td>
+        <td><span class="badge ok">${p.aOk} validé(s)</span>${p.aWait?` <span class="badge warn">${p.aWait} attente</span>`:""}${p.aBad?` <span class="badge bad">${p.aBad} non conforme(s)</span>`:""}</td>
+        <td><span class="badge ok">${p.hOk} validé(s)</span>${p.hWait?` <span class="badge warn">${p.hWait} attente</span>`:""}${p.hBad?` <span class="badge bad">${p.hBad} non conforme(s)</span>`:""}</td>
+        <td><div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:${p.pct}%"></div></div><strong>${p.pct}%</strong></div>${p.complete?'<span class="badge ok">Terminé</span>':''}</td>
+        <td>${formatDateTimeLocal(p.last)}</td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+function exportPartnerProgress(){
+  const cid=document.getElementById("partnerMgmtContest")?.value;
+  if(!cid)return alert("Choisir un concours.");
+  const c=contest(cid);
+  const rows=[["Concours","Partenaire","Email","Type","Bovins validés","Bovins en attente","Bovins non conformes","Cheptels validés","Cheptels en attente","Cheptels non conformes","Avancement %","Dernière modification"]];
+  (db.partnerAccess||[]).filter(a=>a.concours_id===cid&&a.actif!==false).forEach(a=>{
+    const p=partnerProgressForAccess(a);
+    rows.push([c?.nom||"",a.organisme||"",a.email||"",a.type_partenaire||"",p.aOk,p.aWait,p.aBad,p.hOk,p.hWait,p.hBad,p.pct,formatDateTimeLocal(p.last)]);
+  });
+  downloadCsv(`Suivi_validations_partenaires_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
+}
 function renderPartnerAccess(){
   const target=document.getElementById("partnerAccessList"),sel=document.getElementById("partnerPreviewUser");if(!target||!sel)return;
   const cid=document.getElementById("partnerMgmtContest")?.value,rows=(db.partnerAccess||[]).filter(x=>x.concours_id===cid&&x.actif!==false);
   target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Organisme</th><th>Email</th><th>Type</th><th>Compte</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${escapeHtml(x.organisme)}</strong></td><td>${escapeHtml(x.email)}</td><td>${escapeHtml(x.type_partenaire)}</td><td>${x.auth_user_id?'<span class="badge ok">Créé</span>':'<span class="badge warn">À associer</span>'}</td><td><button class="danger" onclick="deletePartnerAccess('${x.id}')">Retirer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun partenaire invité.</div>';
-  const old=sel.value;sel.innerHTML=rows.map(x=>`<option value="${x.id}">${escapeHtml(x.organisme)} — ${escapeHtml(x.email)}</option>`).join("");if(rows.some(x=>x.id===old))sel.value=old;renderPartnerPreview();
+  const old=sel.value;
+  sel.innerHTML=rows.map(x=>`<option value="${x.id}">${escapeHtml(x.organisme)} — ${escapeHtml(x.email)}</option>`).join("");
+  if(rows.some(x=>x.id===old))sel.value=old;
+  renderPartnerPreview();
+  renderPartnerProgress();
 }
 function renderPartnerPreview(){
   const target=document.getElementById("partnerPreview");if(!target)return;
@@ -3194,6 +3316,7 @@ document.getElementById("partnerSearch")?.addEventListener("input",()=>renderPar
 document.getElementById("portalContest")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("portalSearch")?.addEventListener("input",()=>renderPartnerPortal());
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
+document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
 if(TOKEN)startApp();
 </script>
 </body>
