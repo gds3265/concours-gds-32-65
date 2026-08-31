@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.4</title>
-<link rel="manifest" href="manifest.json?v=054">
+<title>Suivi des concours v0.5.5</title>
+<link rel="manifest" href="manifest.json?v=055">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=054" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=055" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -413,6 +413,34 @@ body.partner-mode .partner-only-header{display:block}
       <button class="secondary" onclick="setAllQualificationsConforme()">Tout conforme</button>
     </div>
   </div>
+
+  <div class="card">
+    <h3>Préparer / importer les qualifications en masse</h3>
+    <div class="muted">
+      1. Exporte les n° EDE du concours pour faire l'extraction dans ton logiciel métier.<br>
+      2. Réimporte ensuite le fichier IBR, BVD ou SIGAL Bru/Leu/Tub : le type est détecté automatiquement.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" onclick="exportQualificationEDE()">Exporter les n° EDE du concours</button>
+      <div class="field">
+        <label>Fichier qualifications</label>
+        <input id="qualificationImportFile" type="file" accept=".csv,text/csv">
+      </div>
+      <button class="action" onclick="importQualificationsFile()">Importer et contrôler</button>
+    </div>
+
+    <div class="info" style="margin-top:12px">
+      <strong>Règles appliquées :</strong>
+      <div class="muted" style="margin-top:5px">
+        <strong>IBR :</strong> conforme uniquement si la qualification est <code>AA</code> ou <code>A</code> et sans date de fin.<br>
+        <strong>BVD :</strong> non conforme si une qualification <code>NC</code>, <code>I1</code>, <code>I2</code> ou <code>I3</code> est présente sans date de fin.<br>
+        <strong>SIGAL :</strong> Brucellose, Leucose et Tuberculose sont conformes uniquement si la qualification vaut <code>OI</code>.
+      </div>
+    </div>
+
+    <div id="qualificationImportSummary" style="margin-top:12px"></div>
+  </div>
+
   <div class="card">
     <div id="qualificationTable"></div>
   </div>
@@ -708,7 +736,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.4";
+const APP_VERSION = "0.5.5";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -725,7 +753,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.5");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -2184,7 +2212,230 @@ function herdRows(cid){
   });
   return [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true}));
 }
-function renderQualifications(){
+
+function csvEscape(v){
+  const s=String(v??"");
+  return /[;"\r\n]/.test(s)?`"${s.replaceAll('"','""')}"`:s;
+}
+function downloadCsv(filename, rows){
+  const csv=rows.map(r=>r.map(csvEscape).join(";")).join("\r\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+function exportQualificationEDE(){
+  const cid=document.getElementById("qualContest")?.value;
+  if(!cid)return alert("Choisir un concours.");
+  const c=contest(cid);
+  const unique=[...new Set(
+    herdRows(cid).map(h=>normalizeHerd(h.herd)).filter(h=>/^\d{8}$/.test(h))
+  )].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  if(!unique.length)return alert("Aucun n° EDE à 8 chiffres trouvé pour ce concours.");
+  downloadCsv(`EDE_qualifications_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,[
+    ["N° EDE"],...unique.map(x=>[x])
+  ]);
+}
+function cleanQualValue(v){
+  return cleanExcelCell(v).trim().toUpperCase();
+}
+function isBlankQualDate(v){
+  const s=cleanExcelCell(v).trim();
+  return !s || s==="-" || s==="—";
+}
+function headerByNormalized(rows,names){
+  if(!rows?.length)return null;
+  const wanted=names.map(normHeader);
+  return Object.keys(rows[0]||{}).find(h=>wanted.includes(normHeader(h)))||null;
+}
+function detectQualificationFile(rows){
+  if(!rows?.length)return null;
+  const hs=Object.keys(rows[0]||{}).map(normHeader);
+  if(hs.includes(normHeader("Qualification brucellose")) &&
+     hs.includes(normHeader("Qualification leucose")) &&
+     hs.includes(normHeader("Qualification tuberculose"))) return "SIGAL";
+
+  const malCol=headerByNormalized(rows,["Code maladie"]);
+  if(malCol){
+    const vals=[...new Set(rows.slice(0,200).map(r=>cleanQualValue(r[malCol])).filter(Boolean))];
+    if(vals.includes("IBR"))return "IBR";
+    if(vals.includes("BVD"))return "BVD";
+  }
+  return null;
+}
+async function ensureQualificationDefinition(cid,label){
+  let def=qualificationDefs(cid).find(d=>normHeader(d.libelle)===normHeader(label));
+  if(def)return def;
+  await sb("concours_points_controle",{
+    method:"POST",
+    body:{concours_id:cid,niveau:"cheptel",type_controle:"qualification",libelle:label,obligatoire:true},
+    prefer:"return=minimal"
+  });
+  await loadAll();
+  return qualificationDefs(cid).find(d=>normHeader(d.libelle)===normHeader(label))||null;
+}
+function qualDefForDisease(cid,disease){
+  const aliases={
+    IBR:["IBR","Qualification IBR"],
+    BVD:["BVD","Qualification BVD"],
+    BRU:["Brucellose","Qualification brucellose","BRU"],
+    LEU:["Leucose","Qualification leucose","LEU"],
+    TUB:["Tuberculose","Qualification tuberculose","TUB"]
+  };
+  return qualificationDefs(cid).find(d=>(aliases[disease]||[]).some(a=>normHeader(d.libelle)===normHeader(a)))||null;
+}
+async function ensureQualificationDefsForType(cid,type){
+  const wanted=type==="SIGAL"
+    ? [["BRU","Brucellose"],["LEU","Leucose"],["TUB","Tuberculose"]]
+    : [[type,type]];
+  for(const [,label] of wanted){
+    const exists=qualificationDefs(cid).some(d=>
+      normHeader(d.libelle)===normHeader(label) ||
+      normHeader(d.libelle)===normHeader("Qualification "+label)
+    );
+    if(!exists)await ensureQualificationDefinition(cid,label);
+  }
+}
+async function saveImportedQualification(def,herd,status,comment){
+  if(!def||!herd)return;
+  await saveCheckResultNoReload(def.id,"cheptel:"+herd,status,comment);
+}
+function contestHerdSet(cid){
+  return new Set(herdRows(cid).map(h=>normalizeHerd(h.herd)).filter(h=>/^\d{8}$/.test(h)));
+}
+async function importQualificationsFile(){
+  const file=document.getElementById("qualificationImportFile")?.files?.[0];
+  const cid=document.getElementById("qualContest")?.value;
+  if(!cid)return alert("Choisir un concours.");
+  if(!file)return alert("Choisir un fichier qualifications.");
+
+  const text=await decodeCSVFile(file);
+  const rows=parseCSV(text);
+  if(!rows.length)return alert("Fichier vide ou illisible.");
+
+  const type=detectQualificationFile(rows);
+  if(!type)return alert("Type de fichier non reconnu. Fichier attendu : IBR, BVD ou SIGAL Bru/Leu/Tub.");
+
+  await ensureQualificationDefsForType(cid,type);
+
+  const herdSet=contestHerdSet(cid);
+  let found=0,missing=0,conforme=0,nonconforme=0,averifier=0;
+
+  if(type==="IBR" || type==="BVD"){
+    const herdCol=headerByNormalized(rows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE"]);
+    const diseaseCol=headerByNormalized(rows,["Code maladie"]);
+    const codeCol=headerByNormalized(rows,["Code de la qualification","Code qualification"]);
+    const endCol=headerByNormalized(rows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin"]);
+    if(!herdCol||!codeCol)return alert("Colonnes nécessaires non reconnues dans le fichier "+type+".");
+
+    const grouped=new Map();
+    rows.forEach(r=>{
+      if(diseaseCol && cleanQualValue(r[diseaseCol])!==type)return;
+      const herd=normalizeHerd(r[herdCol]);
+      if(!herd)return;
+      if(!grouped.has(herd))grouped.set(herd,[]);
+      grouped.get(herd).push(r);
+    });
+
+    const def=qualDefForDisease(cid,type);
+    for(const herd of herdSet){
+      const rr=grouped.get(herd)||[];
+      if(!rr.length){
+        missing++;averifier++;
+        await saveImportedQualification(def,herd,"a_verifier",`Import ${type} : EDE absent du fichier ${file.name}`);
+        continue;
+      }
+      found++;
+
+      if(type==="IBR"){
+        const activeOk=rr.some(r=>{
+          const code=cleanQualValue(r[codeCol]);
+          const noEnd=!endCol || isBlankQualDate(r[endCol]);
+          return (code==="AA"||code==="A") && noEnd;
+        });
+        const status=activeOk?"conforme":"nonconforme";
+        const allCodes=[...new Set(rr.map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
+        const activeCodes=[...new Set(rr.filter(r=>!endCol||isBlankQualDate(r[endCol])).map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
+        await saveImportedQualification(
+          def,herd,status,
+          `Import IBR : code(s) ${allCodes.join(", ")||"—"} ; actif(s) sans date de fin : ${activeCodes.join(", ")||"aucun"}`
+        );
+        if(status==="conforme")conforme++; else nonconforme++;
+      }else{
+        const badCodes=new Set(["NC","I1","I2","I3"]);
+        const badActive=rr.filter(r=>{
+          const code=cleanQualValue(r[codeCol]);
+          const noEnd=!endCol || isBlankQualDate(r[endCol]);
+          return badCodes.has(code) && noEnd;
+        });
+        const status=badActive.length?"nonconforme":"conforme";
+        const allCodes=[...new Set(rr.map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
+        const bad=[...new Set(badActive.map(r=>cleanQualValue(r[codeCol])))];
+        await saveImportedQualification(
+          def,herd,status,
+          `Import BVD : code(s) ${allCodes.join(", ")||"—"}${bad.length?` ; non conforme actif : ${bad.join(", ")}`:" ; aucun NC/I1/I2/I3 actif sans date de fin"}`
+        );
+        if(status==="conforme")conforme++; else nonconforme++;
+      }
+    }
+  }else{
+    const herdCol=headerByNormalized(rows,["Atelier : N° EDE","N° EDE","EDE"]);
+    const bruCol=headerByNormalized(rows,["Qualification brucellose"]);
+    const leuCol=headerByNormalized(rows,["Qualification leucose"]);
+    const tubCol=headerByNormalized(rows,["Qualification tuberculose"]);
+    if(!herdCol||!bruCol||!leuCol||!tubCol)return alert("Colonnes SIGAL nécessaires non reconnues.");
+
+    const map=new Map();
+    rows.forEach(r=>{
+      const herd=normalizeHerd(r[herdCol]);
+      if(herd)map.set(herd,r);
+    });
+
+    const defs={
+      BRU:qualDefForDisease(cid,"BRU"),
+      LEU:qualDefForDisease(cid,"LEU"),
+      TUB:qualDefForDisease(cid,"TUB")
+    };
+
+    for(const herd of herdSet){
+      const r=map.get(herd);
+      if(!r){
+        missing++;averifier+=3;
+        await Promise.all([
+          saveImportedQualification(defs.BRU,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`),
+          saveImportedQualification(defs.LEU,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`),
+          saveImportedQualification(defs.TUB,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`)
+        ]);
+        continue;
+      }
+
+      found++;
+      for(const [key,col,label] of [
+        ["BRU",bruCol,"Brucellose"],
+        ["LEU",leuCol,"Leucose"],
+        ["TUB",tubCol,"Tuberculose"]
+      ]){
+        const code=cleanQualValue(r[col]);
+        const status=code==="OI"?"conforme":"nonconforme";
+        await saveImportedQualification(defs[key],herd,status,`Import SIGAL ${label} : ${code||"vide"}`);
+        if(status==="conforme")conforme++; else nonconforme++;
+      }
+    }
+  }
+
+  await loadAll();
+  renderQualifications();
+
+  const summary=document.getElementById("qualificationImportSummary");
+  if(summary){
+    summary.innerHTML=`<div class="info">
+      <strong>Import ${type} terminé</strong><br>
+      Fichier : ${escapeHtml(file.name)}<br>
+      EDE du concours retrouvés : <strong>${found}</strong> — absents du fichier : <strong>${missing}</strong><br>
+      Qualifications conformes : <strong>${conforme}</strong> — non conformes : <strong>${nonconforme}</strong>${averifier?` — à vérifier : <strong>${averifier}</strong>`:""}
+    </div>`;
+  }
+  document.getElementById("qualificationImportFile").value="";
+}function renderQualifications(){
   const target=document.getElementById("qualificationTable"); if(!target)return;
   const cid=document.getElementById("qualContest")?.value;
   const q=(document.getElementById("qualSearch")?.value||"").trim().toLowerCase();
