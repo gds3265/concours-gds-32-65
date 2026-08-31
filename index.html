@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.0</title>
-<link rel="manifest" href="manifest.json?v=070">
+<title>Suivi des concours v0.7.2</title>
+<link rel="manifest" href="manifest.json?v=072">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -158,6 +158,34 @@ body.partner-mode .partner-only-header{display:block}
 .entry-actions{display:flex;gap:5px;flex-wrap:wrap}
 .entry-actions button{padding:6px 9px}
 @media(max-width:950px){.entry-row{grid-template-columns:1fr}}
+
+/* Repérage visuel des grandes étapes */
+nav button[data-group="prep"]{
+  background:#f3ddeb;
+  border-color:#c98aac;
+  color:#6b234e;
+}
+nav button[data-group="sanitaire"]{
+  background:#e2edf7;
+  border-color:#8eb2d0;
+  color:#214f72;
+}
+nav button[data-group="gestion"]{
+  background:#e4f1e7;
+  border-color:#91bd99;
+  color:#285f35;
+}
+nav button[data-group="prep"].active,
+nav button[data-group="prep"]:hover{background:#c98aac;color:#fff}
+nav button[data-group="sanitaire"].active,
+nav button[data-group="sanitaire"]:hover{background:#5d8fb7;color:#fff}
+nav button[data-group="gestion"].active,
+nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
+.nav-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.nav-legend-item{font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;border:1px solid transparent}
+.nav-legend-item.prep{background:#f3ddeb;border-color:#c98aac;color:#6b234e}
+.nav-legend-item.sanitaire{background:#e2edf7;border-color:#8eb2d0;color:#214f72}
+.nav-legend-item.gestion{background:#e4f1e7;border-color:#91bd99;color:#285f35}
 </style>
 </head>
 <body>
@@ -196,25 +224,30 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=070" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=072" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
-    <button data-tab="dashboard">Accueil</button>
-    <button data-tab="parametres">Paramétrage</button>
-    <button data-tab="concours">Concours</button>
-    <button data-tab="animaux">Liste inscrits</button>
-    <button data-tab="analyses">Analyses</button>
-    <button data-tab="qualifications">Qualifications</button>
-    <button data-tab="controles">Autres contrôles</button>
-    <button data-tab="validationrapide">Validation rapide</button>
+    <button class="active" data-group="prep" data-tab="dashboard">Accueil</button>
+    <button data-group="prep" data-tab="parametres">Paramétrage</button>
+    <button data-group="prep" data-tab="concours">Concours</button>
+    <button data-group="sanitaire" data-tab="animaux">Liste inscrits</button>
+    <button data-group="sanitaire" data-tab="analyses">Analyses</button>
+    <button data-group="sanitaire" data-tab="qualifications">Qualifications</button>
+    <button data-group="sanitaire" data-tab="controles">Autres contrôles</button>
+    <button data-group="sanitaire" data-tab="validationrapide">Validation rapide</button>
     <button data-tab="partenaireportail" style="display:none">Mon espace partenaire</button>
-    <button data-tab="certificats">Certificats</button>
-    <button data-tab="partenaires">Partenaires</button>
-    <button data-tab="entreeconcours">Entrée concours</button>
-    <button data-tab="remboursements">Remboursements</button>
-    <button data-tab="export">Exports</button>
+    <button data-group="sanitaire" data-tab="certificats">Certificats</button>
+    <button data-group="gestion" data-tab="partenaires">Partenaires</button>
+    <button data-group="gestion" data-tab="entreeconcours">Entrée concours</button>
+    <button data-group="prep" data-tab="remboursements">Remboursements</button>
+    <button data-group="prep" data-tab="export">Exports</button>
   </nav>
+  <div class="nav-legend">
+    <span class="nav-legend-item prep">Préparation / paramétrage / administratif</span>
+    <span class="nav-legend-item sanitaire">Suivi sanitaire</span>
+    <span class="nav-legend-item gestion">Partenaires / jour du concours</span>
+  </div>
   <div style="margin-top:10px;display:grid;grid-template-columns:minmax(220px,420px) auto;gap:8px;align-items:center">
     <input id="globalSearch" placeholder="Rechercher un éleveur ou n° cheptel…" style="width:100%;padding:8px 10px;border-radius:8px;border:0">
     <span class="small" style="opacity:.9"><span class="global-search-label">Filtre les listes de l’écran affiché</span></span>
@@ -897,7 +930,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "0.7.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -916,7 +949,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.2");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1454,6 +1487,7 @@ function renderSelectors(){
   const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
   ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest","partnerMgmtContest","refundContest","exportContest"].forEach(id=>optionize(id,shownOpts));
   renderFarmerSelectors();
+  optionize("entryContest",db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`})));
 }
 
 function departmentsForContest(cid){
@@ -3784,7 +3818,11 @@ async function entrySetHerdPresent(ede){
   await loadAll();renderEntry();
 }
 function renderEntry(){
-  const cid=document.getElementById("entryContest")?.value;
+  const entrySel=document.getElementById("entryContest");
+  if(entrySel && !entrySel.options.length && db.contests.length){
+    entrySel.innerHTML=db.contests.map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.nom)} — ${escapeHtml(c.date_concours||"")}</option>`).join("");
+  }
+  const cid=entrySel?.value;
   const target=document.getElementById("entryList"),kpis=document.getElementById("entryKpis");
   if(!target||!kpis)return;
   if(!cid){target.innerHTML='<div class="card muted">Choisir un concours.</div>';kpis.innerHTML="";return}
@@ -3869,7 +3907,9 @@ function renderAll(){renderSelectors();renderContestList();renderDepartmentSelec
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
-  document.getElementById(b.dataset.tab).classList.add("active");
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.getElementById(b.dataset.tab)?.classList.add("active");
+  b.classList.add("active");
   renderAll();
 });
 document.addEventListener("change",e=>{
