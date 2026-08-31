@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.2</title>
-<link rel="manifest" href="manifest.json?v=052">
+<title>Suivi des concours v0.5.4</title>
+<link rel="manifest" href="manifest.json?v=054">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=052" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=054" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -151,9 +151,9 @@ body.partner-mode .partner-only-header{display:block}
     <button data-tab="qualifications">Qualifications</button>
     <button data-tab="controles">Autres contrôles</button>
     <button data-tab="validationrapide">Validation rapide</button>
-    <button data-tab="partenaires">Partenaires</button>
     <button data-tab="partenaireportail" style="display:none">Mon espace partenaire</button>
     <button data-tab="certificats">Certificats</button>
+    <button data-tab="partenaires">Partenaires</button>
     <button data-tab="remboursements">Remboursements</button>
     <button data-tab="export">Exports</button>
   </nav>
@@ -290,6 +290,14 @@ body.partner-mode .partner-only-header{display:block}
     <div class="muted">
       Fichier fourni par l'organisateur ou le partenaire. Le n° de cheptel et la date de naissance peuvent être absents.
       Le n° bovin sert de clé de rapprochement avec le fichier métier.
+    </div>
+    <div class="info" style="margin-top:10px">
+      <strong>Entêtes conseillées pour optimiser l’import :</strong>
+      <div style="margin-top:6px"><code>NUMANIM</code> · <code>DATE_NAISS</code> · <code>N°Travail</code> · <code>DETENTEUR</code></div>
+      <div class="muted" style="margin-top:5px">
+        Si le fichier contient également un n° cheptel/EDE, une colonne contenant des valeurs à 8 chiffres sera reconnue automatiquement.
+        Ces intitulés sont recommandés, mais ils ne sont pas obligatoires : l’import essaie aussi d’identifier les colonnes d’après leur contenu.
+      </div>
     </div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="partnerContest"></select></div>
@@ -700,7 +708,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.2";
+const APP_VERSION = "0.5.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -717,7 +725,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.4");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1262,6 +1270,91 @@ function parseCSV(text){
   });
 }
 
+
+function normHeader(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function digitsOnly(v){return cleanExcelCell(v).replace(/\D/g,"")}
+function looksLikeDateText(v){
+  const s=cleanExcelCell(v).trim();
+  return /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(s) || /^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}$/.test(s);
+}
+function inferColumn(rows, kind){
+  if(!rows?.length)return null;
+  const headers=Object.keys(rows[0]||{});
+  const aliases={
+    bovin:["identifiant bovin","numero bovin","num bovin","n bovin","numero animal","num animal","n animal","numero national","numanim","bovin","animal"],
+    herd:["numero cheptel","num cheptel","n cheptel","ncheptel","ede","exploitation","cheptel"],
+    owner:["eleveur","proprietaire","detenteur","raison sociale","nom eleveur","nom detenteur","nom proprietaire"],
+    birth:["date naissance","date de naissance","naissance","ddn","date naiss"],
+    work:["numero travail","num travail","n travail","ntravail"],
+    sex:["sexe","sex"],
+    animalName:["nom animal","nom bovin","nom de l animal","nom"]
+  };
+  const ah=aliases[kind]||[];
+  let best=null,bestScore=-999;
+  for(const h of headers){
+    const nh=normHeader(h);
+    let score=0;
+    if(ah.some(a=>nh===normHeader(a)))score+=100;
+    else if(ah.some(a=>nh.includes(normHeader(a))||normHeader(a).includes(nh)))score+=55;
+
+    const vals=rows.slice(0,Math.min(rows.length,100)).map(r=>cleanExcelCell(r[h])).filter(Boolean);
+    if(!vals.length)continue;
+
+    if(kind==="bovin"){
+      const valid=vals.filter(v=>digitsOnly(v).length===10 && !looksLikeDateText(v)).length/vals.length;
+      score+=valid*70;
+      if(/tel|telephone|phone/.test(nh))score-=100;
+      if(/date|naiss/.test(nh))score-=100;
+    }else if(kind==="herd"){
+      const valid=vals.filter(v=>digitsOnly(v).length===8 && !looksLikeDateText(v)).length/vals.length;
+      score+=valid*70;
+      if(/date|naiss|travail/.test(nh))score-=100;
+    }else if(kind==="birth"){
+      const valid=vals.filter(v=>looksLikeDateText(v)||!!normalizeDate(v)).length/vals.length;
+      score+=valid*40;
+    }
+    if(score>bestScore){bestScore=score;best=h}
+  }
+  const threshold=(kind==="bovin"||kind==="herd")?45:25;
+  return bestScore>=threshold?best:null;
+}
+function inferCsvColumns(rows){
+  return {
+    bovin:inferColumn(rows,"bovin"),
+    herd:inferColumn(rows,"herd"),
+    owner:inferColumn(rows,"owner"),
+    birth:inferColumn(rows,"birth"),
+    work:inferColumn(rows,"work"),
+    sex:inferColumn(rows,"sex"),
+    animalName:inferColumn(rows,"animalName")
+  };
+}
+function valueFromColumn(o,col){return col?cleanExcelCell(o[col]):""}
+function normalizePersonName(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+    .replace(/\b(EARL|GAEC|SCEA|SCL|SARL|SAS|EXPLOITATION|ELEVAGE|FERME|MONSIEUR|MADAME|M|MME)\b/g," ")
+    .replace(/[^A-Z0-9]+/g," ").replace(/\s+/g," ").trim();
+}
+function nameTokens(s){return new Set(normalizePersonName(s).split(" ").filter(x=>x.length>=2))}
+function nameSimilarity(a,b){
+  const A=nameTokens(a),B=nameTokens(b);if(!A.size||!B.size)return 0;
+  let common=0;A.forEach(x=>{if(B.has(x))common++});
+  return common/Math.max(A.size,B.size);
+}
+function findHerdByOwnerName(cid,owner){
+  const target=normalizePersonName(owner);if(!target)return null;
+  const candidates=new Map();
+  db.animals.filter(a=>a.concours_id===cid && a.cheptel && a.eleveur).forEach(a=>{
+    const key=normalizePersonName(a.eleveur);
+    if(!candidates.has(key))candidates.set(key,{name:a.eleveur,herd:normalizeHerd(a.cheptel)});
+  });
+  if(candidates.has(target))return {...candidates.get(target),confidence:"exact"};
+  const scored=[...candidates.values()].map(x=>({...x,score:nameSimilarity(owner,x.name)})).filter(x=>x.score>=0.8).sort((a,b)=>b.score-a.score);
+  if(scored.length===1 || (scored.length>1 && scored[0].score>scored[1].score+0.15))return {...scored[0],confidence:"probable"};
+  return null;
+}
 async function importPartnerCSV(){
   const f=document.getElementById("partnerCsvFile").files[0];
   if(!f)return alert("Choisir le fichier CSV des inscrits.");
@@ -1269,26 +1362,45 @@ async function importPartnerCSV(){
   const dept=document.getElementById("partnerDept").value;
   if(!cid)return alert("Choisir un concours.");
   if(!dept)return alert("Choisir le département.");
+
   const text=await decodeCSVFile(f);
   const parsed=parseCSV(text), rows=[];
-  let withoutNumber=0, duplicatesInFile=0;
+  if(!parsed.length)return alert("Fichier vide ou illisible.");
+  const cols=inferCsvColumns(parsed);
+
+  let withoutNumber=0, duplicatesInFile=0, herdByDigits=0, herdByName=0, importedWithoutHerd=0;
   const seen=new Set();
 
   parsed.forEach(o=>{
-    const bovin=normalizeBovin(pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin"]));
+    const rawBovin=cols.bovin?valueFromColumn(o,cols.bovin):pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin","NUMANIM"]);
+    const bovin=normalizeBovin(rawBovin);
     if(!bovin){withoutNumber++;return;}
     if(seen.has(bovin)){duplicatesInFile++;return;}
     seen.add(bovin);
-    const eleveur=pick(o,["eleveur","éleveur","proprietaire","propriétaire","nom","detenteur","détenteur","exploitation","raison sociale"]) || "Éleveur à compléter";
-    const cheptel=pick(o,["cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"]);
-    const naissance=normalizeDate(pick(o,["naissance","date de naissance","date naissance","ddn"]));
+
+    let eleveur=cols.owner?valueFromColumn(o,cols.owner):pick(o,["eleveur","éleveur","proprietaire","propriétaire","detenteur","détenteur","raison sociale","nom eleveur"]);
+    if(!eleveur)eleveur="Éleveur à compléter";
+
+    let cheptel=cols.herd?normalizeHerd(valueFromColumn(o,cols.herd)):"";
+    if(cheptel)herdByDigits++;
+    if(!cheptel && eleveur && eleveur!=="Éleveur à compléter"){
+      const byName=findHerdByOwnerName(cid,eleveur);
+      if(byName?.herd){cheptel=byName.herd;herdByName++}
+    }
+    if(!cheptel)importedWithoutHerd++;
+
+    const naissance=normalizeDate(cols.birth?valueFromColumn(o,cols.birth):pick(o,["naissance","date de naissance","date naissance","ddn","DATE_NAISS"]));
     const commune=pick(o,["commune","ville"]);
-    const sexe=pick(o,["sexe","sex"]);
-    const nomAnimal=pick(o,["nom animal","nom bovin","nom de l animal","nom de animal"]);
-    rows.push({concours_id:cid,departement:dept,eleveur,cheptel:cheptel||null,bovin,naissance,origine:"Import liste inscrits",commune_partenaire:commune||null,sexe:sexe||null,nom_animal:nomAnimal||null,controle_metier:"pending",detenteur_metier:null,cheptel_metier:null,naissance_metier:null});
+    const sexe=cols.sex?valueFromColumn(o,cols.sex):pick(o,["sexe","sex"]);
+    const nomAnimal=cols.animalName?valueFromColumn(o,cols.animalName):pick(o,["nom animal","nom bovin","nom de l animal","nom de animal"]);
+    rows.push({
+      concours_id:cid,departement:dept,eleveur,cheptel:cheptel||null,bovin,naissance,
+      origine:"Import liste inscrits",commune_partenaire:commune||null,sexe:sexe||null,nom_animal:nomAnimal||null,
+      controle_metier:"pending",detenteur_metier:null,cheptel_metier:null,naissance_metier:null
+    });
   });
 
-  if(!rows.length)return alert("Aucun n° bovin reconnu dans ce fichier.");
+  if(!rows.length)return alert("Aucun n° bovin à 10 chiffres reconnu dans ce fichier.");
   const existing=new Set(db.animals.filter(a=>a.concours_id===cid).map(a=>normalizeBovin(a.bovin)));
   const alreadyExisting=rows.filter(r=>existing.has(r.bovin)).length;
   const newRows=rows.filter(r=>!existing.has(r.bovin));
@@ -1297,12 +1409,15 @@ async function importPartnerCSV(){
     await sb("concours_animaux?on_conflict=concours_id,bovin",{method:"POST",body:newRows,prefer:"resolution=ignore-duplicates,return=minimal"});
   }
 
-  lastPartnerImport={fileName:f.name,totalLines:parsed.length,recognized:rows.length,imported:newRows.length,duplicatesInFile,alreadyExisting,withoutNumber,contestId:cid,department:dept};
+  lastPartnerImport={
+    fileName:f.name,totalLines:parsed.length,recognized:rows.length,imported:newRows.length,
+    duplicatesInFile,alreadyExisting,withoutNumber,contestId:cid,department:dept,
+    detectedColumns:cols,herdByDigits,herdByName,importedWithoutHerd
+  };
   document.getElementById("animalViewContest").value=cid;
   await loadAll();
   renderPartnerImportSummary();
 }
-
 function herdSummaryForContest(cid,dept){
   const map=new Map();
   db.animals.filter(a=>a.concours_id===cid && (!dept || a.departement===dept)).forEach(a=>{
@@ -1329,6 +1444,13 @@ function renderPartnerImportSummary(){
   const herds=herdSummaryForContest(x.contestId,x.department);
   herdTarget.innerHTML=`<h3>Récap par n° EDE</h3>
   <div class="muted" style="margin-bottom:8px">${herds.length} EDE distinct(s).</div>
+  ${x.detectedColumns?`<div class="muted" style="margin-bottom:8px">
+    Colonnes détectées : bovin = <strong>${escapeHtml(x.detectedColumns.bovin||"—")}</strong>,
+    cheptel = <strong>${escapeHtml(x.detectedColumns.herd||"absent")}</strong>,
+    éleveur = <strong>${escapeHtml(x.detectedColumns.owner||"—")}</strong>.
+    ${x.herdByName?`${x.herdByName} EDE rapproché(s) par nom.`:""}
+    ${x.importedWithoutHerd?`${x.importedWithoutHerd} bovin(s) importé(s) sans EDE, à compléter au croisement métier.`:""}
+  </div>`:""}
   <div class="scroll"><table><thead><tr><th>N° EDE</th><th>Éleveur</th><th>Bovins importés</th></tr></thead><tbody>
   ${herds.map(h=>`<tr><td><strong>${escapeHtml(h.herd)}</strong></td><td>${escapeHtml(h.farmer)}</td><td>${h.count}</td></tr>`).join("")}
   </tbody></table></div>`;
@@ -1344,21 +1466,32 @@ async function importBusinessCSV(){
 
   const text=await decodeCSVFile(f);
   const source=parseCSV(text);
+  if(!source.length)return alert("Fichier vide ou illisible.");
+  const cols=inferCsvColumns(source);
   const business=new Map();
-  let recognized=0, withoutId=0;
+  let recognized=0, withoutId=0, herdMatchedByName=0;
 
   source.forEach(o=>{
-    const rawId=pick(o,["Identifiant bovin","bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national"]);
+    const rawId=cols.bovin?valueFromColumn(o,cols.bovin):pick(o,["Identifiant bovin","bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","NUMANIM"]);
     const bovin=normalizeBovin(rawId);
     if(!bovin){withoutId++;return;}
     recognized++;
+
+    const owner=cols.owner?valueFromColumn(o,cols.owner):pick(o,["detenteur","détenteur","eleveur","éleveur","proprietaire","propriétaire","raison sociale"]);
+    let cheptel=cols.herd?normalizeHerd(valueFromColumn(o,cols.herd)):"";
+    if(!cheptel && owner){
+      const byName=findHerdByOwnerName(cid,owner);
+      if(byName?.herd){cheptel=byName.herd;herdMatchedByName++}
+    }
+
     business.set(bovin,{
       bovin,
-      cheptel:normalizeHerd(pick(o,["Exploitation","cheptel","ncheptel","n cheptel","n°cheptel","n° cheptel","ede","numero cheptel","numéro cheptel"])),
-      naissance:normalizeDate(pick(o,["Date naissance","naissance","date de naissance","date naissance","ddn"])),
-      nom:cleanExcelCell(pick(o,["Nom"])),
-      sexe:cleanExcelCell(pick(o,["Sexe","SEXE"])),
-      numeroTravail:cleanExcelCell(pick(o,["Numéro travail","Numero travail"]))
+      cheptel:cheptel||null,
+      owner:owner||null,
+      naissance:normalizeDate(cols.birth?valueFromColumn(o,cols.birth):pick(o,["Date naissance","naissance","date de naissance","date naissance","ddn","DATE_NAISS"])),
+      nom:cleanExcelCell(cols.animalName?valueFromColumn(o,cols.animalName):pick(o,["Nom","NOM"])),
+      sexe:cleanExcelCell(cols.sex?valueFromColumn(o,cols.sex):pick(o,["Sexe","SEXE"])),
+      numeroTravail:cleanExcelCell(cols.work?valueFromColumn(o,cols.work):pick(o,["Numéro travail","Numero travail","N°Travail"]))
     });
   });
 
@@ -1388,6 +1521,7 @@ async function importBusinessCSV(){
     ops.push(sb("concours_animaux?id=eq."+a.id,{method:"PATCH",body:{
       cheptel_metier:m.cheptel||null,
       naissance_metier:m.naissance||null,
+      detenteur_metier:m.owner||a.detenteur_metier||null,
       cheptel:a.cheptel||m.cheptel||null,
       naissance:a.naissance||m.naissance||null,
       sexe:a.sexe||m.sexe||null,
@@ -1397,7 +1531,7 @@ async function importBusinessCSV(){
     }}));
   }
   await Promise.all(ops);
-  lastBusinessImport={fileName:f.name,totalLines:source.length,recognized,withoutId,matched:ok+completed+mismatch,notfound,example:[...business.keys()][0]||""};
+  lastBusinessImport={fileName:f.name,totalLines:source.length,recognized,withoutId,matched:ok+completed+mismatch,notfound,example:[...business.keys()][0]||"",detectedColumns:cols,herdMatchedByName};
   document.getElementById("animalViewContest").value=cid;
   await loadAll();
   document.getElementById("businessImportSummary").innerHTML=
@@ -1407,7 +1541,13 @@ async function importBusinessCSV(){
       <div class="kpi"><span>Rapprochés</span><strong>${ok+completed+mismatch}</strong></div>
       <div class="kpi"><span>Non retrouvés</span><strong>${notfound}</strong></div>
     </div>
-    <div class="muted" style="margin-top:7px">Exemple de n° normalisé : ${escapeHtml(lastBusinessImport.example||"—")} — comparaison sur les 10 chiffres du n° bovin.</div>
+    <div class="muted" style="margin-top:7px">
+      Exemple de n° normalisé : ${escapeHtml(lastBusinessImport.example||"—")} — comparaison sur les 10 chiffres du n° bovin.<br>
+      Colonne bovin détectée : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.bovin||"—")}</strong> —
+      colonne EDE : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.herd||"absente")}</strong> —
+      détenteur : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.owner||"—")}</strong>.
+      ${lastBusinessImport.herdMatchedByName?`${lastBusinessImport.herdMatchedByName} EDE rapproché(s) par nom.`:""}
+    </div>
     <div style="margin-top:7px">
       <span class="badge ok">${ok} cohérent(s)</span>
       <span class="badge lab">${completed} complété(s)</span>
