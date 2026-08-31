@@ -389,3 +389,28 @@ alter table public.concours_acces_partenaires
 -- departements = tableau vide => tous les départements du concours
 -- departements = {'65'} => uniquement le 65
 -- departements = {'32','65'} => uniquement 32 et 65
+
+
+-- ============================================================
+-- v0.6.3 - PARTICIPATION / AJOUTS PARTENAIRES
+-- ============================================================
+
+alter table public.concours_animaux
+  add column if not exists statut_participation text not null default 'engage';
+
+alter table public.concours_animaux
+  add column if not exists participation_commentaire text;
+
+alter table public.concours_animaux
+  add column if not exists ajoute_par_partenaire boolean not null default false;
+
+alter table public.concours_animaux
+  add column if not exists partenaire_modification_email text;
+
+alter table public.concours_animaux
+  add column if not exists partenaire_modification_at timestamptz;
+
+-- Valeurs utilisées par l'application pour statut_participation :
+-- engage          = bovin actuellement engagé / attendu
+-- non_participant = l'engagement est conservé mais le bovin n'assistera pas
+-- retire          = retiré de la liste active, conservé pour la traçabilité
