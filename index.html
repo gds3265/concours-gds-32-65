@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.5</title>
-<link rel="manifest" href="manifest.json?v=055">
+<title>Suivi des concours v0.5.6</title>
+<link rel="manifest" href="manifest.json?v=056">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=055" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=056" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -736,7 +736,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.5";
+const APP_VERSION = "0.5.6";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -753,7 +753,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.5");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.6");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1244,19 +1244,22 @@ async function decodeCSVFile(file){
   }
 }
 function detectSeparator(text){
-  let inQuotes=false, semi=0, comma=0;
+  const counts={";":0,",":0,"\t":0,"|":0};
+  let inQuotes=false,lines=0;
   for(let i=0;i<text.length;i++){
     const ch=text[i];
     if(ch==='"'){
       if(inQuotes && text[i+1]==='"'){i++;continue;}
       inQuotes=!inQuotes;
     }else if(!inQuotes){
-      if(ch===';')semi++;
-      else if(ch===',')comma++;
-      else if(ch==='\n'||ch==='\r')break;
+      if(Object.prototype.hasOwnProperty.call(counts,ch))counts[ch]++;
+      else if(ch==='\n'){
+        lines++;
+        if(lines>=5)break;
+      }
     }
   }
-  return semi>=comma?';':',';
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
 }
 function parseCSV(text){
   text=String(text||"").replace(/^\uFEFF/,"");
@@ -2247,19 +2250,102 @@ function headerByNormalized(rows,names){
   const wanted=names.map(normHeader);
   return Object.keys(rows[0]||{}).find(h=>wanted.includes(normHeader(h)))||null;
 }
-function detectQualificationFile(rows){
-  if(!rows?.length)return null;
-  const hs=Object.keys(rows[0]||{}).map(normHeader);
-  if(hs.includes(normHeader("Qualification brucellose")) &&
-     hs.includes(normHeader("Qualification leucose")) &&
-     hs.includes(normHeader("Qualification tuberculose"))) return "SIGAL";
-
-  const malCol=headerByNormalized(rows,["Code maladie"]);
-  if(malCol){
-    const vals=[...new Set(rows.slice(0,200).map(r=>cleanQualValue(r[malCol])).filter(Boolean))];
-    if(vals.includes("IBR"))return "IBR";
-    if(vals.includes("BVD"))return "BVD";
+function qualificationHeaderScore(cells){
+  const txt=cells.map(normHeader);
+  let score=0;
+  const keys=[
+    "n exploitation","n ede","code maladie","maladie selectionnee",
+    "code de la qualification","code qualification",
+    "qualification brucellose","qualification leucose","qualification tuberculose"
+  ];
+  keys.forEach(k=>{if(txt.some(x=>x===normHeader(k)||x.includes(normHeader(k))))score++});
+  return score;
+}
+function parseQualificationCSV(text){
+  text=String(text||"").replace(/^\uFEFF/,"");
+  const sep=detectSeparator(text);
+  const matrix=[];
+  let row=[],field="",inQuotes=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQuotes){
+      if(ch==='"'){
+        if(text[i+1]==='"'){field+='"';i++}else inQuotes=false;
+      }else field+=ch;
+    }else{
+      if(ch==='"')inQuotes=true;
+      else if(ch===sep){row.push(field);field=""}
+      else if(ch==='\r'){
+        if(text[i+1]==='\n')i++;
+        row.push(field);field="";
+        if(row.some(v=>String(v).trim()!==""))matrix.push(row);
+        row=[];
+      }else if(ch==='\n'){
+        row.push(field);field="";
+        if(row.some(v=>String(v).trim()!==""))matrix.push(row);
+        row=[];
+      }else field+=ch;
+    }
   }
+  row.push(field);
+  if(row.some(v=>String(v).trim()!==""))matrix.push(row);
+  if(!matrix.length)return [];
+
+  let headerIndex=0,best=-1;
+  matrix.slice(0,Math.min(20,matrix.length)).forEach((r,i)=>{
+    const s=qualificationHeaderScore(r);
+    if(s>best){best=s;headerIndex=i}
+  });
+
+  const heads=matrix[headerIndex].map(x=>String(x||"").trim());
+  if(heads.length<2)return [];
+  return matrix.slice(headerIndex+1)
+    .filter(r=>r.some(v=>String(v).trim()!==""))
+    .map(values=>{
+      const o={};
+      heads.forEach((h,i)=>o[h]=String(values[i]??"").trim());
+      return o;
+    });
+}
+function detectQualificationFile(rows,fileName=""){
+  if(!rows?.length)return null;
+  const headers=Object.keys(rows[0]||{});
+  const hs=headers.map(normHeader);
+
+  if(hs.some(x=>x.includes(normHeader("qualification brucellose"))) &&
+     hs.some(x=>x.includes(normHeader("qualification leucose"))) &&
+     hs.some(x=>x.includes(normHeader("qualification tuberculose")))) return "SIGAL";
+
+  const diseaseColumns=headers.filter(h=>{
+    const n=normHeader(h);
+    return n.includes("maladie") || n.includes("disease");
+  });
+
+  const allDiseaseValues=[];
+  diseaseColumns.forEach(col=>{
+    rows.slice(0,300).forEach(r=>{
+      const v=cleanQualValue(r[col]);
+      if(v)allDiseaseValues.push(v);
+    });
+  });
+
+  const joined=allDiseaseValues.join(" ");
+  if(/\bIBR\b/i.test(joined))return "IBR";
+  if(/\bBVD\b/i.test(joined))return "BVD";
+
+  // Fallback on qualification label text.
+  const qualLabelCol=headers.find(h=>normHeader(h).includes(normHeader("libelle de la qualification")));
+  if(qualLabelCol){
+    const vals=rows.slice(0,300).map(r=>cleanQualValue(r[qualLabelCol])).join(" ");
+    if(/rhinotrache|IBR/i.test(vals))return "IBR";
+    if(/diarrhee virale|BVD/i.test(vals))return "BVD";
+  }
+
+  // Last safe fallback on filename.
+  const fn=String(fileName||"").toUpperCase();
+  if(/\bIBR\b/.test(fn))return "IBR";
+  if(/\bBVD\b/.test(fn))return "BVD";
+
   return null;
 }
 async function ensureQualificationDefinition(cid,label){
@@ -2309,11 +2395,14 @@ async function importQualificationsFile(){
   if(!file)return alert("Choisir un fichier qualifications.");
 
   const text=await decodeCSVFile(file);
-  const rows=parseCSV(text);
-  if(!rows.length)return alert("Fichier vide ou illisible.");
+  const rows=parseQualificationCSV(text);
+  if(!rows.length)return alert("Fichier vide ou illisible : séparateur ou entête non reconnu.");
 
-  const type=detectQualificationFile(rows);
-  if(!type)return alert("Type de fichier non reconnu. Fichier attendu : IBR, BVD ou SIGAL Bru/Leu/Tub.");
+  const type=detectQualificationFile(rows,file.name);
+  if(!type){
+    const hs=Object.keys(rows[0]||{}).slice(0,8).join(" | ");
+    return alert("Type de fichier non reconnu. Fichier attendu : IBR, BVD ou SIGAL Bru/Leu/Tub.\n\nEntêtes détectées : "+hs);
+  }
 
   await ensureQualificationDefsForType(cid,type);
 
@@ -2321,10 +2410,10 @@ async function importQualificationsFile(){
   let found=0,missing=0,conforme=0,nonconforme=0,averifier=0;
 
   if(type==="IBR" || type==="BVD"){
-    const herdCol=headerByNormalized(rows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE"]);
-    const diseaseCol=headerByNormalized(rows,["Code maladie"]);
-    const codeCol=headerByNormalized(rows,["Code de la qualification","Code qualification"]);
-    const endCol=headerByNormalized(rows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin"]);
+    const herdCol=headerByNormalized(rows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE","Exploitation"]);
+    const diseaseCol=headerByNormalized(rows,["Code maladie","Maladie","Maladie sélectionnée"]);
+    const codeCol=headerByNormalized(rows,["Code de la qualification","Code qualification","Qualification","Code qualif"]);
+    const endCol=headerByNormalized(rows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin","Fin qualification","Date de fin"]);
     if(!herdCol||!codeCol)return alert("Colonnes nécessaires non reconnues dans le fichier "+type+".");
 
     const grouped=new Map();
