@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.8</title>
-<link rel="manifest" href="manifest.json?v=058">
+<title>Suivi des concours v0.5.9</title>
+<link rel="manifest" href="manifest.json?v=059">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=058" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=059" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -750,7 +750,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.8";
+const APP_VERSION = "0.5.9";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -767,7 +767,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.8");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.9");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1220,7 +1220,9 @@ function pick(o, names){
 }
 function cleanExcelCell(v){
   let s=String(v??"").trim();
-  if(/^=".*"$/.test(s)) s=s.slice(2,-1);
+  // Excel CSV exports identifiers/text as ="65039026", ="IBR", ="AA", etc.
+  const m=s.match(/^=\s*"(.*)"$/s);
+  if(m)s=m[1].replace(/""/g,'"');
   return s.trim();
 }
 function normalizeBovin(v){
@@ -1290,7 +1292,7 @@ function parseCSV(text){
         field+=ch;
       }
     }else{
-      if(ch==='"')inQuotes=true;
+      if(ch==='"' && field==="")inQuotes=true;
       else if(ch===sep){row.push(field);field="";}
       else if(ch==='\r'){
         if(text[i+1]==='\n')i++;
@@ -2286,7 +2288,9 @@ function parseQualificationCSVWithSeparator(text,sep){
         if(text[i+1]==='"'){field+='"';i++}else inQuotes=false;
       }else field+=ch;
     }else{
-      if(ch==='"')inQuotes=true;
+      // Standard quoted CSV starts with ". Excel formulas such as ="IBR"
+      // are NOT quoted CSV fields: keep those quotes as ordinary characters.
+      if(ch==='"' && field==="")inQuotes=true;
       else if(ch===sep){row.push(field);field=""}
       else if(ch==='\r'||ch==='\n'){
         if(ch==='\r'&&text[i+1]==='\n')i++;
@@ -2412,9 +2416,16 @@ async function importQualificationsFile(type){
   const text=await decodeCSVFile(file);
   const parsed=parseQualificationCSV(text);
   const rows=parsed.rows||[];
-  if(!rows.length)return alert("Fichier vide ou illisible après plusieurs tentatives de lecture.");
+  const parsedHeaders=parsed.headers||[];
 
-  const detected=detectQualificationFile(rows,file.name);
+  // A BVD anomaly extract with headers but zero data rows is VALID:
+  // it means no problematic herd was returned, therefore all contest EDE are compliant.
+  if(!rows.length && !(type==="BVD" && parsedHeaders.length>=2)){
+    return alert("Fichier vide ou illisible après plusieurs tentatives de lecture.");
+  }
+
+  const detectionRows=rows.length?rows:[Object.fromEntries(parsedHeaders.map(h=>[h,""]))];
+  const detected=rows.length?detectQualificationFile(rows,file.name):type;
   if(detected && detected!==type){
     if(!confirm(`Ce fichier ressemble à un fichier ${detected}, mais tu l'importes dans ${type}. Continuer quand même ?`))return;
   }
@@ -2424,10 +2435,11 @@ async function importQualificationsFile(type){
   let found=0,missing=0,conforme=0,nonconforme=0,averifier=0,qualificationRowsRecognized=0;
 
   if(type==="IBR" || type==="BVD"){
-    const herdCol=headerByNormalized(rows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE","Exploitation"]);
-    const diseaseCol=headerByNormalized(rows,["Code maladie"]) || headerByNormalized(rows,["Maladie","Maladie sélectionnée"]);
-    const codeCol=headerByNormalized(rows,["Code de la qualification","Code qualification","Qualification","Code qualif"]);
-    const endCol=headerByNormalized(rows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin","Fin qualification","Date de fin"]);
+    const headerRows=rows.length?rows:[Object.fromEntries(parsedHeaders.map(h=>[h,""]))];
+    const herdCol=headerByNormalized(headerRows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE","Exploitation"]);
+    const diseaseCol=headerByNormalized(headerRows,["Code maladie"]) || headerByNormalized(headerRows,["Maladie","Maladie sélectionnée"]);
+    const codeCol=headerByNormalized(headerRows,["Code de la qualification","Code qualification","Qualification","Code qualif"]);
+    const endCol=headerByNormalized(headerRows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin","Fin qualification","Date de fin"]);
 
     if(!herdCol||!codeCol){
       const hs=Object.keys(rows[0]||{}).slice(0,12).join(" | ");
@@ -2532,11 +2544,13 @@ async function importQualificationsFile(type){
   const summary=document.getElementById(summaryId);
   if(summary){
     const sepLabel=parsed.separator==="\t"?"tabulation":parsed.separator;
-    const absent=type==="BVD"?`${missing} EDE absent(s) → conformes`:`${missing} EDE absent(s)`;
+    const absent=type==="BVD"
+      ? `${missing} EDE absent(s) du fichier → conformes`
+      : `${missing} EDE absent(s)`;
     summary.innerHTML=`<div class="info"><strong>Import ${type} terminé</strong><br>
       Fichier : ${escapeHtml(file.name)}<br>
       Lecture retenue : séparateur <strong>${escapeHtml(sepLabel)}</strong><br>
-      Lignes qualifications reconnues dans le fichier : <strong>${qualificationRowsRecognized}</strong><br>
+      Lignes qualifications reconnues dans le fichier : <strong>${qualificationRowsRecognized}</strong>${type==="BVD"&&rows.length===0?" <strong>(aucune anomalie BVD retournée)</strong>":""}<br>
       EDE du concours retrouvés : <strong>${found}</strong> — ${absent}<br>
       Conformes : <strong>${conforme}</strong> — non conformes : <strong>${nonconforme}</strong>${averifier?` — à vérifier : <strong>${averifier}</strong>`:""}
     </div>`;
