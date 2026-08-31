@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.5.7</title>
-<link rel="manifest" href="manifest.json?v=057">
+<title>Suivi des concours v0.5.8</title>
+<link rel="manifest" href="manifest.json?v=058">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -139,7 +139,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=057" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=058" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -435,7 +435,7 @@ body.partner-mode .partner-only-header{display:block}
   <div class="card">
     <h3>BVD</h3>
     <div class="muted">
-      Non conforme si une qualification <code>NC</code>, <code>I1</code>, <code>I2</code> ou <code>I3</code> est présente sans date de fin.
+      Non conforme si une qualification <code>NS</code>, <code>NC</code>, <code>I1</code>, <code>I2</code> ou <code>I3</code> est présente sans date de fin.
       <strong>Un cheptel absent du fichier BVD est considéré conforme.</strong>
     </div>
     <div class="row" style="margin-top:10px">
@@ -750,7 +750,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.5.7";
+const APP_VERSION = "0.5.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -767,7 +767,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.7");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.5.8");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -2421,11 +2421,11 @@ async function importQualificationsFile(type){
 
   await ensureQualificationDefsForType(cid,type);
   const herdSet=contestHerdSet(cid);
-  let found=0,missing=0,conforme=0,nonconforme=0,averifier=0;
+  let found=0,missing=0,conforme=0,nonconforme=0,averifier=0,qualificationRowsRecognized=0;
 
   if(type==="IBR" || type==="BVD"){
     const herdCol=headerByNormalized(rows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE","Exploitation"]);
-    const diseaseCol=headerByNormalized(rows,["Code maladie","Maladie","Maladie sélectionnée"]);
+    const diseaseCol=headerByNormalized(rows,["Code maladie"]) || headerByNormalized(rows,["Maladie","Maladie sélectionnée"]);
     const codeCol=headerByNormalized(rows,["Code de la qualification","Code qualification","Qualification","Code qualif"]);
     const endCol=headerByNormalized(rows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin","Fin qualification","Date de fin"]);
 
@@ -2438,7 +2438,8 @@ async function importQualificationsFile(type){
     rows.forEach(r=>{
       if(diseaseCol){
         const mal=cleanQualValue(r[diseaseCol]);
-        if(mal && mal!==type)return;
+        const diseaseOk=!mal || mal===type || mal.startsWith(type+" ") || mal.startsWith(type+" -") || mal.includes(" "+type+" ") || mal.includes(type+" -");
+        if(!diseaseOk)return;
       }
       const herd=normalizeHerd(r[herdCol]);
       if(!herd)return;
@@ -2447,6 +2448,7 @@ async function importQualificationsFile(type){
     });
 
     const def=qualDefForDisease(cid,type);
+    qualificationRowsRecognized=[...grouped.values()].reduce((n,arr)=>n+arr.length,0);
 
     for(const herd of herdSet){
       const rr=grouped.get(herd)||[];
@@ -2475,7 +2477,7 @@ async function importQualificationsFile(type){
         await saveImportedQualification(def,herd,status,`Import IBR : code(s) ${codes.join(", ")||"—"} ; actif(s) sans date de fin : ${active.join(", ")||"aucun"}`);
         if(status==="conforme")conforme++;else nonconforme++;
       }else{
-        const badCodes=new Set(["NC","I1","I2","I3"]);
+        const badCodes=new Set(["NS","NC","I1","I2","I3"]);
         const badActive=rr.filter(r=>{
           const code=cleanQualValue(r[codeCol]);
           const noEnd=!endCol||isBlankQualDate(r[endCol]);
@@ -2484,7 +2486,7 @@ async function importQualificationsFile(type){
         const status=badActive.length?"nonconforme":"conforme";
         const codes=[...new Set(rr.map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
         const bad=[...new Set(badActive.map(r=>cleanQualValue(r[codeCol])))];
-        await saveImportedQualification(def,herd,status,`Import BVD : code(s) ${codes.join(", ")||"—"}${bad.length?` ; non conforme actif : ${bad.join(", ")}`:" ; aucun NC/I1/I2/I3 actif sans date de fin"}`);
+        await saveImportedQualification(def,herd,status,`Import BVD : code(s) ${codes.join(", ")||"—"}${bad.length?` ; non conforme actif : ${bad.join(", ")}`:" ; aucun NS/NC/I1/I2/I3 actif sans date de fin"}`);
         if(status==="conforme")conforme++;else nonconforme++;
       }
     }
@@ -2501,6 +2503,7 @@ async function importQualificationsFile(type){
     const map=new Map();
     rows.forEach(r=>{const herd=normalizeHerd(r[herdCol]);if(herd)map.set(herd,r)});
     const defs={BRU:qualDefForDisease(cid,"BRU"),LEU:qualDefForDisease(cid,"LEU"),TUB:qualDefForDisease(cid,"TUB")};
+    qualificationRowsRecognized=map.size;
 
     for(const herd of herdSet){
       const r=map.get(herd);
@@ -2533,7 +2536,8 @@ async function importQualificationsFile(type){
     summary.innerHTML=`<div class="info"><strong>Import ${type} terminé</strong><br>
       Fichier : ${escapeHtml(file.name)}<br>
       Lecture retenue : séparateur <strong>${escapeHtml(sepLabel)}</strong><br>
-      EDE retrouvés : <strong>${found}</strong> — ${absent}<br>
+      Lignes qualifications reconnues dans le fichier : <strong>${qualificationRowsRecognized}</strong><br>
+      EDE du concours retrouvés : <strong>${found}</strong> — ${absent}<br>
       Conformes : <strong>${conforme}</strong> — non conformes : <strong>${nonconforme}</strong>${averifier?` — à vérifier : <strong>${averifier}</strong>`:""}
     </div>`;
   }
