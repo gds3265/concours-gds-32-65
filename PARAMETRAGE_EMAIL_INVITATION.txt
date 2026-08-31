@@ -1,0 +1,25 @@
+PARAMÉTRER LE MAIL D'INVITATION PARTENAIRE — SUPABASE
+
+Dans Supabase :
+1. Authentication
+2. Email Templates
+3. Choisir le modèle "Invite user" / "Invite"
+4. Modifier le sujet et le corps du message
+
+SUJET CONSEILLÉ
+GDS 32-65 – Invitation au suivi sanitaire d’un concours
+
+CORPS
+Copier le contenu du fichier :
+MODELE_EMAIL_INVITATION_SUPABASE.html
+
+IMPORTANT
+Conserver exactement la variable :
+{{ .ConfirmationURL }}
+
+C'est elle qui contient le lien d'activation envoyé par Supabase.
+
+Le modèle peut être entièrement personnalisé dans le dashboard Supabase.
+Si tu veux également que l'expéditeur affiché soit une adresse du type
+"GDS 32-65 <concours@...>" au lieu de l'expéditeur Supabase par défaut,
+il faudra ensuite configurer un SMTP personnalisé dans Supabase.

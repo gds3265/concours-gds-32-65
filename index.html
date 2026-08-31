@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.6.1</title>
-<link rel="manifest" href="manifest.json?v=061">
+<title>Suivi des concours v0.6.2</title>
+<link rel="manifest" href="manifest.json?v=062">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -128,6 +128,17 @@ body.partner-mode .partner-only-header{display:block}
 .progress-kpi{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
 .progress-kpi strong{display:block;font-size:20px}
 @media(max-width:700px){.progress-kpis{grid-template-columns:repeat(2,1fr)}}
+
+.partner-evidence{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.partner-evidence-item{border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:#fff;font-size:12px}
+.partner-evidence-item strong{display:block;font-size:12px;margin-bottom:2px}
+.partner-herd-ident{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:8px;margin-top:6px}
+.partner-herd-ident span{font-size:12px}
+.partner-herd-ident strong{display:block;font-size:14px}
+.partner-direct-row{display:grid;grid-template-columns:150px 1fr 1.4fr 170px 1fr;gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}
+.partner-detail-row{display:grid;grid-template-columns:150px 1fr 1.2fr 2.2fr 170px 170px 1fr;gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}
+.partner-detail-row.head,.partner-direct-row.head{font-weight:700;background:#f6eef3}
+@media(max-width:1000px){.partner-detail-row,.partner-direct-row{grid-template-columns:1fr}.partner-herd-ident{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -166,7 +177,7 @@ body.partner-mode .partner-only-header{display:block}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=061" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=062" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -572,7 +583,7 @@ body.partner-mode .partner-only-header{display:block}
   <div class="card">
     <div class="partner-grid">
       <div class="field"><label>Concours attribué</label><select id="portalContest"></select></div>
-      <div class="field"><label>Recherche</label><input id="portalSearch" placeholder="N° cheptel, éleveur ou bovin"></div>
+      <div class="field"><label>Recherche</label><input id="portalSearch" placeholder="N° EDE, nom éleveur ou n° bovin"></div>
       <div class="field"><label>Affichage</label>
         <select id="portalFilter">
           <option value="">Tous</option>
@@ -581,7 +592,12 @@ body.partner-mode .partner-only-header{display:block}
           <option value="nonconforme">Non conformes</option>
         </select>
       </div>
-      <div><button class="secondary" onclick="portalSetAllVerification()">Tout conforme en vérification</button></div>
+      <div class="field"><label>Mode de travail</label>
+        <select id="portalWorkMode">
+          <option value="detail">Vérification détaillée puis validation</option>
+          <option value="direct">Validation directe</option>
+        </select>
+      </div>
     </div>
 
     <div id="portalConditions" style="margin-top:12px"></div>
@@ -589,8 +605,11 @@ body.partner-mode .partner-only-header{display:block}
   </div>
 
   <div class="card">
-    <h3>Validation des cheptels et bovins</h3>
-    <div class="muted">La vérification est une aide facultative. La colonne Validation correspond à la décision finale du partenaire.</div>
+    <h3 id="portalWorkflowTitle">Vérification détaillée puis validation</h3>
+    <div class="muted" id="portalWorkflowHelp">Les informations sanitaires disponibles sont affichées pour contrôler chaque dossier avant la décision finale.</div>
+    <div class="row" id="portalVerificationBulk" style="margin-top:10px">
+      <button class="secondary" onclick="portalSetAllVerification()">Marquer les bovins affichés vérifiés conformes</button>
+    </div>
     <div id="portalValidationTable" style="margin-top:12px"></div>
   </div>
 </section>
@@ -657,7 +676,7 @@ body.partner-mode .partner-only-header{display:block}
   <div class="card">
     <div class="topline"><div><h3>Vue simplifiée partenaire</h3><div class="muted">Une ligne par bovin, demandes regroupées.</div></div>
       <div class="field"><label>Afficher comme</label><select id="partnerPreviewUser"></select></div></div>
-    <div class="row"><div class="field"><label>Recherche</label><input id="partnerSearch" placeholder="Cheptel, éleveur ou bovin"></div>
+    <div class="row"><div class="field"><label>Recherche</label><input id="partnerSearch" placeholder="N° EDE, nom éleveur ou n° bovin"></div>
       <button class="secondary" onclick="partnerSetAllVerification('conforme')">Tout conforme (vérification)</button></div>
     <div id="partnerPreview"></div>
   </div>
@@ -803,7 +822,7 @@ body.partner-mode .partner-only-header{display:block}
 </div>
 
 <script>
-const APP_VERSION = "0.6.1";
+const APP_VERSION = "0.6.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -822,7 +841,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.6.2");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -931,12 +950,97 @@ function portalPermissionLabels(access){
 function portalAnimalRequirements(access,a){
   return partnerReq(access,a);
 }
+
+function portalWorkMode(access){
+  const key=`concours_partner_workmode_${CURRENT_EMAIL}_${access?.concours_id||""}`;
+  const select=document.getElementById("portalWorkMode");
+  const saved=localStorage.getItem(key);
+  const mode=select?.value||saved||"detail";
+  if(select && select.value!==mode)select.value=mode;
+  return mode;
+}
+function savePortalWorkMode(){
+  const access=portalAccess();if(!access)return;
+  const mode=document.getElementById("portalWorkMode")?.value||"detail";
+  localStorage.setItem(`concours_partner_workmode_${CURRENT_EMAIL}_${access.concours_id}`,mode);
+  renderPartnerPortal();
+}
+function partnerStatusLabel(status){
+  const map={
+    conforme:["Conforme","ok"],
+    nonconforme:["Non conforme","bad"],
+    attente:["À vérifier","warn"],
+    nonapp:["Non applicable","na"],
+    labo:["En cours labo","warn"],
+    positif:["Positif","bad"],
+    recontrole:["À recontrôler","warn"],
+    negatif:["Négatif","ok"]
+  };
+  return map[status]||[status||"À vérifier","warn"];
+}
+function partnerStatusBadge(status){
+  const [label,cls]=partnerStatusLabel(status);
+  return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+function permissionMatchesQualification(access,label){
+  const p=access?.permissions||{},n=normHeader(label||"");
+  if(p.qual_ibr && n.includes("ibr"))return true;
+  if(p.qual_bvd && n.includes("bvd"))return true;
+  if(p.qual_bruc && (n.includes("bruc")||n.includes("brucell")))return true;
+  if(p.qual_leuc && (n.includes("leuc")||n.includes("leucose")))return true;
+  if(p.qual_tub && (n.includes("tub")||n.includes("tubercul")))return true;
+  if(p.qual_dnc && n.includes("dnc"))return true;
+  return false;
+}
+function partnerHerdEvidence(access,herd){
+  const defs=(db.checkDefs||[]).filter(d=>d.concours_id===access.concours_id && d.niveau==="cheptel" && permissionMatchesQualification(access,d.libelle));
+  const items=defs.map(d=>{
+    const r=getCheckResult(d.id,"cheptel:"+herd);
+    return `<div class="partner-evidence-item"><strong>${escapeHtml(d.libelle)}</strong>${partnerStatusBadge(r.statut)}${r.commentaire?`<div class="muted">${escapeHtml(r.commentaire)}</div>`:""}</div>`;
+  });
+  return items.length?items.join(""):'<div class="muted">Aucune donnée de qualification enregistrée dans l’application pour les contrôles attribués.</div>';
+}
+function partnerAnimalEvidence(access,a){
+  const p=access?.permissions||{};
+  const wanted=[];
+  if(p.indiv_ibr)wanted.push(["IBR","IBR individuel"]);
+  if(p.bvd_viro)wanted.push(["BVD","BVD virologie"]);
+  if(p.besno){
+    const age=ageMonths(a.naissance,contest(a.concours_id)?.date_concours);
+    if(age!==null&&age>=6)wanted.push(["Besnoitiose","Besnoitiose"]);
+  }
+
+  const items=[];
+  wanted.forEach(([disease,label])=>{
+    const dr=getDiseaseResult(a,disease);
+    if(dr?.method){
+      const r=dr.result||getResult(a.id,dr.method);
+      const date=r?.date_prelevement?`<div class="muted">Prélèvement : ${escapeHtml(r.date_prelevement)}</div>`:"";
+      const com=r?.commentaire?`<div class="muted">${escapeHtml(r.commentaire)}</div>`:"";
+      items.push(`<div class="partner-evidence-item"><strong>${escapeHtml(label)} — ${escapeHtml(dr.method)}</strong>${partnerStatusBadge(r?.statut||"attente")}${date}${com}</div>`);
+    }else{
+      items.push(`<div class="partner-evidence-item"><strong>${escapeHtml(label)}</strong>${partnerStatusBadge("attente")}<div class="muted">Aucune analyse correspondante enregistrée.</div></div>`);
+    }
+  });
+
+  if(p.autres){
+    const requested=demandedDiseases(a.concours_id).filter(d=>!["IBR","BVD","Besnoitiose"].includes(d));
+    requested.forEach(d=>{
+      const dr=getDiseaseResult(a,d);
+      if(!dr?.method)return;
+      const r=dr.result||getResult(a.id,dr.method);
+      items.push(`<div class="partner-evidence-item"><strong>${escapeHtml(d)} — ${escapeHtml(dr.method)}</strong>${partnerStatusBadge(r?.statut||"attente")}${r?.date_prelevement?`<div class="muted">Prélèvement : ${escapeHtml(r.date_prelevement)}</div>`:""}</div>`);
+    });
+  }
+
+  return items.length?items.join(""):'<div class="muted">Aucune analyse individuelle à afficher pour ce bovin.</div>';
+}
 function renderPartnerPortal(){
   if(APP_MODE!=="partner")return;
   const title=document.getElementById("partnerPortalTitle");
   const ident=document.getElementById("partnerPortalIdentity");
   if(title)title.textContent="Espace partenaire";
-  if(ident)ident.textContent=`${CURRENT_EMAIL} — seuls les concours qui vous sont attribués sont affichés.`;
+  if(ident)ident.textContent=`${CURRENT_EMAIL} — seuls les concours, départements et contrôles qui vous sont attribués sont affichés.`;
 
   const sel=document.getElementById("portalContest");
   if(!sel)return;
@@ -950,19 +1054,41 @@ function renderPartnerPortal(){
   const access=portalAccess();
   if(!access)return;
   const cid=access.concours_id;
+  const modeKey=`concours_partner_workmode_${CURRENT_EMAIL}_${cid}`;
+  const savedMode=localStorage.getItem(modeKey)||"detail";
+  const modeSelect=document.getElementById("portalWorkMode");
+  if(modeSelect)modeSelect.value=savedMode;
+  const mode=modeSelect?.value||savedMode;
+
   const q=(document.getElementById("portalSearch")?.value||"").trim().toLowerCase();
   const filter=document.getElementById("portalFilter")?.value||"";
 
   const conditions=portalPermissionLabels(access);
-  document.getElementById("portalConditions").innerHTML=`<strong>Département(s) attribué(s) :</strong> ${escapeHtml(partnerDepartmentLabel(access))}<br><strong>Conditions à valider :</strong> ${escapeHtml(conditions.join(" · ")||"Aucune condition paramétrée")}`;
+  document.getElementById("portalConditions").innerHTML=
+    `<strong>Département(s) attribué(s) :</strong> ${escapeHtml(partnerDepartmentLabel(access))}<br>`+
+    `<strong>Contrôles attribués :</strong> ${escapeHtml(conditions.join(" · ")||"Aucun contrôle paramétré")}<br>`+
+    `<strong>Mode :</strong> ${mode==="detail"?"Vérification détaillée puis validation":"Validation directe"}`;
+
+  const wfTitle=document.getElementById("portalWorkflowTitle");
+  const wfHelp=document.getElementById("portalWorkflowHelp");
+  const bulk=document.getElementById("portalVerificationBulk");
+  if(mode==="detail"){
+    if(wfTitle)wfTitle.textContent="Vérification détaillée puis validation";
+    if(wfHelp)wfHelp.textContent="Consultez les qualifications et analyses disponibles, notez votre vérification, puis prenez votre décision finale.";
+    if(bulk)bulk.style.display="";
+  }else{
+    if(wfTitle)wfTitle.textContent="Validation directe";
+    if(wfHelp)wfHelp.textContent="Vous validez directement les cheptels et bovins sans étape de vérification préalable.";
+    if(bulk)bulk.style.display="none";
+  }
 
   let animals=partnerAccessAnimals(access);
-  if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q));
+  if(q)animals=animals.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""} ${a.departement||""}`).toLowerCase().includes(q));
 
   const herdMap=new Map();
   animals.forEach(a=>{
     const h=a.cheptel||"Sans EDE";
-    if(!herdMap.has(h))herdMap.set(h,{herd:h,farmer:a.eleveur||"",animals:[]});
+    if(!herdMap.has(h))herdMap.set(h,{herd:h,farmer:a.eleveur||"",dept:a.departement||"",animals:[]});
     herdMap.get(h).animals.push(a);
   });
   const herds=[...herdMap.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true}));
@@ -982,45 +1108,78 @@ function renderPartnerPortal(){
   herds.forEach(h=>{
     const hv=partnerValidation(access.id,"cheptel",h.herd);
     if(filter && hv.statut_validation!==filter && !h.animals.some(a=>partnerValidation(access.id,"animal",a.id).statut_validation===filter))return;
+
     out+=`<div class="card" style="margin:10px 0">
       <div class="topline">
-        <div><strong>${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</strong></div>
+        <div style="flex:1">
+          <div class="partner-herd-ident">
+            <span>N° EDE<strong>${escapeHtml(h.herd)}</strong></span>
+            <span>Éleveur<strong>${escapeHtml(h.farmer||"—")}</strong></span>
+            <span>Département<strong>${escapeHtml(h.dept||"—")}</strong></span>
+          </div>
+        </div>
         <div>
-          <select onchange="portalSaveValidation('cheptel','${escapeHtml(h.herd)}','validation',this.value)">
-            <option value="attente" ${hv.statut_validation==="attente"?"selected":""}>En attente</option>
-            <option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Conforme</option>
-            <option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Non conforme</option>
+          ${mode==="detail"?`<select title="Vérification du cheptel" onchange="portalSaveValidation('cheptel','${escapeHtml(h.herd)}','verification',this.value)">
+            <option value="attente" ${hv.statut_verification==="attente"?"selected":""}>Vérification : en attente</option>
+            <option value="conforme" ${hv.statut_verification==="conforme"?"selected":""}>Vérification : conforme</option>
+            <option value="nonconforme" ${hv.statut_verification==="nonconforme"?"selected":""}>Vérification : non conforme</option>
+          </select>`:""}
+          <select title="Validation finale du cheptel" onchange="portalSaveValidation('cheptel','${escapeHtml(h.herd)}','validation',this.value)">
+            <option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option>
+            <option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option>
+            <option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option>
           </select>
         </div>
-      </div>
-      <div class="partner-validation-row head">
-        <div>Bovin</div><div>Nom / sexe</div><div>Demandes regroupées</div><div>Vérification</div><div>Validation</div><div>Commentaire</div>
       </div>`;
+
+    if(mode==="detail"){
+      out+=`<div style="margin:10px 0"><strong>Contrôles du cheptel disponibles</strong><div class="partner-evidence">${partnerHerdEvidence(access,h.herd)}</div></div>`;
+      out+=`<div class="partner-detail-row head"><div>Bovin</div><div>Nom / sexe</div><div>Demandes</div><div>Données à vérifier</div><div>Vérification</div><div>Validation finale</div><div>Commentaire</div></div>`;
+    }else{
+      out+=`<div class="partner-direct-row head"><div>Bovin</div><div>Nom / sexe</div><div>Demandes</div><div>Validation finale</div><div>Commentaire</div></div>`;
+    }
 
     h.animals.sort((a,b)=>String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true})).forEach(a=>{
       const v=partnerValidation(access.id,"animal",a.id);
       if(filter && v.statut_validation!==filter)return;
       const req=portalAnimalRequirements(access,a);
       const cls=v.statut_validation==="conforme"?"ok":v.statut_validation==="nonconforme"?"bad":"";
-      out+=`<div class="partner-validation-row ${cls}">
-        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></div>
-        <div>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
-        <div>${escapeHtml(req.join(" · ")||"Aucune demande")}</div>
-        <div><select onchange="portalSaveValidation('animal','${a.id}','verification',this.value)">
-          <option value="attente" ${v.statut_verification==="attente"?"selected":""}>En attente</option>
-          <option value="conforme" ${v.statut_verification==="conforme"?"selected":""}>Conforme</option>
-          <option value="nonconforme" ${v.statut_verification==="nonconforme"?"selected":""}>Non conforme</option>
-        </select></div>
-        <div><select onchange="portalSaveValidation('animal','${a.id}','validation',this.value)">
+      const animalId=`<div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div><div class="muted">EDE ${escapeHtml(a.cheptel||"—")}</div></div>`;
+      const nameSex=`<div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>`;
+      const validation=`<select onchange="portalSaveValidation('animal','${a.id}','validation',this.value)">
           <option value="attente" ${v.statut_validation==="attente"?"selected":""}>En attente</option>
           <option value="conforme" ${v.statut_validation==="conforme"?"selected":""}>Conforme</option>
           <option value="nonconforme" ${v.statut_validation==="nonconforme"?"selected":""}>Non conforme</option>
-        </select></div>
-        <div><input value="${escapeHtml(v.commentaire||"")}" onchange="portalSaveComment('animal','${a.id}',this.value)" placeholder="Observation"></div>
-      </div>`;
+        </select>`;
+      const comment=`<input value="${escapeHtml(v.commentaire||"")}" onchange="portalSaveComment('animal','${a.id}',this.value)" placeholder="Observation">`;
+
+      if(mode==="detail"){
+        out+=`<div class="partner-detail-row ${cls}">
+          ${animalId}
+          ${nameSex}
+          <div>${escapeHtml(req.join(" · ")||"Aucune demande")}</div>
+          <div class="partner-evidence">${partnerAnimalEvidence(access,a)}</div>
+          <div><select onchange="portalSaveValidation('animal','${a.id}','verification',this.value)">
+            <option value="attente" ${v.statut_verification==="attente"?"selected":""}>En attente</option>
+            <option value="conforme" ${v.statut_verification==="conforme"?"selected":""}>Conforme</option>
+            <option value="nonconforme" ${v.statut_verification==="nonconforme"?"selected":""}>Non conforme</option>
+          </select></div>
+          <div>${validation}</div>
+          <div>${comment}</div>
+        </div>`;
+      }else{
+        out+=`<div class="partner-direct-row ${cls}">
+          ${animalId}
+          ${nameSex}
+          <div>${escapeHtml(req.join(" · ")||"Aucune demande")}</div>
+          <div>${validation}</div>
+          <div>${comment}</div>
+        </div>`;
+      }
     });
     out+="</div>";
   });
+
   document.getElementById("portalValidationTable").innerHTML=out||'<div class="muted">Aucun bovin pour cette recherche.</div>';
 }
 async function portalSaveValidation(type,key,kind,status){
@@ -2420,7 +2579,8 @@ function renderPartnerPreview(){
   let out="";
   [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})).forEach(h=>{
     const hv=partnerValidation(pid,"cheptel",h.herd);
-    out+=`<div class="card" style="margin:10px 0"><div class="topline"><strong>${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</strong><select onchange="savePartnerValidation('${pid}','cheptel','${escapeHtml(h.herd)}','validation',this.value)"><option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option><option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option><option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option></select></div>`;
+    const dept=h.animals[0]?.departement||"";
+    out+=`<div class="card" style="margin:10px 0"><div class="topline"><div><strong>N° EDE ${escapeHtml(h.herd)}</strong><br><span>${escapeHtml(h.farmer||"—")}</span>${dept?`<br><span class="muted">Département ${escapeHtml(dept)}</span>`:""}</div><select onchange="savePartnerValidation('${pid}','cheptel','${escapeHtml(h.herd)}','validation',this.value)"><option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option><option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option><option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option></select></div>`;
     out+=`<div class="partner-status-grid header"><div>Bovin</div><div>Nom / sexe</div><div>Demandes</div><div>Vérification facultative</div><div>Validation</div></div>`;
     h.animals.forEach(a=>{const v=partnerValidation(pid,"animal",a.id),req=partnerReq(access,a),cls=v.statut_validation==="conforme"?"partner-ok":v.statut_validation==="nonconforme"?"partner-bad":"";
       out+=`<div class="partner-status-grid ${cls}"><div><div class="work-no">${String(a.bovin||"").slice(-4)}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></div><div>${escapeHtml(a.nom_animal||"")} ${escapeHtml(a.sexe||"")}</div><div>${escapeHtml(req.join(" · "))}</div><div><select onchange="savePartnerValidation('${pid}','animal','${a.id}','verification',this.value)"><option value="attente" ${v.statut_verification==="attente"?"selected":""}>En attente</option><option value="conforme" ${v.statut_verification==="conforme"?"selected":""}>Conforme</option><option value="nonconforme" ${v.statut_verification==="nonconforme"?"selected":""}>Non conforme</option></select></div><div><select onchange="savePartnerValidation('${pid}','animal','${a.id}','validation',this.value)"><option value="attente" ${v.statut_validation==="attente"?"selected":""}>En attente</option><option value="conforme" ${v.statut_validation==="conforme"?"selected":""}>Conforme</option><option value="nonconforme" ${v.statut_validation==="nonconforme"?"selected":""}>Non conforme</option></select></div></div>`});
@@ -3442,9 +3602,10 @@ document.getElementById("partnerMgmtContest")?.addEventListener("change",()=>{re
 document.getElementById("partnerPreviewUser")?.addEventListener("change",()=>renderPartnerPreview());
 document.getElementById("partnerSearch")?.addEventListener("input",()=>renderPartnerPreview());
 
-document.getElementById("portalContest")?.addEventListener("change",()=>renderPartnerPortal());
+document.getElementById("portalContest")?.addEventListener("change",()=>{const a=portalAccess();const s=document.getElementById("portalWorkMode");if(a&&s)s.value=localStorage.getItem(`concours_partner_workmode_${CURRENT_EMAIL}_${a.concours_id}`)||"detail";renderPartnerPortal()});
 document.getElementById("portalSearch")?.addEventListener("input",()=>renderPartnerPortal());
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
+document.getElementById("portalWorkMode")?.addEventListener("change",()=>savePortalWorkMode());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
