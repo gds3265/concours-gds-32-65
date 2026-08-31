@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.2</title>
-<link rel="manifest" href="manifest.json?v=072">
+<title>Suivi des concours v0.7.3</title>
+<link rel="manifest" href="manifest.json?v=073">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -224,7 +224,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=072" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=073" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -930,7 +930,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 </div>
 
 <script>
-const APP_VERSION = "0.7.2";
+const APP_VERSION = "0.7.3";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -949,7 +949,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.3");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -3838,7 +3838,7 @@ function renderEntry(){
     nonparticipant:all.filter(a=>participationStatus(a)==="non_participant").length
   };
   kpis.innerHTML=[
-    ["Éleveurs attendus",expectedHerds.length],["Éleveurs arrivés",arrivedHerds],["Bovins attendus",expected.length],
+    ["Éleveurs attendus",expectedHerds.filter(h=>!entryHerdArrived(h)).length],["Éleveurs arrivés",arrivedHerds],["Bovins attendus",counts.attente],
     ["Présents",counts.present],["Refusés",counts.refuse],["Absents",counts.absent],["N’assisteront pas",counts.nonparticipant],["En attente",counts.attente]
   ].map(([l,v])=>`<div class="kpi"><span>${l}</span><strong>${v}</strong></div>`).join("");
 
