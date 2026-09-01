@@ -3,10 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.8</title>
-<link rel="manifest" href="manifest.json?v=078">
+<title>Suivi des concours v0.7.9</title>
+<link rel="manifest" href="manifest.json?v=079">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -254,7 +257,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=078" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=079" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">079</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <div class="header-actions">
       <div class="app-zoom-control" title="Zoom propre à l'application">
         <button type="button" class="zoom-step" onclick="changeAppZoom(-1)" aria-label="Dézoomer">−</button>
@@ -983,7 +986,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.7.8";
+const APP_VERSION = "0.7.9";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1003,7 +1006,7 @@ let CURRENT_PARTNER_ACCESSES=[];
 let certRecapSort={field:"herd",dir:1};
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.8");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.9");
 initAppZoom();
 
 
@@ -4035,6 +4038,17 @@ document.getElementById("portalSearch")?.addEventListener("input",()=>renderPart
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
 document.getElementById("entrySearch")?.addEventListener("input",()=>renderEntry());
+
+async function forceServiceWorkerUpdate(){
+  if(!("serviceWorker" in navigator))return;
+  try{
+    const regs=await navigator.serviceWorker.getRegistrations();
+    for(const reg of regs){
+      try{await reg.update()}catch(e){}
+    }
+  }catch(e){}
+}
+forceServiceWorkerUpdate();
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
