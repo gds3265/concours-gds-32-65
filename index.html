@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.6</title>
-<link rel="manifest" href="manifest.json?v=076">
+<title>Suivi des concours v0.7.7</title>
+<link rel="manifest" href="manifest.json?v=077">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -204,6 +204,18 @@ tr.herd-start td{border-top:3px solid #b9789f}
 .card.herd-band-a .cert-animal-row,
 .card.herd-band-a .entry-row:not(.head){background:#fff}
 .herd-label{display:inline-block;font-size:11px;font-weight:700;padding:3px 7px;border-radius:999px;background:rgba(125,47,99,.08)}
+
+#app{zoom:var(--app-zoom,1)}
+.header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.app-zoom-control{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.16);white-space:nowrap}
+.app-zoom-control input[type="range"]{width:120px;accent-color:#fff}
+.zoom-step,.zoom-value{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.18);color:#fff;border-radius:999px;font-weight:700;cursor:pointer}
+.zoom-step{width:28px;height:28px;padding:0;font-size:18px;line-height:1}
+.zoom-value{min-width:57px;padding:5px 8px}
+@media(max-width:700px){
+  .app-zoom-control input[type="range"]{width:85px}
+  .header-actions{justify-content:flex-start}
+}
 </style>
 </head>
 <body>
@@ -242,8 +254,16 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=076" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
-    <button class="secondary" onclick="logout()">Déconnexion</button>
+    <div class="brand"><img src="logo-gds-32-65.png?v=077" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="header-actions">
+      <div class="app-zoom-control" title="Zoom propre à l'application">
+        <button type="button" class="zoom-step" onclick="changeAppZoom(-1)" aria-label="Dézoomer">−</button>
+        <input id="appZoomRange" type="range" min="45" max="110" step="1" value="100" oninput="setAppZoom(this.value)">
+        <button type="button" class="zoom-step" onclick="changeAppZoom(1)" aria-label="Zoomer">+</button>
+        <button type="button" class="zoom-value" id="appZoomValue" onclick="resetAppZoom()" title="Cliquer pour revenir à 100 %">100 %</button>
+      </div>
+      <button class="secondary" onclick="logout()">Déconnexion</button>
+    </div>
   </div>
   <nav>
     <button class="active" data-group="prep" data-tab="dashboard">Accueil</button>
@@ -485,7 +505,6 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <div class="field"><label>Concours</label><select id="analysisContest"></select></div>
       <div class="field"><label>Éleveur</label><select id="analysisFarmer"></select></div>
       <div class="field"><label>Recherche</label><input id="analysisSearch" placeholder="N° EDE, éleveur ou n° bovin"></div>
-      <div class="field"><label>Date de prélèvement</label><input id="sampleDate" type="date"></div>
       <button class="secondary" onclick="setAllStatus('conforme')">Tout conforme</button>
       <button class="secondary" onclick="setAllStatus('labo')">Tout en cours labo</button>
       <button class="secondary" onclick="setAllStatus('attente')">Tout en attente</button>
@@ -964,7 +983,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.7.6";
+const APP_VERSION = "0.7.7";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -983,7 +1002,34 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.6");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.7");
+initAppZoom();
+
+
+const APP_ZOOM_KEY="concours_ui_zoom";
+function normalizeAppZoom(v){
+  const n=Math.round(Number(v)||100);
+  return Math.max(45,Math.min(110,n));
+}
+function applyAppZoom(v){
+  const z=normalizeAppZoom(v);
+  document.documentElement.style.setProperty("--app-zoom",String(z/100));
+  const range=document.getElementById("appZoomRange");
+  const label=document.getElementById("appZoomValue");
+  if(range)range.value=String(z);
+  if(label)label.textContent=z+" %";
+  return z;
+}
+function setAppZoom(v){
+  const z=applyAppZoom(v);
+  localStorage.setItem(APP_ZOOM_KEY,String(z));
+}
+function changeAppZoom(delta){
+  const current=normalizeAppZoom(localStorage.getItem(APP_ZOOM_KEY)||document.getElementById("appZoomRange")?.value||100);
+  setAppZoom(current+Number(delta||0));
+}
+function resetAppZoom(){setAppZoom(100)}
+function initAppZoom(){applyAppZoom(localStorage.getItem(APP_ZOOM_KEY)||100)}
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -2282,7 +2328,7 @@ async function addUnexpectedAnalysis(){
   const a=animalList.find(x=>normalizeBovin(x.bovin)===normalizeBovin(bovin));
   if(!a)return alert("Bovin non trouvé dans cette vue.");
   const label=prompt("Libellé de l’analyse non prévue :"); if(!label)return;
-  await upsertResult(a.id,label,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null,commentaire:"Analyse ajoutée manuellement"});
+  await upsertResult(a.id,label,{statut:"inutile",commentaire:"Analyse ajoutée manuellement"});
   await loadAll();
 }
 function renderAnalysis(){
@@ -2325,22 +2371,22 @@ function renderAnalysis(){
   const body={animal_id:aid,analyse_type:analysis,statut:patch.statut??current.statut,date_prelevement:(patch.date_prelevement ?? current.date_prelevement ?? null),commentaire:(patch.commentaire ?? current.commentaire ?? null),updated_at:new Date().toISOString()};
   await sb("concours_resultats?on_conflict=animal_id,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
 }
-async function setResult(aid,analysis,status){const d=document.getElementById("sampleDate").value||null;await upsertResult(aid,analysis,{statut:status,date_prelevement:d});await loadAll()}
+async function setResult(aid,analysis,status){await upsertResult(aid,analysis,{statut:status});await loadAll()}
 async function setAnimalCommentRelevant(aid,txt){
   const a=db.animals.find(x=>x.id===aid);if(!a)return;
   const cid=a.concours_id,ops=[];
   requestedDiseases(cid).forEach(d=>acceptedRulesForDisease(a,cid,d).forEach(r=>ops.push(upsertResult(aid,r.libelle_analyse,{commentaire:txt}))));
   await Promise.all(ops);await loadAll();
 }
-async function markUnneededDone(aid,analysis){await upsertResult(aid,analysis,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null});await loadAll()}
+async function markUnneededDone(aid,analysis){await upsertResult(aid,analysis,{statut:"inutile"});await loadAll()}
 async function setAllStatus(status){
-  const cid=document.getElementById("analysisContest").value, farmer=document.getElementById("analysisFarmer").value||"__ALL__", d=document.getElementById("sampleDate").value||null;
+  const cid=document.getElementById("analysisContest").value, farmer=document.getElementById("analysisFarmer").value||"__ALL__";
   const q=(document.getElementById("analysisSearch")?.value||"").trim().toLowerCase();
   const diseases=demandedDiseases(cid), ops=[];
   db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer) && (!q||(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q)) && matchesSearch(a)).forEach(a=>{
     diseases.forEach(dis=>{
       const current=getDiseaseResult(a,dis);
-      if(current.method)ops.push(upsertResult(a.id,current.method,{statut:status,date_prelevement:d}));
+      if(current.method)ops.push(upsertResult(a.id,current.method,{statut:status}));
     });
   });
   await Promise.all(ops); await loadAll();
