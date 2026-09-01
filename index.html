@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.7</title>
-<link rel="manifest" href="manifest.json?v=087">
+<title>Suivi des concours v0.8.8</title>
+<link rel="manifest" href="manifest.json?v=088">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -250,7 +250,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=087" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">087</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=088" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">088</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -987,7 +987,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.8.7";
+const APP_VERSION = "0.8.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1009,7 +1009,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.7");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.8");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -3684,6 +3684,10 @@ function renderDashboard(){
   </div>`;
 }
 
+function exportStatusIsOk(v){
+  const t=String(v||"").trim().toLowerCase();
+  return ["conforme","validé","valide","présent","present","ok","oui","négatif","negatif"].includes(t);
+}
 function exportStatusText(s){
   const map={
     attente:"À vérifier",labo:"En cours labo",conforme:"Conforme",nonconforme:"Non conforme",
@@ -3844,7 +3848,10 @@ function buildWorksheetXml(headers,rows){
   const rowsXml=all.map((row,ri)=>{
     const cells=row.map((v,ci)=>{
       const ref=xlsxCol(ci)+(ri+1);
-      const style=ri===0?1:(String(v)==="N/A"?2:0);
+      let style=0;
+      if(ri===0)style=1;
+      else if(String(v)==="N/A")style=2;
+      else if(exportStatusIsOk(v))style=3;
       return `<c r="${ref}" t="inlineStr" s="${style}"><is><t>${xlsxXmlEscape(v)}</t></is></c>`;
     }).join("");
     return `<row r="${ri+1}">${cells}</row>`;
@@ -3868,7 +3875,7 @@ function makeControlXlsx(matrix,title){
     "_rels/.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
     "xl/workbook.xml":`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Qualifications" sheetId="1" r:id="rId1"/><sheet name="Animaux - analyses" sheetId="2" r:id="rId2"/></sheets></workbook>`,
     "xl/_rels/workbook.xml.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
-    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E5E5"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/></cellXfs></styleSheet>`,
+    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF245B2D"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E5E5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7F5E9"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="4" borderId="0" xfId="0" applyFill="1" applyFont="1"/></cellXfs></styleSheet>`,
     "xl/worksheets/sheet1.xml":sheet1,
     "xl/worksheets/sheet2.xml":sheet2
   };
@@ -3891,7 +3898,8 @@ function exportPartnerControlExcel(){
   saveBlob(makeControlXlsx(matrix,c?.nom||"concours"),`Liste_partenaire_${safeFileName(access.organisme)}_${safeFileName(c?.nom)}.xlsx`);
 }
 function pdfCheckCell(value){
-  return `<div class="paper-status">${escapeHtml(value||"")} <span class="paper-box"></span></div>`;
+  const ok=exportStatusIsOk(value);
+  return `<div class="paper-status ${ok?"paper-ok":""}">${escapeHtml(value||"")} <span class="paper-box ${ok?"checked":""}">${ok?"✓":""}</span></div>`;
 }
 function openControlPrint(matrix,title,subtitle){
   const diseaseIndexes=[];
@@ -3906,7 +3914,8 @@ function openControlPrint(matrix,title,subtitle){
         <thead><tr>${matrix.herdHeaders.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
         <tbody>${matrix.herdRows.map(r=>`<tr>${r.map((v,i)=>{
           const isQual=i>=3 && i<3+matrix.quals.length;
-          return `<td class="${String(v)==="N/A"?"na-cell":""}">${isQual?pdfCheckCell(v):escapeHtml(v)}</td>`;
+          const cls=[String(v)==="N/A"?"na-cell":"",exportStatusIsOk(v)?"ok-cell":""].filter(Boolean).join(" ");
+          return `<td class="${cls}">${isQual?pdfCheckCell(v):escapeHtml(v)}</td>`;
         }).join("")}</tr>`).join("")}</tbody>
       </table>
     </section>`:"";
@@ -3929,7 +3938,8 @@ function openControlPrint(matrix,title,subtitle){
         const isStatus=chunk.includes(idx) && matrix.headers[idx].endsWith(" - statut");
         const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
         const na=String(val)==="N/A";
-        return `<td class="${na?"na-cell":""}">${(isStatus||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
+        const cls=[na?"na-cell":"",exportStatusIsOk(val)?"ok-cell":""].filter(Boolean).join(" ");
+        return `<td class="${cls}">${(isStatus||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
       }).join("")}</tr>`;
     }).join("");
     return `<section class="paper-section">
@@ -3956,9 +3966,12 @@ function openControlPrint(matrix,title,subtitle){
     .paper-box{display:inline-block;width:4.5mm;height:4.5mm;border:1px solid #111;flex:0 0 4.5mm;background:#fff}
     td.na-cell{background:#dedede!important;color:#666}
     td.na-cell .paper-box{background:#bbb;border-color:#888}
+    td.ok-cell{background:#e7f5e9!important;color:#245b2d;font-weight:bold}
+    .paper-status.paper-ok{color:#245b2d;font-weight:bold}
+    .paper-box.checked{background:#e7f5e9;border-color:#4b8f58;color:#245b2d;font-size:10px;font-weight:bold;line-height:4.5mm;text-align:center}
   </style></head><body>
     <h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(subtitle||"")}</div>
-    <div class="note"><strong>Lecture :</strong> une maladie = une méthode prioritaire adaptée à l’âge. “N/A” grisé = maladie/analyse non nécessaire pour cet animal. Date de naissance et âge sont calculés à la date du concours.</div>
+    <div class="note"><strong>Lecture :</strong> une maladie = une méthode prioritaire adaptée à l’âge. Les éléments déjà conformes/validés sont en vert avec une case déjà cochée. “N/A” grisé = maladie/analyse non nécessaire pour cet animal. Date de naissance et âge sont calculés à la date du concours.</div>
     ${qualTable}${animalTables}
     <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
   </body></html>`);
