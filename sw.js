@@ -1,5 +1,5 @@
-const CACHE='suivi-concours-v079-20260901-force';
-const FALLBACK='./index.html?v=079';
+const CACHE='suivi-concours-v080-20260901-force';
+const FALLBACK='./index.html?v=080';
 
 self.addEventListener('install',event=>{
   self.skipWaiting();

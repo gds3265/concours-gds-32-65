@@ -8,8 +8,8 @@
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.9</title>
-<link rel="manifest" href="manifest.json?v=079">
+<title>Suivi des concours v0.8.0</title>
+<link rel="manifest" href="manifest.json?v=080">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -257,7 +257,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=079" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">079</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=080" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">080</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <div class="header-actions">
       <div class="app-zoom-control" title="Zoom propre à l'application">
         <button type="button" class="zoom-step" onclick="changeAppZoom(-1)" aria-label="Dézoomer">−</button>
@@ -986,7 +986,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.7.9";
+const APP_VERSION = "0.8.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1004,9 +1004,11 @@ let CURRENT_EMAIL="";
 let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let certRecapSort={field:"herd",dir:1};
+let fastCurrentHerd="";
+let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.0");
 initAppZoom();
 
 
@@ -1525,7 +1527,7 @@ async function sb(path,{method="GET",body=null,prefer=""}={},retryAuth=true){
       localStorage.removeItem("concours_access_token");
       localStorage.removeItem("concours_refresh_token");
       TOKEN="";
-      alert("Ta session a expiré et n’a pas pu être renouvelée. Reconnecte-toi : les données déjà enregistrées sont conservées.");
+      sessionStorage.setItem("concours_session_expired","1");
       location.reload();
       throw new Error("SESSION_REFRESH_IMPOSSIBLE");
     }
@@ -2426,9 +2428,6 @@ async function setAllHerdQualifications(status){
   herds.forEach(hd=>defs.forEach(d=>{const key='cheptel:'+hd.herd;const body={point_id:d.id,concours_id:cid,cle_cible:key,statut:status,commentaire:null,updated_at:new Date().toISOString()};ops.push(sb('concours_controles?on_conflict=point_id,cle_cible',{method:'POST',body,prefer:'resolution=merge-duplicates,return=minimal'}))}));
   await Promise.all(ops);await loadAll();
 }
-
-let fastCurrentHerd="";
-let fastCurrentFarmer="";
 
 function fastAnimalsList(){
   const cid=document.getElementById("fastContest")?.value;
@@ -4049,6 +4048,11 @@ async function forceServiceWorkerUpdate(){
   }catch(e){}
 }
 forceServiceWorkerUpdate();
+if(sessionStorage.getItem("concours_session_expired")==="1"){
+  sessionStorage.removeItem("concours_session_expired");
+  const msg=document.getElementById("loginMsg");
+  if(msg)msg.innerHTML='<div class="muted" style="margin-top:10px">La session précédente avait expiré. Reconnecte-toi pour continuer.</div>';
+}
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
