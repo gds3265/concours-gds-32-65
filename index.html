@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.4</title>
-<link rel="manifest" href="manifest.json?v=074">
+<title>Suivi des concours v0.7.5</title>
+<link rel="manifest" href="manifest.json?v=075">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -186,6 +186,24 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 .nav-legend-item.prep{background:#f3ddeb;border-color:#c98aac;color:#6b234e}
 .nav-legend-item.sanitaire{background:#e2edf7;border-color:#8eb2d0;color:#214f72}
 .nav-legend-item.gestion{background:#e4f1e7;border-color:#91bd99;color:#285f35}
+
+/* Repérage stable des cheptels : alternance 1 EDE sur 2 */
+.herd-band-a{background:#fff}
+.herd-band-b{background:#faf3f7}
+tr.herd-band-a td{background:#fff}
+tr.herd-band-b td{background:#faf3f7}
+tr.herd-start td{border-top:3px solid #b9789f}
+.card.herd-band-a{background:#fff;border-color:#e4d6df}
+.card.herd-band-b{background:#faf3f7;border-color:#d7b9cb}
+.card.herd-band-b .partner-simple-row:not(.head),
+.card.herd-band-b .partner-status-grid:not(.header),
+.card.herd-band-b .cert-animal-row,
+.card.herd-band-b .entry-row:not(.head){background:#faf3f7}
+.card.herd-band-a .partner-simple-row:not(.head),
+.card.herd-band-a .partner-status-grid:not(.header),
+.card.herd-band-a .cert-animal-row,
+.card.herd-band-a .entry-row:not(.head){background:#fff}
+.herd-label{display:inline-block;font-size:11px;font-weight:700;padding:3px 7px;border-radius:999px;background:rgba(125,47,99,.08)}
 </style>
 </head>
 <body>
@@ -224,7 +242,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=074" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=075" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -655,6 +673,10 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
     </div>
 
     <div id="portalConditions" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="secondary" onclick="exportPartnerControlExcel()">Ma liste Excel</button>
+      <button class="secondary" onclick="exportPartnerControlPdf()">Ma liste PDF / imprimer</button>
+    </div>
     <div class="partner-portal-kpis" id="portalKpis"></div>
   </div>
 
@@ -927,7 +949,13 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
     <h2>Exports</h2>
     <div class="row">
       <div class="field"><label>Concours</label><select id="exportContest"></select></div>
-      <button class="action" onclick="exportRecapCSV()">Exporter le récap CSV</button>
+      <button class="action" onclick="exportControlExcel()">Liste de contrôle Excel</button>
+      <button class="secondary" onclick="exportControlPdf()">Liste de contrôle PDF / imprimer</button>
+      <button class="secondary" onclick="exportRecapCSV()">Récap détaillé CSV</button>
+    </div>
+    <div class="info" style="margin-top:12px">
+      <strong>Liste de contrôle :</strong> une ligne par bovin, avec les qualifications et analyses du concours.
+      Le PDF comporte des cases régulières prévues pour être cochées sur papier ; ce format est préparé pour une future relecture automatique des croix.
     </div>
     <div id="exportStats" class="kpis" style="margin-top:14px"></div>
   </div>
@@ -936,7 +964,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 </div>
 
 <script>
-const APP_VERSION = "0.7.4";
+const APP_VERSION = "0.7.5";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -955,7 +983,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.5");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1292,7 +1320,7 @@ function renderPartnerPortal(){
     const hv=partnerValidation(access.id,"cheptel",h.herd);
     if(filter && hv.statut_validation!==filter && !h.animals.some(a=>partnerValidation(access.id,"animal",a.id).statut_validation===filter))return;
 
-    out+=`<div class="card" style="margin:10px 0">
+    out+=`<div class="card ${herdBandClass(access.concours_id,h.herd)}" style="margin:10px 0">
       <div class="topline">
         <div style="flex:1">
           <div class="partner-herd-ident">
@@ -1469,6 +1497,20 @@ function matchesSearch(animalOrText){
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function contest(id){return db.contests.find(c=>c.id===id)}
+
+function contestHerdOrder(cid){
+  return [...new Set(db.animals.filter(a=>a.concours_id===cid).map(a=>String(a.cheptel||"Sans EDE")))]
+    .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+}
+function herdBandClass(cid,herd){
+  const hs=contestHerdOrder(cid);
+  const i=Math.max(0,hs.indexOf(String(herd||"Sans EDE")));
+  return i%2===0?"herd-band-a":"herd-band-b";
+}
+function herdStartClass(previous,current){
+  return previous!==current?" herd-start":"";
+}
+
 function ageMonths(birth, at){
   if(!birth||!at)return null; const b=new Date(birth),d=new Date(at);
   let m=(d.getFullYear()-b.getFullYear())*12+d.getMonth()-b.getMonth();
@@ -2074,7 +2116,13 @@ function renderAnimals(){
     if(sort==="status"){const x=String(a.controle_metier||"pending").localeCompare(String(b.controle_metier||"pending"));return x||String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});}
     return String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
-  const rows=list.map(a=>`<tr><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.cheptel||"")}</td><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${a.naissance||""}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.controle_metier_commentaire||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`).join("");
+  let previousHerd=null;
+  const rows=list.map(a=>{
+    const herd=String(a.cheptel||"Sans EDE");
+    const cls=herdBandClass(cid,herd)+herdStartClass(previousHerd,herd);
+    previousHerd=herd;
+    return `<tr class="${cls}"><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td><span class="herd-label">${escapeHtml(a.cheptel||"")}</span></td><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${a.naissance||""}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.controle_metier_commentaire||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`;
+  }).join("");
   document.getElementById("animalTable").innerHTML=rows||'<tr><td colspan="11" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
@@ -2187,9 +2235,13 @@ function renderAnalysis(){
   });
   const diseases=demandedDiseases(cid);
   let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Âge</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
+  let previousHerd=null;
   list.forEach(a=>{
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);
-    out+=`<tr><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${escapeHtml(a.eleveur)}<br><span class="muted">${escapeHtml(a.cheptel||"")}</span></td><td>${age==null?"?":age+" m"}</td>`;
+    const herd=String(a.cheptel||"Sans EDE");
+    const band=herdBandClass(cid,herd)+herdStartClass(previousHerd,herd);
+    previousHerd=herd;
+    out+=`<tr class="${band}"><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${escapeHtml(a.eleveur)}<br><span class="muted">${escapeHtml(a.cheptel||"")}</span></td><td>${age==null?"?":age+" m"}</td>`;
     diseases.forEach(d=>{
       const dr=getDiseaseResult(a,d);
       if(!dr.method){
@@ -2254,7 +2306,7 @@ function renderQualificationGrid(){
   const cid=document.getElementById('qualContest')?.value;const defs=qualificationDefs(cid),herds=herdListForContest(cid);
   if(!defs.length){target.innerHTML='<div class="muted">Aucune qualification paramétrée pour ce concours.</div>';return;}
   let out=`<div class="scroll"><table><thead><tr><th>Dépt.</th><th>N° EDE</th><th>Éleveur</th>${defs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join('')}<th>Commentaire</th></tr></thead><tbody>`;
-  herds.forEach(hd=>{out+=`<tr><td>${escapeHtml(hd.dept)}</td><td><strong>${escapeHtml(hd.herd)}</strong></td><td>${escapeHtml(hd.farmer)}</td>`;defs.forEach(d=>{const key='cheptel:'+hd.herd,r=getCheckResult(d.id,key);out+=`<td><select onchange="saveCheckResult('${d.id}','${key}',this.value,'')">${checkStatusOptions(r.statut)}</select></td>`});out+=`<td></td></tr>`});
+  herds.forEach((hd,i)=>{out+=`<tr class="${herdBandClass(cid,hd.herd)} herd-start"><td>${escapeHtml(hd.dept)}</td><td><strong>${escapeHtml(hd.herd)}</strong></td><td>${escapeHtml(hd.farmer)}</td>`;defs.forEach(d=>{const key='cheptel:'+hd.herd,r=getCheckResult(d.id,key);out+=`<td><select onchange="saveCheckResult('${d.id}','${key}',this.value,'')">${checkStatusOptions(r.statut)}</select></td>`});out+=`<td></td></tr>`});
   target.innerHTML=out+'</tbody></table></div>';
 }
 async function setAllHerdQualifications(status){
@@ -2304,7 +2356,7 @@ function renderFastOverview(){
     <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Bovins</th><th>Certificat</th><th></th></tr></thead>
     <tbody>${rows.map(x=>{
       const cert=db.certificates[cid+"|"+x.farmer]||{};
-      return `<tr><td><strong>${escapeHtml(x.herd)}</strong></td><td>${escapeHtml(x.farmer)}</td><td>${x.animals.length}</td><td>${certStatusBadge(cert.statut_certificat||"non_recu")}</td><td><button class="secondary" onclick="openFastHerd('${escapeHtml(x.herd)}','${escapeHtml(x.farmer)}')">Ouvrir</button></td></tr>`;
+      return `<tr class="${herdBandClass(cid,x.herd)} herd-start"><td><strong>${escapeHtml(x.herd)}</strong></td><td>${escapeHtml(x.farmer)}</td><td>${x.animals.length}</td><td>${certStatusBadge(cert.statut_certificat||"non_recu")}</td><td><button class="secondary" onclick="openFastHerd('${escapeHtml(x.herd)}','${escapeHtml(x.farmer)}')">Ouvrir</button></td></tr>`;
     }).join("")}</tbody></table></div>`:'<div class="muted">Aucun éleveur pour ce filtre.</div>';
 }
 function loadFastValidation(){
@@ -2817,7 +2869,7 @@ function renderPartnerPreview(){
   [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true})).forEach(h=>{
     const hv=partnerValidation(pid,"cheptel",h.herd);
     const dept=h.animals[0]?.departement||"";
-    out+=`<div class="card" style="margin:10px 0"><div class="topline"><div><strong>N° EDE ${escapeHtml(h.herd)}</strong><br><span>${escapeHtml(h.farmer||"—")}</span>${dept?`<br><span class="muted">Département ${escapeHtml(dept)}</span>`:""}</div><select onchange="savePartnerValidation('${pid}','cheptel','${escapeHtml(h.herd)}','validation',this.value)"><option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option><option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option><option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option></select></div>`;
+    out+=`<div class="card ${herdBandClass(access.concours_id,h.herd)}" style="margin:10px 0"><div class="topline"><div><strong>N° EDE ${escapeHtml(h.herd)}</strong><br><span>${escapeHtml(h.farmer||"—")}</span>${dept?`<br><span class="muted">Département ${escapeHtml(dept)}</span>`:""}</div><select onchange="savePartnerValidation('${pid}','cheptel','${escapeHtml(h.herd)}','validation',this.value)"><option value="attente" ${hv.statut_validation==="attente"?"selected":""}>Validation : en attente</option><option value="conforme" ${hv.statut_validation==="conforme"?"selected":""}>Validation : conforme</option><option value="nonconforme" ${hv.statut_validation==="nonconforme"?"selected":""}>Validation : non conforme</option></select></div>`;
     out+=`<div class="partner-status-grid header"><div>Bovin</div><div>Nom / sexe</div><div>Demandes</div><div>Décision partenaire</div><div>Commentaire / participation</div></div>`;
     h.animals.forEach(a=>{const v=partnerValidation(pid,"animal",a.id),req=partnerReq(access,a),cls=v.statut_validation==="conforme"?"partner-ok":v.statut_validation==="nonconforme"?"partner-bad":"";
       out+=`<div class="partner-status-grid ${cls}">
@@ -2870,7 +2922,7 @@ function renderCertificates(){
       map.get(k).animals.push(a);
     });
     document.getElementById("certAnimals").innerHTML=[...map.values()].map(h=>`
-      <div class="card" style="margin:8px 0">
+      <div class="card ${herdBandClass(cid,h.herd)}" style="margin:8px 0">
         <h4 style="margin:0 0 8px">EDE ${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</h4>
         ${h.animals.map(a=>{
           const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
@@ -3394,6 +3446,247 @@ function renderDashboard(){
     <div class="kpi"><span>Certificats reçus à valider</span><strong>${certAwaiting}</strong></div>
   </div>`;
 }
+
+function exportStatusText(s){
+  const map={
+    attente:"À vérifier",labo:"En cours labo",conforme:"Conforme",nonconforme:"Non conforme",
+    positif:"Positif",recontrole:"À recontrôler",inutile:"Non nécessaire",nonapp:"N/A",
+    present:"Validé",non_present:"Pas sur certif",refuse:"Refusé",
+    engage:"Engagé",non_participant:"N’assistera pas",retire:"Retiré"
+  };
+  return map[s]||String(s||"");
+}
+function partnerCanSeeAnalysis(access,analysis){
+  if(!access)return true;
+  const p=access.permissions||{},d=diseaseForAnalysis(analysis);
+  if(d==="IBR")return !!p.indiv_ibr;
+  if(d==="BVD")return !!p.bvd_viro;
+  if(d==="Besnoitiose")return !!p.besno;
+  return !!p.autres;
+}
+function controlExportAnalyses(cid,animals,access=null){
+  return allAnalyses().filter(an=>{
+    if(access && !partnerCanSeeAnalysis(access,an))return false;
+    return animals.some(a=>{
+      const r=getResult(a.id,an);
+      return needed(a,an,cid) || (r && r.statut && r.statut!=="attente");
+    });
+  }).sort((a,b)=>a.localeCompare(b,"fr"));
+}
+function controlExportQualifications(cid,access=null){
+  let defs=qualificationDefs(cid);
+  if(access)defs=defs.filter(d=>permissionMatchesQualification(access,d.libelle));
+  return defs.sort((a,b)=>String(a.libelle||"").localeCompare(String(b.libelle||""),"fr"));
+}
+function controlExportMatrix(cid,access=null){
+  let animals=(access?partnerAccessAnimals(access):db.animals.filter(a=>a.concours_id===cid))
+    .filter(a=>participationStatus(a)!=="retire")
+    .slice()
+    .sort((a,b)=>{
+      const h=String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true});
+      return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
+    });
+
+  const quals=controlExportQualifications(cid,access);
+  const analyses=controlExportAnalyses(cid,animals,access);
+  const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe"];
+  const qualHeaders=quals.map(d=>"QUAL - "+d.libelle);
+  const analysisHeaders=analyses.map(a=>"AN - "+a);
+  const finalHeaders=[access?"Validation partenaire":"Statut certificat","Participation","Entrée","Observation"];
+  const headers=[...identity,...qualHeaders,...analysisHeaders,...finalHeaders];
+
+  const rows=animals.map(a=>{
+    const ref=`${a.cheptel||"SANS-EDE"}-${String(a.bovin||"").slice(-4)}`;
+    const qvals=quals.map(d=>exportStatusText(getCheckResult(d.id,"cheptel:"+(a.cheptel||"")).statut||"attente"));
+    const avals=analyses.map(an=>{
+      const r=getResult(a.id,an);
+      if(!needed(a,an,cid) && (!r||r.statut==="attente"))return "N/A";
+      return exportStatusText(r?.statut||"attente");
+    });
+
+    let validation="";
+    let comment="";
+    if(access){
+      const v=partnerValidation(access.id,"animal",a.id);
+      validation=v.statut_validation==="conforme"?"Validé":v.statut_validation==="nonconforme"?"Refusé":"En attente";
+      comment=v.commentaire||"";
+    }else{
+      const s=a.statut_certificat_animal||"a_verifier";
+      validation=s==="present"?"Validé":s==="non_present"?"Pas sur certif":s==="refuse"?"Refusé":"À vérifier";
+      const analysisComment=analyses.map(an=>getResult(a.id,an)?.commentaire).find(Boolean)||"";
+      comment=[analysisComment,a.participation_commentaire,a.entree_commentaire].filter(Boolean).join(" | ");
+    }
+
+    return [
+      ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),a.nom_animal||"",a.sexe||"",
+      ...qvals,...avals,
+      validation,participationLabel(a),entryStatusLabel(a),comment
+    ];
+  });
+  return {headers,rows,quals,analyses,animals};
+}
+
+/* Minimal XLSX writer, stored ZIP entries, no external library.
+   Strings are stored inline in worksheet XML. */
+function xlsxXmlEscape(v){
+  return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function xlsxCol(n){
+  let s="";n++;
+  while(n){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}
+  return s;
+}
+function crc32(bytes){
+  let c=0xffffffff;
+  for(const b of bytes){
+    c^=b;
+    for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);
+  }
+  return (c^0xffffffff)>>>0;
+}
+function u16(n){return new Uint8Array([n&255,(n>>>8)&255])}
+function u32(n){return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255])}
+function concatBytes(parts){
+  const len=parts.reduce((n,p)=>n+p.length,0),out=new Uint8Array(len);let o=0;
+  parts.forEach(p=>{out.set(p,o);o+=p.length});return out;
+}
+function zipStore(files){
+  const enc=new TextEncoder(),locals=[],centrals=[];let offset=0;
+  Object.entries(files).forEach(([name,text])=>{
+    const nameBytes=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const local=concatBytes([
+      u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),
+      u16(nameBytes.length),u16(0),nameBytes,data
+    ]);
+    locals.push(local);
+    const central=concatBytes([
+      u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),
+      u16(nameBytes.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),nameBytes
+    ]);
+    centrals.push(central);
+    offset+=local.length;
+  });
+  const centralBytes=concatBytes(centrals),localBytes=concatBytes(locals);
+  const end=concatBytes([
+    u32(0x06054b50),u16(0),u16(0),u16(centrals.length),u16(centrals.length),u32(centralBytes.length),u32(localBytes.length),u16(0)
+  ]);
+  return new Blob([localBytes,centralBytes,end],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function makeControlXlsx(matrix,title){
+  const all=[matrix.headers,...matrix.rows];
+  const rowsXml=all.map((row,ri)=>{
+    const cells=row.map((v,ci)=>{
+      const ref=xlsxCol(ci)+(ri+1);
+      return `<c r="${ref}" t="inlineStr" s="${ri===0?1:0}"><is><t>${xlsxXmlEscape(v)}</t></is></c>`;
+    }).join("");
+    return `<row r="${ri+1}">${cells}</row>`;
+  }).join("");
+  const cols=matrix.headers.map((h,i)=>{
+    const w=Math.min(34,Math.max(10,String(h).length+2));
+    return `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`;
+  }).join("");
+  const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols>${cols}</cols><sheetData>${rowsXml}</sheetData>
+<autoFilter ref="A1:${xlsxCol(matrix.headers.length-1)}${all.length}"/>
+</worksheet>`;
+  const files={
+    "[Content_Types].xml":`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "_rels/.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    "xl/workbook.xml":`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Contrôle concours" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf></cellXfs></styleSheet>`,
+    "xl/worksheets/sheet1.xml":sheet
+  };
+  return zipStore(files);
+}
+function saveBlob(blob,filename){
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function safeFileName(v){return String(v||"concours").replace(/[^\p{L}\p{N}_-]+/gu,"_").replace(/^_+|_+$/g,"")||"concours"}
+function exportControlExcel(){
+  const cid=document.getElementById("exportContest")?.value,c=contest(cid);
+  if(!cid||!c)return alert("Choisir un concours.");
+  const matrix=controlExportMatrix(cid,null);
+  saveBlob(makeControlXlsx(matrix,c.nom),`Liste_controle_${safeFileName(c.nom)}.xlsx`);
+}
+function exportPartnerControlExcel(){
+  const access=portalAccess();if(!access)return;
+  const c=contest(access.concours_id),matrix=controlExportMatrix(access.concours_id,access);
+  saveBlob(makeControlXlsx(matrix,c?.nom||"concours"),`Liste_partenaire_${safeFileName(access.organisme)}_${safeFileName(c?.nom)}.xlsx`);
+}
+function pdfCheckCell(value){
+  return `<div class="paper-status">${escapeHtml(value||"")} <span class="paper-box"></span></div>`;
+}
+function openControlPrint(matrix,title,subtitle){
+  const dynamic=matrix.headers.slice(8,-4);
+  const finalHeaders=matrix.headers.slice(-4);
+  const dynamicStart=8;
+  const chunks=[];
+  if(!dynamic.length)chunks.push([]);
+  else for(let i=0;i<dynamic.length;i+=8)chunks.push(dynamic.slice(i,i+8).map((_,j)=>dynamicStart+i+j));
+
+  const identityIndexes=[0,2,3,4,5,6,7];
+  const finalIndexes=[matrix.headers.length-4,matrix.headers.length-3,matrix.headers.length-2,matrix.headers.length-1];
+
+  const tables=chunks.map((chunk,chunkIndex)=>{
+    const indexes=[...identityIndexes,...chunk,...finalIndexes];
+    const heads=indexes.map(i=>matrix.headers[i]);
+    let previousHerd="";
+    const body=matrix.rows.map((r,ri)=>{
+      const herd=r[2],band=herd!==previousHerd?(contestHerdOrder(document.getElementById("exportContest")?.value||portalAccess()?.concours_id).indexOf(String(herd))%2?"band-b":"band-a"):(contestHerdOrder(document.getElementById("exportContest")?.value||portalAccess()?.concours_id).indexOf(String(herd))%2?"band-b":"band-a");
+      const first=herd!==previousHerd;previousHerd=herd;
+      return `<tr class="${band} ${first?"herd-first":""}">${indexes.map((idx,k)=>{
+        const isCriterion=chunk.includes(idx);
+        const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
+        const val=r[idx]??"";
+        return `<td>${(isCriterion||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
+      }).join("")}</tr>`;
+    }).join("");
+    return `<section class="paper-section">
+      <div class="paper-part">Bloc ${chunkIndex+1}/${chunks.length}</div>
+      <table><thead><tr>${heads.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>
+    </section>`;
+  }).join("");
+
+  const w=window.open("","_blank");
+  if(!w)return alert("Le navigateur a bloqué l’ouverture de la liste. Autorise les fenêtres contextuelles pour cette application.");
+  w.document.open();
+  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+  <style>
+    @page{size:A3 landscape;margin:7mm}
+    *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#222}
+    h1{font-size:16px;margin:0 0 3px}.sub{font-size:10px;margin-bottom:7px}
+    .note{font-size:8px;border:1px solid #aaa;padding:4px;margin:5px 0}
+    .paper-section{page-break-after:always}.paper-section:last-child{page-break-after:auto}
+    .paper-part{font-size:9px;font-weight:bold;margin:3px 0}
+    table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:6.5px}
+    thead{display:table-header-group}th{background:#7d2f63;color:#fff;padding:3px;border:1px solid #777;vertical-align:bottom}
+    td{border:1px solid #999;padding:2px;vertical-align:middle;overflow-wrap:anywhere}
+    tr.band-a td{background:#fff}tr.band-b td{background:#f6eef3}
+    tr.herd-first td{border-top:2px solid #7d2f63}
+    .paper-status{display:flex;align-items:center;justify-content:space-between;gap:2px}
+    .paper-box{display:inline-block;width:4.5mm;height:4.5mm;border:1px solid #111;flex:0 0 4.5mm;background:#fff}
+  </style></head><body>
+    <h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(subtitle||"")}</div>
+    <div class="note"><strong>Contrôle papier :</strong> mettre une croix nette dans la case carrée lorsqu’un point a été relu/confirmé. Référence de ligne = EDE + n° travail. Cette disposition est conservée pour permettre une future relecture automatique des feuilles scannées.</div>
+    ${tables}
+    <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
+  </body></html>`);
+  w.document.close();
+}
+function exportControlPdf(){
+  const cid=document.getElementById("exportContest")?.value,c=contest(cid);
+  if(!cid||!c)return alert("Choisir un concours.");
+  openControlPrint(controlExportMatrix(cid,null),`Liste de contrôle - ${c.nom}`,`Concours du ${c.date_concours||""} · Ensemble du concours`);
+}
+function exportPartnerControlPdf(){
+  const access=portalAccess();if(!access)return;
+  const c=contest(access.concours_id);
+  openControlPrint(controlExportMatrix(access.concours_id,access),`Liste partenaire - ${c?.nom||"Concours"}`,`${access.organisme||""} · Département(s) ${partnerDepartmentLabel(access)}`);
+}
 function renderExport(){
   const cid=document.getElementById("exportContest")?.value,s=stats(cid);
   document.getElementById("exportStats").innerHTML=allAnalyses().map(an=>`<div class="kpi"><span>${an}</span><strong>${s[an]}</strong></div>`).join("");
@@ -3539,7 +3832,7 @@ function renderEntry(){
     const arrived=entryHerdArrived(h);
     const expectedCount=h.animals.filter(a=>participationStatus(a)!=="non_participant").length;
     const presentCount=h.animals.filter(a=>entryStatus(a)==="present").length;
-    out+=`<div class="card entry-herd ${arrived?"entry-herd-arrived":""}">
+    out+=`<div class="card entry-herd ${herdBandClass(cid,h.ede)} ${arrived?"entry-herd-arrived":""}">
       <div class="topline">
         <div><h3 style="margin-bottom:4px">EDE ${escapeHtml(h.ede)} — ${escapeHtml(h.farmer||"—")}</h3>
         <div class="muted">Département ${escapeHtml(h.dept||"—")} · ${presentCount}/${expectedCount} bovin(s) présent(s)</div></div>
