@@ -3,13 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.1</title>
-<link rel="manifest" href="manifest.json?v=081">
+<title>Suivi des concours v0.8.2</title>
+<link rel="manifest" href="manifest.json?v=082">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -208,21 +205,13 @@ tr.herd-start td{border-top:3px solid #b9789f}
 .card.herd-band-a .entry-row:not(.head){background:#fff}
 .herd-label{display:inline-block;font-size:11px;font-weight:700;padding:3px 7px;border-radius:999px;background:rgba(125,47,99,.08)}
 
-#app{zoom:var(--app-zoom,1)}
-.header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.app-zoom-control{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.16);white-space:nowrap}
-.app-zoom-control input[type="range"]{width:120px;accent-color:#fff}
+.header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.app-zoom-control{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.16)}
+.app-zoom-control input[type="range"]{width:110px}
 .zoom-step,.zoom-value{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.18);color:#fff;border-radius:999px;font-weight:700;cursor:pointer}
-.zoom-step{width:28px;height:28px;padding:0;font-size:18px;line-height:1}
+.zoom-step{width:28px;height:28px;padding:0;font-size:18px}
 .zoom-value{min-width:57px;padding:5px 8px}
-@media(max-width:700px){
-  .app-zoom-control input[type="range"]{width:85px}
-  .header-actions{justify-content:flex-start}
-}
-
-.section{display:none}
-.section.active{display:block!important}
-nav button{pointer-events:auto!important}
+main{zoom:var(--content-zoom,1)}
 </style>
 </head>
 <body>
@@ -261,13 +250,13 @@ nav button{pointer-events:auto!important}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=081" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">081</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=082" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">082</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <div class="header-actions">
-      <div class="app-zoom-control" title="Zoom propre à l'application">
-        <button type="button" class="zoom-step" onclick="changeAppZoom(-1)" aria-label="Dézoomer">−</button>
-        <input id="appZoomRange" type="range" min="45" max="110" step="1" value="100" oninput="setAppZoom(this.value)">
-        <button type="button" class="zoom-step" onclick="changeAppZoom(1)" aria-label="Zoomer">+</button>
-        <button type="button" class="zoom-value" id="appZoomValue" onclick="resetAppZoom()" title="Cliquer pour revenir à 100 %">100 %</button>
+      <div class="app-zoom-control">
+        <button type="button" class="zoom-step" onclick="changeAppZoom(-1)">−</button>
+        <input id="appZoomRange" type="range" min="50" max="110" step="1" value="100" oninput="setAppZoom(this.value)">
+        <button type="button" class="zoom-step" onclick="changeAppZoom(1)">+</button>
+        <button type="button" class="zoom-value" id="appZoomValue" onclick="resetAppZoom()">100 %</button>
       </div>
       <button class="secondary" onclick="logout()">Déconnexion</button>
     </div>
@@ -990,7 +979,7 @@ nav button{pointer-events:auto!important}
 </div>
 
 <script>
-const APP_VERSION = "0.8.1";
+const APP_VERSION = "0.8.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1012,31 +1001,24 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.2");
 initAppZoom();
 
 
 const APP_ZOOM_KEY="concours_ui_zoom";
-function normalizeAppZoom(v){
-  const n=Math.round(Number(v)||100);
-  return Math.max(45,Math.min(110,n));
-}
+function normalizeAppZoom(v){return Math.max(50,Math.min(110,Math.round(Number(v)||100)))}
 function applyAppZoom(v){
   const z=normalizeAppZoom(v);
-  document.documentElement.style.setProperty("--app-zoom",String(z/100));
-  const range=document.getElementById("appZoomRange");
-  const label=document.getElementById("appZoomValue");
-  if(range)range.value=String(z);
-  if(label)label.textContent=z+" %";
+  document.documentElement.style.setProperty("--content-zoom",String(z/100));
+  const r=document.getElementById("appZoomRange"),l=document.getElementById("appZoomValue");
+  if(r)r.value=String(z);
+  if(l)l.textContent=z+" %";
   return z;
 }
-function setAppZoom(v){
-  const z=applyAppZoom(v);
-  localStorage.setItem(APP_ZOOM_KEY,String(z));
-}
+function setAppZoom(v){const z=applyAppZoom(v);localStorage.setItem(APP_ZOOM_KEY,String(z))}
 function changeAppZoom(delta){
-  const current=normalizeAppZoom(localStorage.getItem(APP_ZOOM_KEY)||document.getElementById("appZoomRange")?.value||100);
-  setAppZoom(current+Number(delta||0));
+  const cur=normalizeAppZoom(localStorage.getItem(APP_ZOOM_KEY)||document.getElementById("appZoomRange")?.value||100);
+  setAppZoom(cur+Number(delta||0));
 }
 function resetAppZoom(){setAppZoom(100)}
 function initAppZoom(){applyAppZoom(localStorage.getItem(APP_ZOOM_KEY)||100)}
@@ -1529,10 +1511,7 @@ async function sb(path,{method="GET",body=null,prefer=""}={},retryAuth=true){
     }catch(e){
       setSync("session expirée — reconnexion nécessaire",true);
       localStorage.removeItem("concours_access_token");
-      localStorage.removeItem("concours_refresh_token");
       TOKEN="";
-      sessionStorage.setItem("concours_session_expired","1");
-      location.reload();
       throw new Error("SESSION_REFRESH_IMPOSSIBLE");
     }
   }
@@ -1571,18 +1550,21 @@ async function startApp(){
   document.getElementById("loginScreen").style.display="none";
   document.getElementById("app").style.display="block";
   try{
-    await ensureFreshToken();
+    if(TOKEN && tokenExpiresSoon(TOKEN,10)){
+      try{await refreshAuthSession()}catch(e){
+        localStorage.removeItem("concours_access_token");
+        TOKEN="";
+        document.getElementById("app").style.display="none";
+        document.getElementById("loginScreen").style.display="block";
+        const msg=document.getElementById("loginMsg");
+        if(msg)msg.innerHTML='<div class="muted" style="margin-top:10px">Ta session est arrivée à expiration. Reconnecte-toi une fois pour la renouveler.</div>';
+        return;
+      }
+    }
     await loadAll();
     applyAccessMode();
-    if(APP_MODE!=="partner"){
-      const active=document.querySelector(".section.active")?.id||"dashboard";
-      openAppTab(active);
-    }
   }catch(e){
-    if(String(e.message).includes("SESSION_REFRESH_IMPOSSIBLE")||String(e.message).includes("JWT")||String(e.message).includes("401")){
-      logout();return;
-    }
-    alert("Erreur au chargement : "+e.message+"\n\nSi le message mentionne une table ou une colonne inexistante, vérifie le SQL_SETUP.sql. Sinon, il s’agit d’un bug d’affichage de l’application.");
+    alert("Erreur au chargement : "+e.message+"\n\nIl s’agit d’un bug de l’application, sauf si le message indique explicitement une table/colonne SQL manquante.");
   }
 }
 async function loadAll(){
@@ -2436,6 +2418,7 @@ async function setAllHerdQualifications(status){
   herds.forEach(hd=>defs.forEach(d=>{const key='cheptel:'+hd.herd;const body={point_id:d.id,concours_id:cid,cle_cible:key,statut:status,commentaire:null,updated_at:new Date().toISOString()};ops.push(sb('concours_controles?on_conflict=point_id,cle_cible',{method:'POST',body,prefer:'resolution=merge-duplicates,return=minimal'}))}));
   await Promise.all(ops);await loadAll();
 }
+
 
 function fastAnimalsList(){
   const cid=document.getElementById("fastContest")?.value;
@@ -3994,46 +3977,13 @@ function exportEntryCsv(){
   downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
 function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
-function renderActiveTab(tab){
-  try{
-    if(tab==="dashboard")renderDashboard();
-    else if(tab==="parametres"){renderTemplateRules();renderRules();}
-    else if(tab==="concours"){renderContestList();renderDepartments();renderDemands();renderCheckDefs();}
-    else if(tab==="animaux"){renderDepartmentSelectors();renderAnimals();}
-    else if(tab==="analyses"){renderFarmerSelectors();renderAnalysis();}
-    else if(tab==="qualifications"){renderQualificationGrid();}
-    else if(tab==="controles"){renderCheckDefs();renderSupplementaryChecks();}
-    else if(tab==="validationrapide"){renderFastOverview();if(fastCurrentHerd)renderFastValidation();}
-    else if(tab==="certificats"){renderFarmerSelectors();renderCertificates();}
-    else if(tab==="partenaires"){renderPartnerDepartmentScope();renderPartnerAccess();renderPartnerProgress();}
-    else if(tab==="entreeconcours")renderEntry();
-    else if(tab==="remboursements")renderRefunds();
-    else if(tab==="export")renderExport();
-    else if(tab==="partenaireportail")renderPartnerPortal();
-  }catch(e){
-    console.error("Erreur de rendu onglet",tab,e);
-    const state=document.getElementById("syncState");
-    if(state)state.textContent="● affichage partiel : "+String(e.message||e).slice(0,70);
-  }
-}
-function openAppTab(tab,button=null){
-  if(!tab)return;
-  if(APP_MODE==="partner" && tab!=="partenaireportail")return;
-  const section=document.getElementById(tab);
-  if(!section)return;
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
-  section.classList.add("active");
-  const btn=button||document.querySelector(`nav button[data-tab="${tab}"]`);
-  if(btn)btn.classList.add("active");
-  renderActiveTab(tab);
-}
-document.querySelector("nav")?.addEventListener("click",e=>{
-  const b=e.target.closest("button[data-tab]");
-  if(!b)return;
-  e.preventDefault();
-  e.stopPropagation();
-  openAppTab(b.dataset.tab,b);
+  document.getElementById(b.dataset.tab)?.classList.add("active");
+  b.classList.add("active");
+  renderAll();
 });
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest","entryContest","entryFilter","entrySort"].includes(e.target.id)){
@@ -4078,22 +4028,6 @@ document.getElementById("portalSearch")?.addEventListener("input",()=>renderPart
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
 document.getElementById("entrySearch")?.addEventListener("input",()=>renderEntry());
-
-async function forceServiceWorkerUpdate(){
-  if(!("serviceWorker" in navigator))return;
-  try{
-    const regs=await navigator.serviceWorker.getRegistrations();
-    for(const reg of regs){
-      try{await reg.update()}catch(e){}
-    }
-  }catch(e){}
-}
-forceServiceWorkerUpdate();
-if(sessionStorage.getItem("concours_session_expired")==="1"){
-  sessionStorage.removeItem("concours_session_expired");
-  const msg=document.getElementById("loginMsg");
-  if(msg)msg.innerHTML='<div class="muted" style="margin-top:10px">La session précédente avait expiré. Reconnecte-toi pour continuer.</div>';
-}
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
