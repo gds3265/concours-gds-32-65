@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.6</title>
-<link rel="manifest" href="manifest.json?v=086">
+<title>Suivi des concours v0.8.7</title>
+<link rel="manifest" href="manifest.json?v=087">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -250,7 +250,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=086" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">086</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=087" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">087</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -987,7 +987,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.8.6";
+const APP_VERSION = "0.8.7";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1009,7 +1009,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.6");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.7");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1379,7 +1379,7 @@ function renderPartnerPortal(){
           <div class="animal-sub">${escapeHtml(a.bovin)}</div>
           <div class="muted">EDE ${escapeHtml(a.cheptel||"—")}</div>
         </div>
-        <div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
+        <div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}<div class="muted">${escapeHtml(animalBirthAgeText(a,access.concours_id))}</div></div>
         <div>${escapeHtml(req.join(" · ")||"Aucune demande")}</div>
         <div>
           <select onchange="portalSaveValidation('animal','${a.id}','validation',this.value)">
@@ -1617,6 +1617,33 @@ function ageMonths(birth, at){
   let m=(d.getFullYear()-b.getFullYear())*12+d.getMonth()-b.getMonth();
   if(d.getDate()<b.getDate())m--; return m;
 }
+function formatDateFr(v){
+  if(!v)return "—";
+  const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${m[3]}/${m[2]}/${m[1]}`:String(v);
+}
+function animalAgeAtContest(a,cid=a.concours_id){
+  return ageMonths(a?.naissance,contest(cid)?.date_concours);
+}
+function animalBirthAgeText(a,cid=a.concours_id){
+  const age=animalAgeAtContest(a,cid);
+  return `${formatDateFr(a?.naissance)} · ${age==null?"âge ?":age+" mois"}`;
+}
+function animalBirthAgeHtml(a,cid=a.concours_id){
+  const age=animalAgeAtContest(a,cid);
+  return `<div>${escapeHtml(formatDateFr(a?.naissance))}</div><div class="muted">${age==null?"Âge inconnu":age+" mois au concours"}</div>`;
+}
+function diseaseExportInfo(a,cid,disease){
+  if(!activeDemand(cid,disease))return {needed:false,method:"",status:"N/A"};
+  const pref=preferredMethodForDisease(a,cid,disease);
+  if(!pref)return {needed:false,method:"",status:"N/A"};
+  const dr=getDiseaseResult(a,disease);
+  const method=dr.method||pref.libelle_analyse;
+  const result=dr.result||getResult(a.id,method);
+  const status=(!result||!result.statut||result.statut==="attente")?"À vérifier":exportStatusText(result.statut);
+  return {needed:true,method,status};
+}
+
 function diseaseForAnalysis(analysis){const t=(analysis||"").toLowerCase();if(t.includes("bvd"))return "BVD";if(t.includes("ibr"))return "IBR";if(t.includes("besno"))return "Besnoitiose";return db.templateRules.find(r=>r.libelle_analyse===analysis)?.maladie||"Autre"}
 function activeDemand(contestId,disease){return db.demands.find(d=>d.concours_id===contestId&&d.maladie===disease)}
 function applicableTemplateRules(animal,contestId,disease){const c=contest(contestId);if(!c)return[];const age=ageMonths(animal.naissance,c.date_concours);return db.templateRules.filter(r=>r.maladie===disease&&age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)))}
@@ -2222,7 +2249,7 @@ function renderAnimals(){
     const herd=String(a.cheptel||"Sans EDE");
     const cls=herdBandClass(cid,herd)+herdStartClass(previousHerd,herd);
     previousHerd=herd;
-    return `<tr class="${cls}"><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td><span class="herd-label">${escapeHtml(a.cheptel||"")}</span></td><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${a.naissance||""}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.controle_metier_commentaire||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`;
+    return `<tr class="${cls}"><td>${escapeHtml(a.departement||"")}</td><td>${escapeHtml(a.eleveur)}</td><td><span class="herd-label">${escapeHtml(a.cheptel||"")}</span></td><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${animalBirthAgeHtml(a,cid)}</td><td>${checkBadge(a)}</td><td>${escapeHtml(a.controle_metier_commentaire||"")}</td><td>${escapeHtml(a.origine)}</td><td>${a.sur_certificat?'<span class="badge ok">Oui</span>':'<span class="badge na">Non</span>'}</td><td><button class="danger" onclick="deleteAnimal('${a.id}')">Suppr.</button></td></tr>`;
   }).join("");
   document.getElementById("animalTable").innerHTML=rows||'<tr><td colspan="11" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
@@ -2335,14 +2362,14 @@ function renderAnalysis(){
     return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
   const diseases=demandedDiseases(cid);
-  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Âge</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
+  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Naissance / âge au concours</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
   let previousHerd=null;
   list.forEach(a=>{
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);
     const herd=String(a.cheptel||"Sans EDE");
     const band=herdBandClass(cid,herd)+herdStartClass(previousHerd,herd);
     previousHerd=herd;
-    out+=`<tr class="${band}"><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${escapeHtml(a.eleveur)}<br><span class="muted">${escapeHtml(a.cheptel||"")}</span></td><td>${age==null?"?":age+" m"}</td>`;
+    out+=`<tr class="${band}"><td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td><td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td><td>${escapeHtml(a.eleveur)}<br><span class="muted">${escapeHtml(a.cheptel||"")}</span></td><td>${animalBirthAgeHtml(a,cid)}</td>`;
     diseases.forEach(d=>{
       const dr=getDiseaseResult(a,d);
       if(!dr.method){
@@ -3065,7 +3092,7 @@ function renderCertificates(){
           const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
           const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
           return `<div class="cert-animal-row ${rowClass}">
-            <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
+            <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div><div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
             <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
             <span>${ast==="present"?'<span class="badge ok">Validé</span>':ast==="non_present"?'<span class="badge na">Pas sur certif</span>':ast==="refuse"?'<span class="badge bad">Refusé</span>':'<span class="badge warn">À décider</span>'}</span>
           </div>`;
@@ -3077,7 +3104,7 @@ function renderCertificates(){
       const ast=defaultCertificateAnimalStatus(a);
       const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
       return `<div class="cert-animal-row ${rowClass}">
-        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
+        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div><div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
         <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
         ${certificateAnimalChoiceHtml(a)}
       </div>`;
@@ -3698,9 +3725,16 @@ function controlExportMatrix(cid,access=null){
     });
 
   const quals=controlExportQualifications(cid,access);
-  const analyses=controlExportAnalyses(cid,animals,access);
+  let diseases=demandedDiseases(cid);
+  if(access){
+    diseases=diseases.filter(d=>{
+      if(d==="IBR")return !!access.permissions?.indiv_ibr;
+      if(d==="BVD")return !!access.permissions?.bvd_viro;
+      if(d==="Besnoitiose")return !!access.permissions?.besno;
+      return !!access.permissions?.autres;
+    });
+  }
 
-  // qualifications are exported as a separate herd-level table (one row per EDE)
   const herdMap=new Map();
   animals.forEach(a=>{
     const herd=a.cheptel||"Sans EDE",farmer=a.eleveur||"";
@@ -3711,37 +3745,28 @@ function controlExportMatrix(cid,access=null){
     .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}))
     .map(h=>[
       h.dept,h.herd,h.farmer,
-      ...quals.map(d=>{
-        const r=getCheckResult(d.id,"cheptel:"+h.herd);
-        return exportStatusText(r.statut||"a_verifier");
-      }),
-      ...quals.map(d=>{
-        const r=getCheckResult(d.id,"cheptel:"+h.herd);
-        return r.commentaire||"";
-      })
+      ...quals.map(d=>exportStatusText(getCheckResult(d.id,"cheptel:"+h.herd).statut||"a_verifier")),
+      ...quals.map(d=>getCheckResult(d.id,"cheptel:"+h.herd).commentaire||"")
     ]);
-
   const herdHeaders=[
     "Dépt.","N° EDE","Éleveur",
     ...quals.map(d=>"QUAL - "+d.libelle),
     ...quals.map(d=>"COMMENTAIRE - "+d.libelle)
   ];
 
-  const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe"];
-  const analysisHeaders=analyses.map(a=>"AN - "+a);
+  const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe","Date naissance","Âge au concours"];
+  const diseaseHeaders=diseases.flatMap(d=>[d+" - méthode",d+" - statut"]);
   const finalHeaders=[access?"Validation partenaire":"Statut certificat","Participation","Entrée","Observation"];
-  const headers=[...identity,...analysisHeaders,...finalHeaders];
+  const headers=[...identity,...diseaseHeaders,...finalHeaders];
 
   const rows=animals.map(a=>{
     const ref=`${a.cheptel||"SANS-EDE"}-${String(a.bovin||"").slice(-4)}`;
-    const avals=analyses.map(an=>{
-      const r=getResult(a.id,an);
-      const isNeeded=needed(a,an,cid);
-      if(!isNeeded){
-        return "N/A";
-      }
-      if(!r || !r.statut || r.statut==="attente")return "À vérifier";
-      return exportStatusText(r.statut);
+    const age=animalAgeAtContest(a,cid);
+    const dvals=[];
+    diseases.forEach(d=>{
+      const info=diseaseExportInfo(a,cid,d);
+      if(!info.needed)dvals.push("N/A","N/A");
+      else dvals.push(info.method,info.status);
     });
 
     let validation="",comment="";
@@ -3752,18 +3777,21 @@ function controlExportMatrix(cid,access=null){
     }else{
       const s=a.statut_certificat_animal||"a_verifier";
       validation=s==="present"?"Validé":s==="non_present"?"Pas sur certif":s==="refuse"?"Refusé":"À vérifier";
-      const analysisComments=analyses.map(an=>getResult(a.id,an)?.commentaire).filter(Boolean);
+      const analysisComments=diseases.map(d=>{
+        const dr=getDiseaseResult(a,d);
+        return dr.result?.commentaire||"";
+      }).filter(Boolean);
       comment=[...analysisComments,a.participation_commentaire,a.entree_commentaire].filter(Boolean).join(" | ");
     }
 
     return [
-      ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),a.nom_animal||"",a.sexe||"",
-      ...avals,
-      validation,participationLabel(a),entryStatusLabel(a),comment
+      ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),
+      a.nom_animal||"",a.sexe||"",formatDateFr(a.naissance),age==null?"?":age+" mois",
+      ...dvals,validation,participationLabel(a),entryStatusLabel(a),comment
     ];
   });
 
-  return {headers,rows,quals,analyses,animals,herdHeaders,herdRows};
+  return {headers,rows,quals,diseases,animals,herdHeaders,herdRows};
 }
 /* Minimal XLSX writer, stored ZIP entries, no external library.
    Strings are stored inline in worksheet XML. */
@@ -3866,16 +3894,16 @@ function pdfCheckCell(value){
   return `<div class="paper-status">${escapeHtml(value||"")} <span class="paper-box"></span></div>`;
 }
 function openControlPrint(matrix,title,subtitle){
-  const analysisIndexes=[];
-  for(let i=8;i<matrix.headers.length-4;i++)analysisIndexes.push(i);
+  const diseaseIndexes=[];
+  for(let i=10;i<matrix.headers.length-4;i++)diseaseIndexes.push(i);
   const finalIndexes=[matrix.headers.length-4,matrix.headers.length-3,matrix.headers.length-2,matrix.headers.length-1];
 
   const qualTable=matrix.herdHeaders.length>3?`
     <section class="paper-section">
       <h2>Qualifications des cheptels</h2>
-      <div class="note">Une seule ligne par EDE. Les cases représentent les qualifications du cheptel, pas les animaux individuellement.</div>
+      <div class="note">Une seule ligne par EDE. Une qualification concerne le cheptel entier.</div>
       <table>
-        <thead><tr>${matrix.herdHeaders.map((h,i)=>i>=3 && i<3+matrix.quals.length?`<th>${escapeHtml(h)}</th>`:`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+        <thead><tr>${matrix.herdHeaders.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
         <tbody>${matrix.herdRows.map(r=>`<tr>${r.map((v,i)=>{
           const isQual=i>=3 && i<3+matrix.quals.length;
           return `<td class="${String(v)==="N/A"?"na-cell":""}">${isQual?pdfCheckCell(v):escapeHtml(v)}</td>`;
@@ -3883,23 +3911,25 @@ function openControlPrint(matrix,title,subtitle){
       </table>
     </section>`:"";
 
+  // keep disease method+status pairs together; 3 diseases = max 6 dynamic cols per block
+  const pairs=[];
+  for(let i=0;i<diseaseIndexes.length;i+=2)pairs.push(diseaseIndexes.slice(i,i+2));
   const chunks=[];
-  if(!analysisIndexes.length)chunks.push([]);
-  else for(let i=0;i<analysisIndexes.length;i+=8)chunks.push(analysisIndexes.slice(i,i+8));
+  for(let i=0;i<pairs.length;i+=3)chunks.push(pairs.slice(i,i+3).flat());
+  if(!chunks.length)chunks.push([]);
 
-  const identityIndexes=[0,2,3,4,5,6,7];
+  const identityIndexes=[0,2,3,4,5,6,7,8,9];
   const animalTables=chunks.map((chunk,chunkIndex)=>{
     const indexes=[...identityIndexes,...chunk,...finalIndexes];
     let previousHerd="";
     const body=matrix.rows.map(r=>{
-      const herd=r[2];
-      const first=herd!==previousHerd;previousHerd=herd;
+      const herd=r[2],first=herd!==previousHerd;previousHerd=herd;
       return `<tr class="${first?"herd-first":""}">${indexes.map(idx=>{
         const val=r[idx]??"";
-        const isAnalysis=chunk.includes(idx);
+        const isStatus=chunk.includes(idx) && matrix.headers[idx].endsWith(" - statut");
         const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
         const na=String(val)==="N/A";
-        return `<td class="${na?"na-cell":""}">${(isAnalysis||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
+        return `<td class="${na?"na-cell":""}">${(isStatus||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
       }).join("")}</tr>`;
     }).join("");
     return `<section class="paper-section">
@@ -3928,9 +3958,8 @@ function openControlPrint(matrix,title,subtitle){
     td.na-cell .paper-box{background:#bbb;border-color:#888}
   </style></head><body>
     <h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(subtitle||"")}</div>
-    <div class="note"><strong>Relais collègue :</strong> les informations déjà saisies sont imprimées. Les mentions “À vérifier” signalent ce qui reste à faire. Les cases grisées “N/A” correspondent aux analyses non nécessaires selon les règles/âge.</div>
-    ${qualTable}
-    ${animalTables}
+    <div class="note"><strong>Lecture :</strong> une maladie = une méthode prioritaire adaptée à l’âge. “N/A” grisé = maladie/analyse non nécessaire pour cet animal. Date de naissance et âge sont calculés à la date du concours.</div>
+    ${qualTable}${animalTables}
     <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
   </body></html>`);
   w.document.close();
@@ -4105,7 +4134,7 @@ function renderEntry(){
       const pcom=a.participation_commentaire?`<div class="muted">Partenaire : ${escapeHtml(a.participation_commentaire)}</div>`:"";
       out+=`<div class="entry-row ${rowClass}">
         <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin||"")}</div></div>
-        <div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</div>
+        <div>${escapeHtml(a.nom_animal||"—")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}<div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
         <div>${entryStatusBadge(a)}${a.ajoute_par_partenaire?'<br><span class="muted">Ajout partenaire</span>':""}</div>
         <div><strong>${entryTimestamp(a)}</strong>${a.entree_controle_par?`<div class="entry-time">${escapeHtml(a.entree_controle_par)}</div>`:""}</div>
         <div>${reason}${pcom}<textarea rows="2" placeholder="Observation entrée" onchange="setEntryComment('${a.id}',this.value)">${escapeHtml(a.entree_commentaire||"")}</textarea></div>
