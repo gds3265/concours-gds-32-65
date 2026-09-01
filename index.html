@@ -8,8 +8,8 @@
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.0</title>
-<link rel="manifest" href="manifest.json?v=080">
+<title>Suivi des concours v0.8.1</title>
+<link rel="manifest" href="manifest.json?v=081">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -219,6 +219,10 @@ tr.herd-start td{border-top:3px solid #b9789f}
   .app-zoom-control input[type="range"]{width:85px}
   .header-actions{justify-content:flex-start}
 }
+
+.section{display:none}
+.section.active{display:block!important}
+nav button{pointer-events:auto!important}
 </style>
 </head>
 <body>
@@ -257,7 +261,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=080" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">080</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=081" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">081</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <div class="header-actions">
       <div class="app-zoom-control" title="Zoom propre à l'application">
         <button type="button" class="zoom-step" onclick="changeAppZoom(-1)" aria-label="Dézoomer">−</button>
@@ -986,7 +990,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.8.0";
+const APP_VERSION = "0.8.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1008,7 +1012,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.1");
 initAppZoom();
 
 
@@ -1570,6 +1574,10 @@ async function startApp(){
     await ensureFreshToken();
     await loadAll();
     applyAccessMode();
+    if(APP_MODE!=="partner"){
+      const active=document.querySelector(".section.active")?.id||"dashboard";
+      openAppTab(active);
+    }
   }catch(e){
     if(String(e.message).includes("SESSION_REFRESH_IMPOSSIBLE")||String(e.message).includes("JWT")||String(e.message).includes("401")){
       logout();return;
@@ -3986,13 +3994,46 @@ function exportEntryCsv(){
   downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
 function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
-  if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
+function renderActiveTab(tab){
+  try{
+    if(tab==="dashboard")renderDashboard();
+    else if(tab==="parametres"){renderTemplateRules();renderRules();}
+    else if(tab==="concours"){renderContestList();renderDepartments();renderDemands();renderCheckDefs();}
+    else if(tab==="animaux"){renderDepartmentSelectors();renderAnimals();}
+    else if(tab==="analyses"){renderFarmerSelectors();renderAnalysis();}
+    else if(tab==="qualifications"){renderQualificationGrid();}
+    else if(tab==="controles"){renderCheckDefs();renderSupplementaryChecks();}
+    else if(tab==="validationrapide"){renderFastOverview();if(fastCurrentHerd)renderFastValidation();}
+    else if(tab==="certificats"){renderFarmerSelectors();renderCertificates();}
+    else if(tab==="partenaires"){renderPartnerDepartmentScope();renderPartnerAccess();renderPartnerProgress();}
+    else if(tab==="entreeconcours")renderEntry();
+    else if(tab==="remboursements")renderRefunds();
+    else if(tab==="export")renderExport();
+    else if(tab==="partenaireportail")renderPartnerPortal();
+  }catch(e){
+    console.error("Erreur de rendu onglet",tab,e);
+    const state=document.getElementById("syncState");
+    if(state)state.textContent="● affichage partiel : "+String(e.message||e).slice(0,70);
+  }
+}
+function openAppTab(tab,button=null){
+  if(!tab)return;
+  if(APP_MODE==="partner" && tab!=="partenaireportail")return;
+  const section=document.getElementById(tab);
+  if(!section)return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
-  document.getElementById(b.dataset.tab)?.classList.add("active");
-  b.classList.add("active");
-  renderAll();
+  section.classList.add("active");
+  const btn=button||document.querySelector(`nav button[data-tab="${tab}"]`);
+  if(btn)btn.classList.add("active");
+  renderActiveTab(tab);
+}
+document.querySelector("nav")?.addEventListener("click",e=>{
+  const b=e.target.closest("button[data-tab]");
+  if(!b)return;
+  e.preventDefault();
+  e.stopPropagation();
+  openAppTab(b.dataset.tab,b);
 });
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest","entryContest","entryFilter","entrySort"].includes(e.target.id)){
