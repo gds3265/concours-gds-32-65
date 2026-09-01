@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.7.3</title>
-<link rel="manifest" href="manifest.json?v=073">
+<title>Suivi des concours v0.7.4</title>
+<link rel="manifest" href="manifest.json?v=074">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -224,7 +224,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=073" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=074" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -466,6 +466,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
     <div class="row">
       <div class="field"><label>Concours</label><select id="analysisContest"></select></div>
       <div class="field"><label>Éleveur</label><select id="analysisFarmer"></select></div>
+      <div class="field"><label>Recherche</label><input id="analysisSearch" placeholder="N° EDE, éleveur ou n° bovin"></div>
       <div class="field"><label>Date de prélèvement</label><input id="sampleDate" type="date"></div>
       <button class="secondary" onclick="setAllStatus('conforme')">Tout conforme</button>
       <button class="secondary" onclick="setAllStatus('labo')">Tout en cours labo</button>
@@ -571,12 +572,17 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 <section id="validationrapide" class="section">
   <div class="card">
     <h2>Validation rapide par éleveur</h2>
-    <div class="muted">Recherche par n° cheptel. Jamais de validation globale du concours.</div>
+    <div class="muted">Tous les éleveurs du concours sont affichés par défaut, classés par n° EDE. La recherche sert uniquement à aller plus vite sur un dossier.</div>
     <div class="fast-validation-grid" style="margin-top:12px">
       <div class="field"><label>Concours</label><select id="fastContest"></select></div>
       <div class="field"><label>N° cheptel / éleveur</label><input id="fastHerdSearch" placeholder="Ex. 65027507 ou nom éleveur"></div>
       <button class="action" onclick="loadFastValidation()">Afficher</button>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>Éleveurs du concours</h3>
+    <div id="fastOverview"></div>
   </div>
 
   <div class="card hidden" id="fastPanel">
@@ -930,7 +936,7 @@ nav button[data-group="gestion"]:hover{background:#5d9768;color:#fff}
 </div>
 
 <script>
-const APP_VERSION = "0.7.3";
+const APP_VERSION = "0.7.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -949,7 +955,7 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.7.4");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1525,10 +1531,21 @@ function renderDepartments(){
     ? `<div class="scroll"><table><thead><tr><th>Département</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun département ajouté.</div>`;
 }
+function farmerOptionsByHerd(cid){
+  const map=new Map();
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    const farmer=a.eleveur||"",herd=a.cheptel||"";
+    if(!farmer)return;
+    if(!map.has(farmer))map.set(farmer,{farmer,herd});
+  });
+  return [...map.values()]
+    .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}))
+    .map(x=>({value:x.farmer,label:`${x.herd||"Sans EDE"} — ${x.farmer}`}));
+}
 function renderFarmerSelectors(){
   [["analysisContest","analysisFarmer"],["certContest","certFarmer"]].forEach(([cid,fid])=>{
     const c=document.getElementById(cid)?.value;
-    optionize(fid,[{value:"__ALL__",label:"Tous les éleveurs / tout le concours"},...farmers(c).map(x=>({value:x,label:x}))]);
+    optionize(fid,[{value:"__ALL__",label:"Tous les éleveurs / tout le concours"},...farmerOptionsByHerd(c)]);
   });
 }
 
@@ -2159,9 +2176,15 @@ async function addUnexpectedAnalysis(){
   await loadAll();
 }
 function renderAnalysis(){
-  const cid=document.getElementById("analysisContest")?.value, farmer=document.getElementById("analysisFarmer")?.value;
+  const cid=document.getElementById("analysisContest")?.value, farmer=document.getElementById("analysisFarmer")?.value||"__ALL__";
+  const q=(document.getElementById("analysisSearch")?.value||"").trim().toLowerCase();
   let list=db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer));
+  if(q)list=list.filter(a=>(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q));
   list=list.filter(matchesSearch);
+  list.sort((a,b)=>{
+    const h=String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true});
+    return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
+  });
   const diseases=demandedDiseases(cid);
   let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Âge</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
   list.forEach(a=>{
@@ -2197,9 +2220,10 @@ async function setAnimalCommentRelevant(aid,txt){
 }
 async function markUnneededDone(aid,analysis){await upsertResult(aid,analysis,{statut:"inutile",date_prelevement:document.getElementById("sampleDate").value||null});await loadAll()}
 async function setAllStatus(status){
-  const cid=document.getElementById("analysisContest").value, farmer=document.getElementById("analysisFarmer").value, d=document.getElementById("sampleDate").value||null;
+  const cid=document.getElementById("analysisContest").value, farmer=document.getElementById("analysisFarmer").value||"__ALL__", d=document.getElementById("sampleDate").value||null;
+  const q=(document.getElementById("analysisSearch")?.value||"").trim().toLowerCase();
   const diseases=demandedDiseases(cid), ops=[];
-  db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer) && matchesSearch(a)).forEach(a=>{
+  db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer) && (!q||(`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""}`).toLowerCase().includes(q)) && matchesSearch(a)).forEach(a=>{
     diseases.forEach(dis=>{
       const current=getDiseaseResult(a,dis);
       if(current.method)ops.push(upsertResult(a.id,current.method,{statut:status,date_prelevement:d}));
@@ -2247,10 +2271,53 @@ function fastAnimalsList(){
   return db.animals.filter(a=>a.concours_id===cid && a.cheptel===fastCurrentHerd && (!fastCurrentFarmer || a.eleveur===fastCurrentFarmer));
 }
 
+
+function fastHerdRows(cid){
+  const map=new Map();
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    const herd=a.cheptel||"Sans EDE",farmer=a.eleveur||"";
+    const key=herd+"|"+farmer;
+    if(!map.has(key))map.set(key,{herd,farmer,animals:[]});
+    map.get(key).animals.push(a);
+  });
+  return [...map.values()].sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}));
+}
+function openFastHerd(herd,farmer){
+  fastCurrentHerd=herd;
+  fastCurrentFarmer=farmer;
+  const input=document.getElementById("fastHerdSearch");
+  if(input)input.value=herd;
+  document.getElementById("fastPanel")?.classList.remove("hidden");
+  document.getElementById("fastAnimalsCard")?.classList.remove("hidden");
+  const cid=document.getElementById("fastContest")?.value;
+  const cert=Object.values(db.certificates).find(c=>c.concours_id===cid&&c.eleveur===farmer);
+  if(cert?.mode_transmission && document.getElementById("fastTransmission"))document.getElementById("fastTransmission").value=cert.mode_transmission;
+  renderFastValidation();
+}
+function renderFastOverview(){
+  const target=document.getElementById("fastOverview");if(!target)return;
+  const cid=document.getElementById("fastContest")?.value;
+  const q=(document.getElementById("fastHerdSearch")?.value||"").trim().toLowerCase();
+  let rows=fastHerdRows(cid);
+  if(q)rows=rows.filter(x=>(`${x.herd} ${x.farmer}`).toLowerCase().includes(q));
+  target.innerHTML=rows.length?`<div class="scroll"><table class="compact-table">
+    <thead><tr><th>N° EDE</th><th>Éleveur</th><th>Bovins</th><th>Certificat</th><th></th></tr></thead>
+    <tbody>${rows.map(x=>{
+      const cert=db.certificates[cid+"|"+x.farmer]||{};
+      return `<tr><td><strong>${escapeHtml(x.herd)}</strong></td><td>${escapeHtml(x.farmer)}</td><td>${x.animals.length}</td><td>${certStatusBadge(cert.statut_certificat||"non_recu")}</td><td><button class="secondary" onclick="openFastHerd('${escapeHtml(x.herd)}','${escapeHtml(x.farmer)}')">Ouvrir</button></td></tr>`;
+    }).join("")}</tbody></table></div>`:'<div class="muted">Aucun éleveur pour ce filtre.</div>';
+}
 function loadFastValidation(){
   const cid=document.getElementById("fastContest")?.value;
   const q=(document.getElementById("fastHerdSearch")?.value||"").trim().toLowerCase();
-  if(!cid||!q)return alert("Choisir un concours et saisir un n° cheptel ou un éleveur.");
+  if(!cid)return alert("Choisir un concours.");
+  if(!q){
+    fastCurrentHerd="";fastCurrentFarmer="";
+    document.getElementById("fastPanel")?.classList.add("hidden");
+    document.getElementById("fastAnimalsCard")?.classList.add("hidden");
+    renderFastOverview();
+    return;
+  }
 
   const candidates=db.animals.filter(a=>a.concours_id===cid && (
     String(a.cheptel||"").toLowerCase().includes(q) ||
@@ -2775,459 +2842,70 @@ async function partnerSetAllVerification(status){
   if(bodies.length)await sb("concours_validations_partenaires?on_conflict=acces_partenaire_id,cible_type,cible_cle",{method:"POST",body:bodies,prefer:"resolution=merge-duplicates,return=minimal"});await loadAll();
 }
 function renderCertificates(){
-  const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value;
-  const cert=db.certificates[cid+"|"+farmer];
+  const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value||"__ALL__";
+  const allMode=farmer==="__ALL__";
+  const cert=allMode?null:db.certificates[cid+"|"+farmer];
+
   document.getElementById("certStatus").value=cert?.statut_certificat||"non_recu";
   document.getElementById("receiveDate").value=cert?.date_reception||"";
   document.getElementById("signDate").value=cert?.date_signature||"";
   document.getElementById("sendMode").value=cert?.mode_transmission||"";
   document.getElementById("certComment").value=cert?.commentaire||"";
 
-  document.getElementById("certAnimals").innerHTML=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer).map(a=>{
-    const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
-    const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
-    return `<div class="cert-animal-row ${rowClass}">
-      <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
-      <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
-      <select class="cert-animal-status" onchange="setCertificateAnimalStatus('${a.id}',this.value)">
-        ${ast==="a_verifier"?'<option value="" selected disabled>Choisir…</option>':""}
-        <option value="present" ${ast==="present"?"selected":""}>Validé</option>
-        <option value="non_present" ${ast==="non_present"?"selected":""}>Pas sur certif</option>
-        <option value="refuse" ${ast==="refuse"?"selected":""}>Refusé</option>
-      </select>
-    </div>`;
-  }).join("")||"<span class='muted'>Aucun animal.</span>";
-
-  renderCertificateChecks();
-  renderCertificateRecap();
-}
-
-function checkStatusOptions(sel){
-  const opts=[["a_verifier","À vérifier"],["conforme","Conforme"],["nonconforme","Non conforme"],["nonapp","Non applicable"]];
-  return opts.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("");
-}
-
-function qualificationDefs(cid){
-  return db.checkDefs.filter(d=>d.concours_id===cid && d.type_controle==="qualification" && d.niveau==="cheptel");
-}
-function herdRows(cid){
-  const map=new Map();
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
-    const herd=(a.cheptel||"").trim()||"Sans EDE";
-    if(!map.has(herd))map.set(herd,{herd,farmer:a.eleveur||""});
-  });
-  return [...map.values()].sort((a,b)=>a.herd.localeCompare(b.herd,undefined,{numeric:true}));
-}
-
-function csvEscape(v){
-  const s=String(v??"");
-  return /[;"\r\n]/.test(s)?`"${s.replaceAll('"','""')}"`:s;
-}
-function downloadCsv(filename, rows){
-  const csv=rows.map(r=>r.map(csvEscape).join(";")).join("\r\n");
-  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-  const url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
-}
-function exportQualificationEDE(){
-  const cid=document.getElementById("qualContest")?.value;
-  if(!cid)return alert("Choisir un concours.");
-  const c=contest(cid);
-  const unique=[...new Set(
-    herdRows(cid).map(h=>normalizeHerd(h.herd)).filter(h=>/^\d{8}$/.test(h))
-  )].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-  if(!unique.length)return alert("Aucun n° EDE à 8 chiffres trouvé pour ce concours.");
-  downloadCsv(`EDE_qualifications_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,[
-    ["N° EDE"],...unique.map(x=>[x])
-  ]);
-}
-function cleanQualValue(v){
-  return cleanExcelCell(v).trim().toUpperCase();
-}
-function isBlankQualDate(v){
-  const s=cleanExcelCell(v).trim();
-  return !s || s==="-" || s==="—";
-}
-function headerByNormalized(rows,names){
-  if(!rows?.length)return null;
-  const wanted=names.map(normHeader);
-  return Object.keys(rows[0]||{}).find(h=>wanted.includes(normHeader(h)))||null;
-}
-function qualificationHeaderScore(cells){
-  const txt=cells.map(normHeader);
-  let score=0;
-  const keys=[
-    "n exploitation","n ede","code maladie","maladie selectionnee",
-    "code de la qualification","code qualification",
-    "qualification brucellose","qualification leucose","qualification tuberculose"
-  ];
-  keys.forEach(k=>{if(txt.some(x=>x===normHeader(k)||x.includes(normHeader(k))))score++});
-  return score;
-}
-function parseQualificationCSVWithSeparator(text,sep){
-  text=String(text||"").replace(/^\uFEFF/,"");
-  const matrix=[];
-  let row=[],field="",inQuotes=false;
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    if(inQuotes){
-      if(ch==='"'){
-        if(text[i+1]==='"'){field+='"';i++}else inQuotes=false;
-      }else field+=ch;
-    }else{
-      // Standard quoted CSV starts with ". Excel formulas such as ="IBR"
-      // are NOT quoted CSV fields: keep those quotes as ordinary characters.
-      if(ch==='"' && field==="")inQuotes=true;
-      else if(ch===sep){row.push(field);field=""}
-      else if(ch==='\r'||ch==='\n'){
-        if(ch==='\r'&&text[i+1]==='\n')i++;
-        row.push(field);field="";
-        if(row.some(v=>String(v).trim()!==""))matrix.push(row);
-        row=[];
-      }else field+=ch;
-    }
-  }
-  row.push(field);
-  if(row.some(v=>String(v).trim()!==""))matrix.push(row);
-  if(!matrix.length)return {rows:[],score:-1,separator:sep};
-
-  let headerIndex=0,bestHeaderScore=-1;
-  matrix.slice(0,Math.min(25,matrix.length)).forEach((r,i)=>{
-    const s=qualificationHeaderScore(r);
-    if(s>bestHeaderScore){bestHeaderScore=s;headerIndex=i}
-  });
-  const heads=matrix[headerIndex].map(x=>String(x||"").trim());
-  if(heads.filter(Boolean).length<2)return {rows:[],score:-1,separator:sep};
-
-  const rows=matrix.slice(headerIndex+1).filter(r=>r.some(v=>String(v).trim()!=="")).map(values=>{
-    const o={};heads.forEach((h,i)=>o[h]=String(values[i]??"").trim());return o;
-  });
-  const score=bestHeaderScore*100+heads.filter(Boolean).length*5+Math.min(rows.length,100);
-  return {rows,score,separator:sep,headerIndex,headers:heads};
-}
-function parseQualificationCSV(text){
-  const detected=detectSeparator(text);
-  const seps=[detected,";","\t",",","|"].filter((x,i,a)=>a.indexOf(x)===i);
-  const attempts=seps.map(sep=>parseQualificationCSVWithSeparator(text,sep)).sort((a,b)=>b.score-a.score);
-  return attempts[0]||{rows:[],score:-1,separator:detected};
-}
-function detectQualificationFile(rows,fileName=""){
-  if(!rows?.length)return null;
-  const headers=Object.keys(rows[0]||{});
-  const hs=headers.map(normHeader);
-
-  if(hs.some(x=>x.includes(normHeader("qualification brucellose"))) &&
-     hs.some(x=>x.includes(normHeader("qualification leucose"))) &&
-     hs.some(x=>x.includes(normHeader("qualification tuberculose")))) return "SIGAL";
-
-  const diseaseColumns=headers.filter(h=>{
-    const n=normHeader(h);
-    return n.includes("maladie") || n.includes("disease");
+  ["certStatus","receiveDate","signDate","sendMode","certComment"].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.disabled=allMode;
   });
 
-  const allDiseaseValues=[];
-  diseaseColumns.forEach(col=>{
-    rows.slice(0,300).forEach(r=>{
-      const v=cleanQualValue(r[col]);
-      if(v)allDiseaseValues.push(v);
-    });
+  let animals=db.animals.filter(a=>a.concours_id===cid && (allMode||a.eleveur===farmer));
+  animals.sort((a,b)=>{
+    const h=String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true});
+    return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
 
-  const joined=allDiseaseValues.join(" ");
-  if(/\bIBR\b/i.test(joined))return "IBR";
-  if(/\bBVD\b/i.test(joined))return "BVD";
-
-  // Fallback on qualification label text.
-  const qualLabelCol=headers.find(h=>normHeader(h).includes(normHeader("libelle de la qualification")));
-  if(qualLabelCol){
-    const vals=rows.slice(0,300).map(r=>cleanQualValue(r[qualLabelCol])).join(" ");
-    if(/rhinotrache|IBR/i.test(vals))return "IBR";
-    if(/diarrhee virale|BVD/i.test(vals))return "BVD";
-  }
-
-  // Last safe fallback on filename.
-  const fn=String(fileName||"").toUpperCase();
-  if(/\bIBR\b/.test(fn))return "IBR";
-  if(/\bBVD\b/.test(fn))return "BVD";
-
-  return null;
-}
-async function ensureQualificationDefinition(cid,label){
-  let def=qualificationDefs(cid).find(d=>normHeader(d.libelle)===normHeader(label));
-  if(def)return def;
-  await sb("concours_points_controle",{
-    method:"POST",
-    body:{concours_id:cid,niveau:"cheptel",type_controle:"qualification",libelle:label,obligatoire:true},
-    prefer:"return=minimal"
-  });
-  await loadAll();
-  return qualificationDefs(cid).find(d=>normHeader(d.libelle)===normHeader(label))||null;
-}
-function qualDefForDisease(cid,disease){
-  const aliases={
-    IBR:["IBR","Qualification IBR"],
-    BVD:["BVD","Qualification BVD"],
-    BRU:["Brucellose","Qualification brucellose","BRU"],
-    LEU:["Leucose","Qualification leucose","LEU"],
-    TUB:["Tuberculose","Qualification tuberculose","TUB"]
-  };
-  return qualificationDefs(cid).find(d=>(aliases[disease]||[]).some(a=>normHeader(d.libelle)===normHeader(a)))||null;
-}
-async function ensureQualificationDefsForType(cid,type){
-  const wanted=type==="SIGAL"
-    ? [["BRU","Brucellose"],["LEU","Leucose"],["TUB","Tuberculose"]]
-    : [[type,type]];
-  for(const [,label] of wanted){
-    const exists=qualificationDefs(cid).some(d=>
-      normHeader(d.libelle)===normHeader(label) ||
-      normHeader(d.libelle)===normHeader("Qualification "+label)
-    );
-    if(!exists)await ensureQualificationDefinition(cid,label);
-  }
-}
-async function saveImportedQualification(def,herd,status,comment){
-  if(!def||!herd)return;
-  await saveCheckResultNoReload(def.id,"cheptel:"+herd,status,comment);
-}
-function contestHerdSet(cid){
-  return new Set(herdRows(cid).map(h=>normalizeHerd(h.herd)).filter(h=>/^\d{8}$/.test(h)));
-}
-async function importQualificationsFile(type){
-  const inputId=type==="IBR"?"qualificationImportIBR":type==="BVD"?"qualificationImportBVD":"qualificationImportSIGAL";
-  const summaryId=type==="IBR"?"qualificationImportSummaryIBR":type==="BVD"?"qualificationImportSummaryBVD":"qualificationImportSummarySIGAL";
-  const file=document.getElementById(inputId)?.files?.[0];
-  const cid=document.getElementById("qualContest")?.value;
-  if(!cid)return alert("Choisir un concours.");
-  if(!file)return alert("Choisir le fichier "+type+".");
-
-  const text=await decodeCSVFile(file);
-  const parsed=parseQualificationCSV(text);
-  const rows=parsed.rows||[];
-  const parsedHeaders=parsed.headers||[];
-
-  // A BVD anomaly extract with headers but zero data rows is VALID:
-  // it means no problematic herd was returned, therefore all contest EDE are compliant.
-  if(!rows.length && !(type==="BVD" && parsedHeaders.length>=2)){
-    return alert("Fichier vide ou illisible après plusieurs tentatives de lecture.");
-  }
-
-  const detectionRows=rows.length?rows:[Object.fromEntries(parsedHeaders.map(h=>[h,""]))];
-  const detected=rows.length?detectQualificationFile(rows,file.name):type;
-  if(detected && detected!==type){
-    if(!confirm(`Ce fichier ressemble à un fichier ${detected}, mais tu l'importes dans ${type}. Continuer quand même ?`))return;
-  }
-
-  await ensureQualificationDefsForType(cid,type);
-  const herdSet=contestHerdSet(cid);
-  let found=0,missing=0,conforme=0,nonconforme=0,averifier=0,qualificationRowsRecognized=0;
-
-  if(type==="IBR" || type==="BVD"){
-    const headerRows=rows.length?rows:[Object.fromEntries(parsedHeaders.map(h=>[h,""]))];
-    const herdCol=headerByNormalized(headerRows,["N° exploitation","Numero exploitation","N exploitation","N° EDE","EDE","Exploitation"]);
-    const diseaseCol=headerByNormalized(headerRows,["Code maladie"]) || headerByNormalized(headerRows,["Maladie","Maladie sélectionnée"]);
-    const codeCol=headerByNormalized(headerRows,["Code de la qualification","Code qualification","Qualification","Code qualif"]);
-    const endCol=headerByNormalized(headerRows,["Date de fin d'établissement de la qualification","Date de fin etablissement de la qualification","Date fin","Fin qualification","Date de fin"]);
-
-    if(!herdCol||!codeCol){
-      const hs=Object.keys(rows[0]||{}).slice(0,12).join(" | ");
-      return alert("Colonnes nécessaires non reconnues dans le fichier "+type+".\n\nEntêtes détectées : "+hs);
-    }
-
-    const grouped=new Map();
-    rows.forEach(r=>{
-      if(diseaseCol){
-        const mal=cleanQualValue(r[diseaseCol]);
-        const diseaseOk=!mal || mal===type || mal.startsWith(type+" ") || mal.startsWith(type+" -") || mal.includes(" "+type+" ") || mal.includes(type+" -");
-        if(!diseaseOk)return;
-      }
-      const herd=normalizeHerd(r[herdCol]);
-      if(!herd)return;
-      if(!grouped.has(herd))grouped.set(herd,[]);
-      grouped.get(herd).push(r);
-    });
-
-    const def=qualDefForDisease(cid,type);
-    qualificationRowsRecognized=[...grouped.values()].reduce((n,arr)=>n+arr.length,0);
-
-    for(const herd of herdSet){
-      const rr=grouped.get(herd)||[];
-
-      if(type==="BVD" && !rr.length){
-        missing++;conforme++;
-        await saveImportedQualification(def,herd,"conforme",`Import BVD : EDE absent du fichier ${file.name} → conforme`);
-        continue;
-      }
-      if(type==="IBR" && !rr.length){
-        missing++;averifier++;
-        await saveImportedQualification(def,herd,"a_verifier",`Import IBR : EDE absent du fichier ${file.name}`);
-        continue;
-      }
-
-      found++;
-      if(type==="IBR"){
-        const activeOk=rr.some(r=>{
-          const code=cleanQualValue(r[codeCol]);
-          const noEnd=!endCol||isBlankQualDate(r[endCol]);
-          return (code==="AA"||code==="A")&&noEnd;
-        });
-        const status=activeOk?"conforme":"nonconforme";
-        const codes=[...new Set(rr.map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
-        const active=[...new Set(rr.filter(r=>!endCol||isBlankQualDate(r[endCol])).map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
-        await saveImportedQualification(def,herd,status,`Import IBR : code(s) ${codes.join(", ")||"—"} ; actif(s) sans date de fin : ${active.join(", ")||"aucun"}`);
-        if(status==="conforme")conforme++;else nonconforme++;
-      }else{
-        const badCodes=new Set(["NS","NC","I1","I2","I3"]);
-        const badActive=rr.filter(r=>{
-          const code=cleanQualValue(r[codeCol]);
-          const noEnd=!endCol||isBlankQualDate(r[endCol]);
-          return badCodes.has(code)&&noEnd;
-        });
-        const status=badActive.length?"nonconforme":"conforme";
-        const codes=[...new Set(rr.map(r=>cleanQualValue(r[codeCol])).filter(Boolean))];
-        const bad=[...new Set(badActive.map(r=>cleanQualValue(r[codeCol])))];
-        await saveImportedQualification(def,herd,status,`Import BVD : code(s) ${codes.join(", ")||"—"}${bad.length?` ; non conforme actif : ${bad.join(", ")}`:" ; aucun NS/NC/I1/I2/I3 actif sans date de fin"}`);
-        if(status==="conforme")conforme++;else nonconforme++;
-      }
-    }
-  }else{
-    const herdCol=headerByNormalized(rows,["Atelier : N° EDE","N° EDE","EDE"]);
-    const bruCol=headerByNormalized(rows,["Qualification brucellose"]);
-    const leuCol=headerByNormalized(rows,["Qualification leucose"]);
-    const tubCol=headerByNormalized(rows,["Qualification tuberculose"]);
-    if(!herdCol||!bruCol||!leuCol||!tubCol){
-      const hs=Object.keys(rows[0]||{}).slice(0,12).join(" | ");
-      return alert("Colonnes SIGAL nécessaires non reconnues.\n\nEntêtes détectées : "+hs);
-    }
-
+  if(allMode){
     const map=new Map();
-    rows.forEach(r=>{const herd=normalizeHerd(r[herdCol]);if(herd)map.set(herd,r)});
-    const defs={BRU:qualDefForDisease(cid,"BRU"),LEU:qualDefForDisease(cid,"LEU"),TUB:qualDefForDisease(cid,"TUB")};
-    qualificationRowsRecognized=map.size;
-
-    for(const herd of herdSet){
-      const r=map.get(herd);
-      if(!r){
-        missing++;averifier+=3;
-        await Promise.all([
-          saveImportedQualification(defs.BRU,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`),
-          saveImportedQualification(defs.LEU,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`),
-          saveImportedQualification(defs.TUB,herd,"a_verifier",`Import SIGAL : EDE absent du fichier ${file.name}`)
-        ]);
-        continue;
-      }
-      found++;
-      for(const [key,col,label] of [["BRU",bruCol,"Brucellose"],["LEU",leuCol,"Leucose"],["TUB",tubCol,"Tuberculose"]]){
-        const code=cleanQualValue(r[col]);
-        const status=code==="OI"?"conforme":"nonconforme";
-        await saveImportedQualification(defs[key],herd,status,`Import SIGAL ${label} : ${code||"vide"}`);
-        if(status==="conforme")conforme++;else nonconforme++;
-      }
-    }
-  }
-
-  await loadAll();
-  renderQualifications();
-
-  const summary=document.getElementById(summaryId);
-  if(summary){
-    const sepLabel=parsed.separator==="\t"?"tabulation":parsed.separator;
-    const absent=type==="BVD"
-      ? `${missing} EDE absent(s) du fichier → conformes`
-      : `${missing} EDE absent(s)`;
-    summary.innerHTML=`<div class="info"><strong>Import ${type} terminé</strong><br>
-      Fichier : ${escapeHtml(file.name)}<br>
-      Lecture retenue : séparateur <strong>${escapeHtml(sepLabel)}</strong><br>
-      Lignes qualifications reconnues dans le fichier : <strong>${qualificationRowsRecognized}</strong>${type==="BVD"&&rows.length===0?" <strong>(aucune anomalie BVD retournée)</strong>":""}<br>
-      EDE du concours retrouvés : <strong>${found}</strong> — ${absent}<br>
-      Conformes : <strong>${conforme}</strong> — non conformes : <strong>${nonconforme}</strong>${averifier?` — à vérifier : <strong>${averifier}</strong>`:""}
-    </div>`;
-  }
-  document.getElementById(inputId).value="";
-}function renderQualifications(){
-  const target=document.getElementById("qualificationTable"); if(!target)return;
-  const cid=document.getElementById("qualContest")?.value;
-  const q=(document.getElementById("qualSearch")?.value||"").trim().toLowerCase();
-  const defs=qualificationDefs(cid);
-  const herds=herdRows(cid).filter(h=>!q || (h.herd+" "+h.farmer).toLowerCase().includes(q));
-  if(!defs.length){target.innerHTML='<div class="muted">Aucune qualification paramétrée pour ce concours.</div>';return;}
-  target.innerHTML=`<div class="scroll"><table class="compact-table"><thead><tr><th>N° EDE</th><th>Éleveur</th>${defs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>
-  ${herds.map(h=>`<tr><td><strong>${escapeHtml(h.herd)}</strong></td><td>${escapeHtml(h.farmer)}</td>${defs.map(d=>{
-    const r=getCheckResult(d.id,"cheptel:"+h.herd);
-    return `<td><select onchange="saveQualification('${d.id}','${escapeHtml(h.herd)}',this.value)">${checkStatusOptions(r.statut)}</select></td>`;
-  }).join("")}<td><input value="${escapeHtml(getHerdQualificationComment(cid,h.herd))}" onchange="saveHerdQualificationComment('${cid}','${escapeHtml(h.herd)}',this.value)"></td></tr>`).join("")}
-  </tbody></table></div>`;
-}
-function getHerdQualificationComment(cid,herd){
-  const def=qualificationDefs(cid)[0]; if(!def)return "";
-  return getCheckResult(def.id,"cheptel:"+herd).commentaire||"";
-}
-async function saveQualification(defId,herd,status){
-  const key="cheptel:"+herd;
-  const current=getCheckResult(defId,key);
-  await saveCheckResult(defId,key,status,current.commentaire||"");
-}
-async function saveHerdQualificationComment(cid,herd,comment){
-  const defs=qualificationDefs(cid);
-  await Promise.all(defs.map(d=>{
-    const r=getCheckResult(d.id,"cheptel:"+herd);
-    return saveCheckResultNoReload(d.id,"cheptel:"+herd,r.statut,comment);
-  }));
-  await loadAll();
-}
-async function saveCheckResultNoReload(defId,scopeKey,status,comment){
-  const def=db.checkDefs.find(x=>x.id===defId); if(!def)return;
-  const body={point_id:defId,concours_id:def.concours_id,cle_cible:scopeKey,statut:status,commentaire:comment||null,updated_at:new Date().toISOString()};
-  await sb("concours_controles?on_conflict=point_id,cle_cible",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
-}
-async function setAllQualificationsConforme(){
-  const cid=document.getElementById("qualContest").value;
-  const defs=qualificationDefs(cid), herds=herdRows(cid);
-  const ops=[];
-  herds.forEach(h=>defs.forEach(d=>{
-    const r=getCheckResult(d.id,"cheptel:"+h.herd);
-    ops.push(saveCheckResultNoReload(d.id,"cheptel:"+h.herd,"conforme",r.commentaire||""));
-  }));
-  await Promise.all(ops); await loadAll();
-}
-
-async function addSupplementaryDef(){
-  const body={concours_id:document.getElementById("ctrlContest").value,niveau:document.getElementById("ctrlLevel").value,type_controle:document.getElementById("ctrlType").value,libelle:document.getElementById("ctrlLabel").value.trim(),obligatoire:document.getElementById("ctrlRequired").value==="true"};
-  if(!body.concours_id||!body.libelle)return alert("Concours et libellé obligatoires.");
-  await sb("concours_points_controle",{method:"POST",body,prefer:"return=minimal"});
-  document.getElementById("ctrlLabel").value=""; await loadAll();
-}
-function renderSupplementary(){
-  const defsTarget=document.getElementById("supplementaryDefs"),checksTarget=document.getElementById("supplementaryChecks");
-  if(!defsTarget||!checksTarget)return;
-  const cid=document.getElementById("ctrlContest")?.value;
-  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.type_controle!=="qualification");
-  defsTarget.innerHTML=defs.length?`<div class="scroll"><table><thead><tr><th>Niveau</th><th>Type</th><th>Point</th><th>Obligatoire</th><th></th></tr></thead><tbody>${defs.map(d=>`<tr><td>${d.niveau}</td><td>${d.type_controle}</td><td><strong>${escapeHtml(d.libelle)}</strong></td><td>${d.obligatoire?"Oui":"Non"}</td><td><button class="danger" onclick="deleteCheckDef('${d.id}')">Supprimer</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun contrôle complémentaire.</div>';
-
-  const herdDefs=defs.filter(d=>d.niveau==="cheptel");
-  const animalDefs=defs.filter(d=>d.niveau==="animal");
-  let out="";
-  if(herdDefs.length){
-    out+=`<h3>Contrôles au cheptel</h3><div class="scroll"><table><thead><tr><th>N° EDE</th><th>Éleveur</th>${herdDefs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
-    herdRows(cid).filter(h=>matchesSearch(h.herd+" "+h.farmer)).forEach(h=>{
-      out+=`<tr><td><strong>${h.herd}</strong></td><td>${escapeHtml(h.farmer)}</td>${herdDefs.map(d=>{
-        const r=getCheckResult(d.id,"cheptel:"+h.herd); return `<td><select onchange="saveCheckResult('${d.id}','cheptel:${h.herd}',this.value,this.closest('tr').querySelector('input').value)">${checkStatusOptions(r.statut)}</select></td>`;
-      }).join("")}<td><input value="${escapeHtml(herdDefs.map(d=>getCheckResult(d.id,"cheptel:"+h.herd).commentaire).find(Boolean)||"")}" onchange="saveSupplementaryHerdComment('${cid}','${h.herd}',this.value)"></td></tr>`;
+    animals.forEach(a=>{
+      const k=(a.cheptel||"Sans EDE")+"|"+(a.eleveur||"");
+      if(!map.has(k))map.set(k,{herd:a.cheptel||"Sans EDE",farmer:a.eleveur||"",animals:[]});
+      map.get(k).animals.push(a);
     });
-    out+="</tbody></table></div>";
+    document.getElementById("certAnimals").innerHTML=[...map.values()].map(h=>`
+      <div class="card" style="margin:8px 0">
+        <h4 style="margin:0 0 8px">EDE ${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</h4>
+        ${h.animals.map(a=>{
+          const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
+          const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
+          return `<div class="cert-animal-row ${rowClass}">
+            <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
+            <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
+            <select class="cert-animal-status" onchange="setCertificateAnimalStatus('${a.id}',this.value)">
+              ${ast==="a_verifier"?'<option value="" selected disabled>Choisir…</option>':""}
+              <option value="present" ${ast==="present"?"selected":""}>Validé</option>
+              <option value="non_present" ${ast==="non_present"?"selected":""}>Pas sur certif</option>
+              <option value="refuse" ${ast==="refuse"?"selected":""}>Refusé</option>
+            </select>
+          </div>`;
+        }).join("")}
+      </div>`).join("")||"<span class='muted'>Aucun animal.</span>";
+    document.getElementById("certChecks").innerHTML='<div class="muted">Choisis un éleveur pour saisir les autres contrôles de son dossier.</div>';
+  }else{
+    document.getElementById("certAnimals").innerHTML=animals.map(a=>{
+      const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
+      const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
+      return `<div class="cert-animal-row ${rowClass}">
+        <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div></div>
+        <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
+        <select class="cert-animal-status" onchange="setCertificateAnimalStatus('${a.id}',this.value)">
+          ${ast==="a_verifier"?'<option value="" selected disabled>Choisir…</option>':""}
+          <option value="present" ${ast==="present"?"selected":""}>Validé</option>
+          <option value="non_present" ${ast==="non_present"?"selected":""}>Pas sur certif</option>
+          <option value="refuse" ${ast==="refuse"?"selected":""}>Refusé</option>
+        </select>
+      </div>`;
+    }).join("")||"<span class='muted'>Aucun animal.</span>";
+    renderCertificateChecks();
   }
-  if(animalDefs.length){
-    out+=`<h3 style="margin-top:16px">Contrôles individuels</h3><div class="scroll"><table><thead><tr><th>Bovin</th><th>Éleveur</th>${animalDefs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}</tr></thead><tbody>`;
-    db.animals.filter(a=>a.concours_id===cid&&matchesSearch(a)).forEach(a=>{
-      out+=`<tr><td><strong>${a.bovin}</strong></td><td>${escapeHtml(a.eleveur)}</td>${animalDefs.map(d=>{const r=getCheckResult(d.id,"animal:"+a.id);return `<td><select onchange="saveCheckResult('${d.id}','animal:${a.id}',this.value,'')">${checkStatusOptions(r.statut)}</select></td>`;}).join("")}</tr>`;
-    });
-    out+="</tbody></table></div>";
-  }
-  checksTarget.innerHTML=out||'<div class="muted">Aucun contrôle à saisir.</div>';
-}
-async function saveSupplementaryHerdComment(cid,herd,comment){
-  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.type_controle!=="qualification"&&d.niveau==="cheptel");
-  await Promise.all(defs.map(d=>{const r=getCheckResult(d.id,"cheptel:"+herd);return saveCheckResultNoReload(d.id,"cheptel:"+herd,r.statut,comment)}));
-  await loadAll();
+  renderCertificateRecap();
 }
 function renderCertificateChecks(){
   const target=document.getElementById("certChecks"); if(!target)return;
@@ -3345,6 +3023,7 @@ async function selectAllCertificate(v){
   await loadAll();
 }
 async function saveCertificate(){
+  if(document.getElementById("certFarmer")?.value==="__ALL__")return alert("Choisis un éleveur pour enregistrer un certificat individuel.");
   const body={
     concours_id:document.getElementById("certContest").value,
     eleveur:document.getElementById("certFarmer").value,
@@ -3903,7 +3582,7 @@ function exportEntryCsv(){
   ]));
   downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -3914,11 +3593,25 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
 });
 document.addEventListener("change",e=>{
   if(["tplFilter","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","partnerDept","businessContest","businessDept","animalViewContest","animalCheckFilter","animalSort","exportAnimalContest","exportAnimalDept","analysisContest","analysisFarmer","certContest","qualContest","certFarmer","certStatusFilter","qualContest","qualSearch","ctrlContest","fastContest","refundYear","refundContest","refundFarmer","refundView","dashContest","exportContest","entryContest","entryFilter","entrySort"].includes(e.target.id)){
-    if(["analysisContest","certContest"].includes(e.target.id))renderFarmerSelectors(); if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors(); renderAll();
+    if(e.target.id==="fastContest"){
+      fastCurrentHerd="";fastCurrentFarmer="";
+      const q=document.getElementById("fastHerdSearch");if(q)q.value="";
+      document.getElementById("fastPanel")?.classList.add("hidden");
+      document.getElementById("fastAnimalsCard")?.classList.add("hidden");
+    }
+    if(["analysisContest","certContest"].includes(e.target.id)){
+      renderFarmerSelectors();
+      const targetId=e.target.id==="analysisContest"?"analysisFarmer":"certFarmer";
+      const fs=document.getElementById(targetId);if(fs)fs.value="__ALL__";
+    }
+    if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors();
+    renderAll();
   }
 });
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
+document.getElementById("analysisSearch")?.addEventListener("input",()=>renderAnalysis());
+document.getElementById("fastHerdSearch")?.addEventListener("input",()=>renderFastOverview());
 document.getElementById("refundYear")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundContest")?.addEventListener("change",()=>renderRefunds());
 document.getElementById("refundFarmer")?.addEventListener("change",()=>renderRefunds());
