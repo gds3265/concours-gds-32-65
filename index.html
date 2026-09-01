@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.4</title>
-<link rel="manifest" href="manifest.json?v=084">
+<title>Suivi des concours v0.8.5</title>
+<link rel="manifest" href="manifest.json?v=085">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -250,7 +250,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=084" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">084</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=085" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">085</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -922,7 +922,10 @@ tr.herd-start td{border-top:3px solid #b9789f}
           <option value="">Tous les concours de l'année</option>
         </select>
       </div>
-      <div class="field"><label>Éleveur / n° cheptel</label>
+      <div class="field" style="min-width:250px"><label>Rechercher éleveur / n° EDE</label>
+        <input id="refundSearch" placeholder="Nom éleveur ou n° EDE">
+      </div>
+      <div class="field"><label>Dossier éleveur</label>
         <select id="refundFarmer">
           <option value="">Tous les éleveurs</option>
         </select>
@@ -949,6 +952,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 
   <div class="card">
     <h3>Récapitulatif remboursable</h3>
+    <div id="refundScopeSummary" class="muted" style="margin:6px 0 12px"></div>
     <div id="refundFarmerSummary"></div>
   </div>
 
@@ -983,7 +987,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.8.4";
+const APP_VERSION = "0.8.5";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1005,7 +1009,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.5");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -3292,15 +3296,19 @@ function currentRefundContestIds(){
   const year=document.getElementById("refundYear")?.value||"";
   const cid=document.getElementById("refundContest")?.value||"";
   if(cid)return [cid];
-  return contestsForYear(year).map(c=>c.id);
+  if(year)return contestsForYear(year).map(c=>c.id);
+  return db.contests.map(c=>c.id);
 }
 function refundGroupsByScope(){
   const contestIds=currentRefundContestIds();
   const farmerFilter=document.getElementById("refundFarmer")?.value||"";
+  const q=(document.getElementById("refundSearch")?.value||"").trim().toLowerCase();
   const map=new Map();
 
   db.animals.filter(a=>contestIds.includes(a.concours_id)).forEach(a=>{
     const herd=(a.cheptel||"Sans EDE"), farmer=a.eleveur||"";
+    const haystack=(herd+" "+farmer).toLowerCase();
+    if(q && !haystack.includes(q))return;
     if(farmerFilter && (herd+"|"+farmer)!==farmerFilter)return;
 
     Object.entries(db.results[a.id]||{}).forEach(([analysis,r])=>{
@@ -3308,9 +3316,7 @@ function refundGroupsByScope(){
       const c=contest(a.concours_id);
       const key=a.concours_id+"|"+herd+"|"+analysis;
       if(!map.has(key))map.set(key,{
-        contestId:a.concours_id,
-        contestName:c?.nom||"",
-        contestDate:c?.date_concours||"",
+        contestId:a.concours_id,contestName:c?.nom||"",contestDate:c?.date_concours||"",
         herd,farmer,analysis,realise:0,eligible:0
       });
       const g=map.get(key);
@@ -3337,29 +3343,36 @@ function renderRefundSelectors(){
   const yearSel=document.getElementById("refundYear");
   const contestSel=document.getElementById("refundContest");
   const farmerSel=document.getElementById("refundFarmer");
+  const search=document.getElementById("refundSearch");
   if(!yearSel||!contestSel||!farmerSel)return;
 
   const years=refundYears();
   const oldYear=yearSel.value;
-  yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join("");
-  if(years.includes(oldYear))yearSel.value=oldYear;
+  yearSel.innerHTML='<option value="">Toutes les années</option>'+years.map(y=>`<option value="${y}">${y}</option>`).join("");
+  if(years.includes(oldYear) || oldYear==="")yearSel.value=oldYear;
 
-  const year=yearSel.value||years[0]||"";
+  const year=yearSel.value||"";
   const oldContest=contestSel.value;
-  const cs=contestsForYear(year);
-  contestSel.innerHTML='<option value="">Tous les concours de l’année</option>'+cs.map(c=>`<option value="${c.id}">${escapeHtml(c.nom)} — ${c.date_concours}</option>`).join("");
-  if(cs.some(c=>c.id===oldContest))contestSel.value=oldContest;
+  const cs=year?contestsForYear(year):db.contests.slice().sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||"")));
+  contestSel.innerHTML='<option value="">Tous les concours'+(year?` de ${escapeHtml(year)}`:"")+'</option>'+
+    cs.map(c=>`<option value="${c.id}">${escapeHtml(c.nom)} — ${escapeHtml(c.date_concours||"")}</option>`).join("");
+  if(cs.some(c=>c.id===oldContest))contestSel.value=oldContest; else contestSel.value="";
 
   const ids=contestSel.value?[contestSel.value]:cs.map(c=>c.id);
+  const q=(search?.value||"").trim().toLowerCase();
   const pairs=new Map();
   db.animals.filter(a=>ids.includes(a.concours_id)).forEach(a=>{
     const herd=a.cheptel||"Sans EDE", farmer=a.eleveur||"";
-    pairs.set(herd+"|"+farmer,{value:herd+"|"+farmer,label:`${herd} — ${farmer}`});
+    const label=`${herd} — ${farmer}`;
+    if(q && !label.toLowerCase().includes(q))return;
+    pairs.set(herd+"|"+farmer,{value:herd+"|"+farmer,label});
   });
+
   const oldFarmer=farmerSel.value;
-  const vals=[...pairs.values()].sort((a,b)=>a.label.localeCompare(b.label,undefined,{numeric:true}));
-  farmerSel.innerHTML='<option value="">Tous les éleveurs</option>'+vals.map(x=>`<option value="${escapeHtml(x.value)}">${escapeHtml(x.label)}</option>`).join("");
-  if(vals.some(x=>x.value===oldFarmer))farmerSel.value=oldFarmer;
+  const vals=[...pairs.values()].sort((a,b)=>a.label.localeCompare(b.label,undefined,{numeric:true,sensitivity:"base"}));
+  farmerSel.innerHTML='<option value="">Tous les éleveurs</option>'+
+    vals.map(x=>`<option value="${escapeHtml(x.value)}">${escapeHtml(x.label)}</option>`).join("");
+  if(vals.some(x=>x.value===oldFarmer))farmerSel.value=oldFarmer; else farmerSel.value="";
 }
 function renderRefunds(){
   renderRefundSelectors();
@@ -3367,6 +3380,15 @@ function renderRefunds(){
   const farmerTarget=document.getElementById("refundFarmerSummary");
   const paidTarget=document.getElementById("refundPaidSummary");
   if(!target||!farmerTarget||!paidTarget)return;
+
+  const scope=document.getElementById("refundScopeSummary");
+  if(scope){
+    const year=document.getElementById("refundYear")?.value||"Toutes les années";
+    const cid=document.getElementById("refundContest")?.value||"";
+    const c=cid?contest(cid):null;
+    const f=document.getElementById("refundFarmer")?.selectedOptions?.[0]?.textContent||"Tous les éleveurs";
+    scope.innerHTML=`Périmètre : <strong>${escapeHtml(year)}</strong> · <strong>${escapeHtml(c?.nom||"Tous les concours")}</strong> · <strong>${escapeHtml(f)}</strong>`;
+  }
 
   const view=document.getElementById("refundView")?.value||"all";
   let groups=refundGroupsByScope().sort((a,b)=>
@@ -4085,6 +4107,13 @@ document.addEventListener("change",e=>{
       const targetId=e.target.id==="analysisContest"?"analysisFarmer":"certFarmer";
       const fs=document.getElementById(targetId);if(fs)fs.value="__ALL__";
     }
+    if(e.target.id==="refundYear"){
+      const c=document.getElementById("refundContest");if(c)c.value="";
+      const f=document.getElementById("refundFarmer");if(f)f.value="";
+    }
+    if(e.target.id==="refundContest"){
+      const f=document.getElementById("refundFarmer");if(f)f.value="";
+    }
     if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors();
     renderAll();
   }
@@ -4115,6 +4144,7 @@ document.getElementById("portalSearch")?.addEventListener("input",()=>renderPart
 document.getElementById("portalFilter")?.addEventListener("change",()=>renderPartnerPortal());
 document.getElementById("partnerProgressFilter")?.addEventListener("change",()=>renderPartnerProgress());
 document.getElementById("entrySearch")?.addEventListener("input",()=>renderEntry());
+document.getElementById("refundSearch")?.addEventListener("input",()=>{renderRefundSelectors();renderRefunds()});
 if(!handlePartnerInvitationLink() && TOKEN)startApp();
 </script>
 </body>
