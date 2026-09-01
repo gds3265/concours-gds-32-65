@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.8.5</title>
-<link rel="manifest" href="manifest.json?v=085">
+<title>Suivi des concours v0.8.6</title>
+<link rel="manifest" href="manifest.json?v=086">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -250,7 +250,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=085" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">085</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=086" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">086</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -987,7 +987,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.8.5";
+const APP_VERSION = "0.8.6";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1009,7 +1009,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.5");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.8.6");
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -3699,23 +3699,52 @@ function controlExportMatrix(cid,access=null){
 
   const quals=controlExportQualifications(cid,access);
   const analyses=controlExportAnalyses(cid,animals,access);
+
+  // qualifications are exported as a separate herd-level table (one row per EDE)
+  const herdMap=new Map();
+  animals.forEach(a=>{
+    const herd=a.cheptel||"Sans EDE",farmer=a.eleveur||"";
+    const key=herd+"|"+farmer;
+    if(!herdMap.has(key))herdMap.set(key,{herd,farmer,dept:a.departement||""});
+  });
+  const herdRows=[...herdMap.values()]
+    .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}))
+    .map(h=>[
+      h.dept,h.herd,h.farmer,
+      ...quals.map(d=>{
+        const r=getCheckResult(d.id,"cheptel:"+h.herd);
+        return exportStatusText(r.statut||"a_verifier");
+      }),
+      ...quals.map(d=>{
+        const r=getCheckResult(d.id,"cheptel:"+h.herd);
+        return r.commentaire||"";
+      })
+    ]);
+
+  const herdHeaders=[
+    "Dépt.","N° EDE","Éleveur",
+    ...quals.map(d=>"QUAL - "+d.libelle),
+    ...quals.map(d=>"COMMENTAIRE - "+d.libelle)
+  ];
+
   const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe"];
-  const qualHeaders=quals.map(d=>"QUAL - "+d.libelle);
   const analysisHeaders=analyses.map(a=>"AN - "+a);
   const finalHeaders=[access?"Validation partenaire":"Statut certificat","Participation","Entrée","Observation"];
-  const headers=[...identity,...qualHeaders,...analysisHeaders,...finalHeaders];
+  const headers=[...identity,...analysisHeaders,...finalHeaders];
 
   const rows=animals.map(a=>{
     const ref=`${a.cheptel||"SANS-EDE"}-${String(a.bovin||"").slice(-4)}`;
-    const qvals=quals.map(d=>exportStatusText(getCheckResult(d.id,"cheptel:"+(a.cheptel||"")).statut||"attente"));
     const avals=analyses.map(an=>{
       const r=getResult(a.id,an);
-      if(!needed(a,an,cid) && (!r||r.statut==="attente"))return "N/A";
-      return exportStatusText(r?.statut||"attente");
+      const isNeeded=needed(a,an,cid);
+      if(!isNeeded){
+        return "N/A";
+      }
+      if(!r || !r.statut || r.statut==="attente")return "À vérifier";
+      return exportStatusText(r.statut);
     });
 
-    let validation="";
-    let comment="";
+    let validation="",comment="";
     if(access){
       const v=partnerValidation(access.id,"animal",a.id);
       validation=v.statut_validation==="conforme"?"Validé":v.statut_validation==="nonconforme"?"Refusé":"En attente";
@@ -3723,19 +3752,19 @@ function controlExportMatrix(cid,access=null){
     }else{
       const s=a.statut_certificat_animal||"a_verifier";
       validation=s==="present"?"Validé":s==="non_present"?"Pas sur certif":s==="refuse"?"Refusé":"À vérifier";
-      const analysisComment=analyses.map(an=>getResult(a.id,an)?.commentaire).find(Boolean)||"";
-      comment=[analysisComment,a.participation_commentaire,a.entree_commentaire].filter(Boolean).join(" | ");
+      const analysisComments=analyses.map(an=>getResult(a.id,an)?.commentaire).filter(Boolean);
+      comment=[...analysisComments,a.participation_commentaire,a.entree_commentaire].filter(Boolean).join(" | ");
     }
 
     return [
       ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),a.nom_animal||"",a.sexe||"",
-      ...qvals,...avals,
+      ...avals,
       validation,participationLabel(a),entryStatusLabel(a),comment
     ];
   });
-  return {headers,rows,quals,analyses,animals};
-}
 
+  return {headers,rows,quals,analyses,animals,herdHeaders,herdRows};
+}
 /* Minimal XLSX writer, stored ZIP entries, no external library.
    Strings are stored inline in worksheet XML. */
 function xlsxXmlEscape(v){
@@ -3782,32 +3811,38 @@ function zipStore(files){
   ]);
   return new Blob([localBytes,centralBytes,end],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
-function makeControlXlsx(matrix,title){
-  const all=[matrix.headers,...matrix.rows];
+function buildWorksheetXml(headers,rows){
+  const all=[headers,...rows];
   const rowsXml=all.map((row,ri)=>{
     const cells=row.map((v,ci)=>{
       const ref=xlsxCol(ci)+(ri+1);
-      return `<c r="${ref}" t="inlineStr" s="${ri===0?1:0}"><is><t>${xlsxXmlEscape(v)}</t></is></c>`;
+      const style=ri===0?1:(String(v)==="N/A"?2:0);
+      return `<c r="${ref}" t="inlineStr" s="${style}"><is><t>${xlsxXmlEscape(v)}</t></is></c>`;
     }).join("");
     return `<row r="${ri+1}">${cells}</row>`;
   }).join("");
-  const cols=matrix.headers.map((h,i)=>{
+  const cols=headers.map((h,i)=>{
     const w=Math.min(34,Math.max(10,String(h).length+2));
     return `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`;
   }).join("");
-  const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
 <cols>${cols}</cols><sheetData>${rowsXml}</sheetData>
-<autoFilter ref="A1:${xlsxCol(matrix.headers.length-1)}${all.length}"/>
+<autoFilter ref="A1:${xlsxCol(headers.length-1)}${all.length}"/>
 </worksheet>`;
+}
+function makeControlXlsx(matrix,title){
+  const sheet1=buildWorksheetXml(matrix.herdHeaders,matrix.herdRows);
+  const sheet2=buildWorksheetXml(matrix.headers,matrix.rows);
   const files={
-    "[Content_Types].xml":`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "[Content_Types].xml":`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
     "_rels/.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-    "xl/workbook.xml":`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Contrôle concours" sheetId="1" r:id="rId1"/></sheets></workbook>`,
-    "xl/_rels/workbook.xml.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
-    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf></cellXfs></styleSheet>`,
-    "xl/worksheets/sheet1.xml":sheet
+    "xl/workbook.xml":`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Qualifications" sheetId="1" r:id="rId1"/><sheet name="Animaux - analyses" sheetId="2" r:id="rId2"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E5E5"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/></cellXfs></styleSheet>`,
+    "xl/worksheets/sheet1.xml":sheet1,
+    "xl/worksheets/sheet2.xml":sheet2
   };
   return zipStore(files);
 }
@@ -3831,33 +3866,45 @@ function pdfCheckCell(value){
   return `<div class="paper-status">${escapeHtml(value||"")} <span class="paper-box"></span></div>`;
 }
 function openControlPrint(matrix,title,subtitle){
-  const dynamic=matrix.headers.slice(8,-4);
-  const finalHeaders=matrix.headers.slice(-4);
-  const dynamicStart=8;
-  const chunks=[];
-  if(!dynamic.length)chunks.push([]);
-  else for(let i=0;i<dynamic.length;i+=8)chunks.push(dynamic.slice(i,i+8).map((_,j)=>dynamicStart+i+j));
-
-  const identityIndexes=[0,2,3,4,5,6,7];
+  const analysisIndexes=[];
+  for(let i=8;i<matrix.headers.length-4;i++)analysisIndexes.push(i);
   const finalIndexes=[matrix.headers.length-4,matrix.headers.length-3,matrix.headers.length-2,matrix.headers.length-1];
 
-  const tables=chunks.map((chunk,chunkIndex)=>{
+  const qualTable=matrix.herdHeaders.length>3?`
+    <section class="paper-section">
+      <h2>Qualifications des cheptels</h2>
+      <div class="note">Une seule ligne par EDE. Les cases représentent les qualifications du cheptel, pas les animaux individuellement.</div>
+      <table>
+        <thead><tr>${matrix.herdHeaders.map((h,i)=>i>=3 && i<3+matrix.quals.length?`<th>${escapeHtml(h)}</th>`:`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+        <tbody>${matrix.herdRows.map(r=>`<tr>${r.map((v,i)=>{
+          const isQual=i>=3 && i<3+matrix.quals.length;
+          return `<td class="${String(v)==="N/A"?"na-cell":""}">${isQual?pdfCheckCell(v):escapeHtml(v)}</td>`;
+        }).join("")}</tr>`).join("")}</tbody>
+      </table>
+    </section>`:"";
+
+  const chunks=[];
+  if(!analysisIndexes.length)chunks.push([]);
+  else for(let i=0;i<analysisIndexes.length;i+=8)chunks.push(analysisIndexes.slice(i,i+8));
+
+  const identityIndexes=[0,2,3,4,5,6,7];
+  const animalTables=chunks.map((chunk,chunkIndex)=>{
     const indexes=[...identityIndexes,...chunk,...finalIndexes];
-    const heads=indexes.map(i=>matrix.headers[i]);
     let previousHerd="";
-    const body=matrix.rows.map((r,ri)=>{
-      const herd=r[2],band=herd!==previousHerd?(contestHerdOrder(document.getElementById("exportContest")?.value||portalAccess()?.concours_id).indexOf(String(herd))%2?"band-b":"band-a"):(contestHerdOrder(document.getElementById("exportContest")?.value||portalAccess()?.concours_id).indexOf(String(herd))%2?"band-b":"band-a");
+    const body=matrix.rows.map(r=>{
+      const herd=r[2];
       const first=herd!==previousHerd;previousHerd=herd;
-      return `<tr class="${band} ${first?"herd-first":""}">${indexes.map((idx,k)=>{
-        const isCriterion=chunk.includes(idx);
-        const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
+      return `<tr class="${first?"herd-first":""}">${indexes.map(idx=>{
         const val=r[idx]??"";
-        return `<td>${(isCriterion||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
+        const isAnalysis=chunk.includes(idx);
+        const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
+        const na=String(val)==="N/A";
+        return `<td class="${na?"na-cell":""}">${(isAnalysis||isFinal)?pdfCheckCell(val):escapeHtml(val)}</td>`;
       }).join("")}</tr>`;
     }).join("");
     return `<section class="paper-section">
-      <div class="paper-part">Bloc ${chunkIndex+1}/${chunks.length}</div>
-      <table><thead><tr>${heads.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>
+      <h2>Animaux / analyses ${chunks.length>1?`— bloc ${chunkIndex+1}/${chunks.length}`:""}</h2>
+      <table><thead><tr>${indexes.map(i=>`<th>${escapeHtml(matrix.headers[i])}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>
     </section>`;
   }).join("");
 
@@ -3868,21 +3915,22 @@ function openControlPrint(matrix,title,subtitle){
   <style>
     @page{size:A3 landscape;margin:7mm}
     *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#222}
-    h1{font-size:16px;margin:0 0 3px}.sub{font-size:10px;margin-bottom:7px}
+    h1{font-size:16px;margin:0 0 3px}h2{font-size:12px;margin:5px 0}.sub{font-size:10px;margin-bottom:7px}
     .note{font-size:8px;border:1px solid #aaa;padding:4px;margin:5px 0}
     .paper-section{page-break-after:always}.paper-section:last-child{page-break-after:auto}
-    .paper-part{font-size:9px;font-weight:bold;margin:3px 0}
     table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:6.5px}
     thead{display:table-header-group}th{background:#7d2f63;color:#fff;padding:3px;border:1px solid #777;vertical-align:bottom}
     td{border:1px solid #999;padding:2px;vertical-align:middle;overflow-wrap:anywhere}
-    tr.band-a td{background:#fff}tr.band-b td{background:#f6eef3}
     tr.herd-first td{border-top:2px solid #7d2f63}
     .paper-status{display:flex;align-items:center;justify-content:space-between;gap:2px}
     .paper-box{display:inline-block;width:4.5mm;height:4.5mm;border:1px solid #111;flex:0 0 4.5mm;background:#fff}
+    td.na-cell{background:#dedede!important;color:#666}
+    td.na-cell .paper-box{background:#bbb;border-color:#888}
   </style></head><body>
     <h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(subtitle||"")}</div>
-    <div class="note"><strong>Contrôle papier :</strong> mettre une croix nette dans la case carrée lorsqu’un point a été relu/confirmé. Référence de ligne = EDE + n° travail. Cette disposition est conservée pour permettre une future relecture automatique des feuilles scannées.</div>
-    ${tables}
+    <div class="note"><strong>Relais collègue :</strong> les informations déjà saisies sont imprimées. Les mentions “À vérifier” signalent ce qui reste à faire. Les cases grisées “N/A” correspondent aux analyses non nécessaires selon les règles/âge.</div>
+    ${qualTable}
+    ${animalTables}
     <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
   </body></html>`);
   w.document.close();
