@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.9.3</title>
-<link rel="manifest" href="manifest.json?v=093">
+<title>Suivi des concours v0.9.4</title>
+<link rel="manifest" href="manifest.json?v=094">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -257,7 +257,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=093" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">093</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=094" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">094</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -998,7 +998,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.9.3";
+const APP_VERSION = "0.9.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1007,6 +1007,7 @@ const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 const BASE_ANALYSES=["IBR sérologie","BVD Ag sang","BVD Ag cartilage","BVD PCR","Besnoitiose"]; function allAnalyses(){return [...new Set([...BASE_ANALYSES,...db.templateRules.map(r=>r.libelle_analyse).filter(Boolean)])]}
 const STATUS=[
   ["attente","⏳ Non fait / non reçu"],["labo","🧪 En cours labo"],["conforme","✅ Négatif = conforme"],
+  ["conforme_non_remboursable","✅ Conforme — méthode non remboursable"],
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
@@ -1020,7 +1021,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.4");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -2301,6 +2302,18 @@ function renderAnimals(){
   document.getElementById("animalTable").innerHTML=rows||'<tr><td colspan="11" class="muted">Aucun animal pour ce filtre.</td></tr>';
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
+function analysisStatusOptions(sel,disease){
+  return STATUS.map(([v,l])=>{
+    let label=l;
+    if(v==="conforme_non_remboursable"){
+      label=disease==="BVD"
+        ?"✅ Conforme — Ag suffisait / non remboursable"
+        :"✅ Conforme — méthode non remboursable";
+    }
+    return `<option value="${v}" ${v===sel?"selected":""}>${label}</option>`;
+  }).join("");
+}
+
 function requestedDiseases(cid){
   const direct=db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie);
   if(direct.length)return [...new Set(direct)];
@@ -2336,7 +2349,7 @@ function selectedAnalysisForDisease(animal,cid,disease){
 function diseaseSatisfied(animal,cid,disease){
   const accepted=acceptedRulesForDisease(animal,cid,disease);
   if(!accepted.length)return true;
-  return accepted.some(r=>getResult(animal.id,r.libelle_analyse).statut==='conforme');
+  return accepted.some(r=>["conforme","conforme_non_remboursable"].includes(getResult(animal.id,r.libelle_analyse).statut));
 }
 function methodOptions(rules,selected,animal,cid,disease){
   const sorted=rules.slice().sort((a,b)=>ruleRank(a,animal,cid,disease)-ruleRank(b,animal,cid,disease));
@@ -2367,14 +2380,37 @@ function diseaseMethodSelect(animal,cid,disease,current){
   const opts=methodOptionsForDisease(animal,cid,disease);
   if(!opts.length)return "";
   return `<select onchange="changeDiseaseMethod('${animal.id}','${escapeHtml(disease)}',this.value)">
-    ${opts.map(o=>`<option value="${escapeHtml(o.libelle_analyse)}" ${o.libelle_analyse===current?"selected":""}>${o.methode_reference_remboursement?"★ ":""}${escapeHtml(o.libelle_analyse)}</option>`).join("")}
+    ${opts.map(o=>{
+      const ref=o.methode_reference_remboursement?"★ ":"";
+      const hint=(!o.methode_reference_remboursement && o.remboursable)?" — recevable, non prioritaire":"";
+      return `<option value="${escapeHtml(o.libelle_analyse)}" ${o.libelle_analyse===current?"selected":""}>${ref}${escapeHtml(o.libelle_analyse+hint)}</option>`;
+    }).join("")}
   </select>`;
 }
 async function changeDiseaseMethod(animalId,disease,newMethod){
-  const a=db.animals.find(x=>x.id===animalId); if(!a)return;
+  const a=db.animals.find(x=>x.id===animalId); if(!a||!newMethod)return;
   const old=getDiseaseResult(a,disease);
+  if(old.method===newMethod)return;
+
   const oldR=old.result||{statut:"attente",date_prelevement:null,commentaire:null};
-  await upsertResult(animalId,newMethod,{statut:oldR.statut,date_prelevement:oldR.date_prelevement||null,commentaire:oldR.commentaire||null});
+  const target=getResult(animalId,newMethod);
+  const targetHasData=target && target.statut && target.statut!=="attente";
+
+  // Si la nouvelle méthode n'avait encore aucun résultat, on y transfère la saisie courante.
+  if(!targetHasData){
+    await upsertResult(animalId,newMethod,{
+      statut:oldR.statut||"attente",
+      date_prelevement:oldR.date_prelevement||null,
+      commentaire:oldR.commentaire||null
+    });
+  }
+
+  // L'ancienne méthode reste dans l'historique technique mais redevient "en attente".
+  // Elle ne peut donc plus reprendre la main au prochain rendu.
+  if(old.method){
+    await upsertResult(animalId,old.method,{statut:"attente"});
+  }
+
   await loadAll();
 }
 function toggleQuickAnimal(){
@@ -2425,7 +2461,7 @@ function renderAnalysis(){
         const r=dr.result||{statut:"attente"};
         out+=`<td class="disease-col">
           ${diseaseMethodSelect(a,cid,d,dr.method)}
-          <select style="margin-top:6px" onchange="setResult('${a.id}','${escapeHtml(dr.method)}',this.value)">${statusOptions(r.statut)}</select>
+          <select style="margin-top:6px" onchange="setResult('${a.id}','${escapeHtml(dr.method)}',this.value)">${analysisStatusOptions(r.statut,d)}</select>
         </td>`;
       }
     });
@@ -3407,7 +3443,25 @@ async function finalizeCertificate(){
 }
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
-function reimbursementDecision(animal,analysis,status){const rule=templateRuleFor(animal,analysis);if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};if(rule){if(!rule.recevable_validation)return{ok:false,reason:"Méthode non recevable pour cet âge"};if(!rule.remboursable)return{ok:false,reason:"Méthode non remboursable"};const refs=applicableTemplateRules(animal,animal.concours_id,rule.maladie).filter(r=>r.recevable_validation&&r.remboursable&&r.methode_reference_remboursement);if(refs.length&&!rule.methode_reference_remboursement)return{ok:false,reason:"Méthode recevable mais plus coûteuse que la méthode de référence"};return{ok:true,reason:""}}return{ok:needed(animal,analysis,animal.concours_id),reason:needed(animal,analysis,animal.concours_id)?"":"Analyse non nécessaire"}}
+function reimbursementDecision(animal,analysis,status){
+  const rule=templateRuleFor(animal,analysis);
+  if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};
+  if(status==="conforme_non_remboursable")return{ok:false,reason:"Conforme sanitaire, mais méthode non remboursable / méthode de référence suffisante"};
+  if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};
+  if(rule){
+    if(!rule.recevable_validation)return{ok:false,reason:"Méthode non recevable pour cet âge"};
+    if(!rule.remboursable)return{ok:false,reason:"Méthode non remboursable"};
+    const refs=applicableTemplateRules(animal,animal.concours_id,rule.maladie)
+      .filter(r=>r.recevable_validation&&r.remboursable&&r.methode_reference_remboursement);
+    if(refs.length&&!rule.methode_reference_remboursement)
+      return{ok:false,reason:"Méthode recevable mais plus coûteuse que la méthode de référence"};
+    return{ok:true,reason:""};
+  }
+  return{
+    ok:needed(animal,analysis,animal.concours_id),
+    reason:needed(animal,analysis,animal.concours_id)?"":"Analyse non nécessaire"
+  };
+}
 
 function refundYears(){
   return [...new Set(db.contests.map(c=>String(c.date_concours||"").slice(0,4)).filter(Boolean))].sort().reverse();
@@ -3730,7 +3784,7 @@ function exportRefundCSV(){
 }
 function stats(cid){
   const animals=db.animals.filter(a=>a.concours_id===cid),counts={animals:animals.length,conform:animals.filter(animalSanitaryOK).length,signed:animals.filter(a=>a.sur_certificat).length,farmers:new Set(animals.map(a=>a.eleveur)).size};
-  allAnalyses().forEach(an=>counts[an]=animals.filter(a=>getResult(a.id,an).statut==="conforme").length);return counts;
+  allAnalyses().forEach(an=>counts[an]=animals.filter(a=>["conforme","conforme_non_remboursable"].includes(getResult(a.id,an).statut)).length);return counts;
 }
 function animalDiseaseStates(a){
   const cid=a.concours_id;
@@ -3747,7 +3801,7 @@ function animalOverallSanitaryStatus(a){
   if(states.some(x=>["nonconforme","positif","recontrole"].includes(x.status)))return "problem";
   if(states.some(x=>x.status==="labo"))return "lab";
   if(states.some(x=>x.status==="attente"))return "missing";
-  if(states.every(x=>x.status==="conforme"))return "conforme";
+  if(states.every(x=>["conforme","conforme_non_remboursable"].includes(x.status)))return "conforme";
   return "missing";
 }
 function renderDashboard(){
@@ -3782,11 +3836,11 @@ function renderDashboard(){
 
 function exportStatusIsOk(v){
   const t=String(v||"").trim().toLowerCase();
-  return ["conforme","validé","valide","présent","present","ok","oui","négatif","negatif"].includes(t);
+  return t.startsWith("conforme") || ["validé","valide","présent","present","ok","oui","négatif","negatif"].includes(t);
 }
 function exportStatusText(s){
   const map={
-    attente:"À vérifier",labo:"En cours labo",conforme:"Conforme",nonconforme:"Non conforme",
+    attente:"À vérifier",labo:"En cours labo",conforme:"Conforme",conforme_non_remboursable:"Conforme — non remboursable",nonconforme:"Non conforme",
     positif:"Positif",recontrole:"À recontrôler",inutile:"Non nécessaire",nonapp:"N/A",
     present:"Validé",non_present:"Pas sur certif",refuse:"Refusé",
     engage:"Engagé",non_participant:"N’assistera pas",retire:"Retiré"
