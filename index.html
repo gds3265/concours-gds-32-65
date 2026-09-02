@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.9.2</title>
-<link rel="manifest" href="manifest.json?v=092">
+<title>Suivi des concours v0.9.3</title>
+<link rel="manifest" href="manifest.json?v=093">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -257,7 +257,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=092" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">092</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=093" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">093</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -998,7 +998,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.9.2";
+const APP_VERSION = "0.9.3";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1020,7 +1020,7 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.3");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -2435,7 +2435,16 @@ function renderAnalysis(){
   document.getElementById("analysisTable").innerHTML=out+"</tbody>";
 }async function upsertResult(aid,analysis,patch){
   const current=getResult(aid,analysis);
-  const body={animal_id:aid,analyse_type:analysis,statut:patch.statut??current.statut,date_prelevement:(patch.date_prelevement ?? current.date_prelevement ?? null),commentaire:(patch.commentaire ?? current.commentaire ?? null),updated_at:new Date().toISOString()};
+  const rawDate=patch.date_prelevement ?? current.date_prelevement ?? null;
+  const safeDate=(rawDate===null||rawDate===undefined||String(rawDate).trim()==="")?null:rawDate;
+  const body={
+    animal_id:aid,
+    analyse_type:analysis,
+    statut:patch.statut??current.statut,
+    date_prelevement:safeDate,
+    commentaire:patch.commentaire??current.commentaire??null,
+    updated_at:new Date().toISOString()
+  };
   await sb("concours_resultats?on_conflict=animal_id,analyse_type",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
 }
 async function setResult(aid,analysis,status){await upsertResult(aid,analysis,{statut:status});await loadAll()}
@@ -2838,7 +2847,7 @@ async function upsertResultNoReload(aid,analysis,patch){
     animal_id:aid,
     analyse_type:analysis,
     statut:patch.statut??current.statut??"attente",
-    date_prelevement:patch.date_prelevement??current.date_prelevement??null,
+    date_prelevement:((patch.date_prelevement??current.date_prelevement??null)===""?null:(patch.date_prelevement??current.date_prelevement??null)),
     commentaire:patch.commentaire??current.commentaire??null,
     updated_at:new Date().toISOString()
   };
