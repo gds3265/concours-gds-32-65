@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.9.1</title>
-<link rel="manifest" href="manifest.json?v=091">
+<title>Suivi des concours v0.9.2</title>
+<link rel="manifest" href="manifest.json?v=092">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -212,6 +212,13 @@ tr.herd-start td{border-top:3px solid #b9789f}
 .cert-choice button.selected.na{background:#f1edf0;border-color:#a994a2;color:#5e4a57}
 .cert-choice button.selected.bad{background:#fde7e7;border-color:#ce7777;color:#822f2f}
 .cert-auto-note{font-size:11px;color:var(--muted);margin-top:2px}
+
+.closed-contest-toggle{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.closed-contest-toggle input{width:16px;height:16px}
+.contest-closed-row{opacity:.72}
+.contest-state-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.contest-state-badge.active{background:#e7f5e9;color:#245b2d}
+.contest-state-badge.closed{background:#eee;color:#666}
 </style>
 </head>
 <body>
@@ -250,7 +257,11 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=091" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">091</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=092" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">092</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
+      <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
+      Afficher concours clos
+    </label>
     <button class="secondary" onclick="logout()">Déconnexion</button>
   </div>
   <nav>
@@ -987,7 +998,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.9.1";
+const APP_VERSION = "0.9.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1009,7 +1020,8 @@ let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.2");
+initClosedContestToggle();
 
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
@@ -1598,6 +1610,19 @@ function matchesSearch(animalOrText){
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function contest(id){return db.contests.find(c=>c.id===id)}
+function contestIsActive(c){return c?.actif!==false}
+function visibleContests(){
+  const showClosed=document.getElementById("showClosedContests")?.checked||false;
+  return db.contests.filter(c=>showClosed||contestIsActive(c));
+}
+function toggleClosedContests(v){
+  localStorage.setItem("concours_show_closed",v?"1":"0");
+  renderAll();
+}
+function initClosedContestToggle(){
+  const el=document.getElementById("showClosedContests");
+  if(el)el.checked=localStorage.getItem("concours_show_closed")==="1";
+}
 
 function contestHerdOrder(cid){
   return [...new Set(db.animals.filter(a=>a.concours_id===cid).map(a=>String(a.cheptel||"Sans EDE")))]
@@ -1659,13 +1684,20 @@ function optionize(id,values){
   if(values.some(v=>v.value===old))s.value=old;
 }
 function renderSelectors(){
-  const opts=db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`}));
-  const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours créé —"}];
-  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest","animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest","partnerMgmtContest","exportContest"].forEach(id=>optionize(id,shownOpts));
-  renderFarmerSelectors();
-  optionize("entryContest",db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`})));
-}
+  const cs=visibleContests().slice().sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||"")));
+  const opts=cs.map(c=>({
+    value:c.id,
+    label:`${c.nom} — ${c.date_concours}${contestIsActive(c)?"":" — CLOS"}`
+  }));
+  const shownOpts=opts.length?opts:[{value:"",label:"— Aucun concours actif —"}];
 
+  ["dashContest","ruleContest","deptContest","demandContest","checkContest","animalContest","partnerContest","businessContest",
+   "animalViewContest","exportAnimalContest","analysisContest","certContest","qualContest","ctrlContest","fastContest",
+   "partnerMgmtContest","exportContest"].forEach(id=>optionize(id,shownOpts));
+
+  renderFarmerSelectors();
+  optionize("entryContest",opts.length?opts:[{value:"",label:"— Aucun concours actif —"}]);
+}
 function departmentsForContest(cid){
   return db.departments.filter(d=>d.concours_id===cid).sort((a,b)=>String(a.departement).localeCompare(String(b.departement)));
 }
@@ -1729,28 +1761,43 @@ function renderDemands(){const cid=document.getElementById("demandContest")?.val
 async function addContest(){
   const nom=document.getElementById("cName").value.trim(),date=document.getElementById("cDate").value;
   if(!nom||!date)return alert("Nom et date obligatoires");
-  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value},prefer:"return=representation"});
+  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true},prefer:"return=representation"});
   document.getElementById("cName").value="";document.getElementById("cDate").value="";await loadAll();
 
-  optionize("entryContest",db.contests.map(c=>({value:c.id,label:`${c.nom} — ${c.date_concours}`})));
 }
 
 function renderContestList(){
   const target=document.getElementById("contestList");
   if(!target)return;
-  const rows=[...db.contests].sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||""))).map(c=>{
-    const animals=db.animals.filter(a=>a.concours_id===c.id).length;
-    return `<tr>
-      <td><strong>${escapeHtml(c.nom)}</strong></td>
-      <td>${c.date_concours||""}</td>
-      <td>${c.type_suivi==="gere"?"Concours géré":"Concours suivi"}</td>
-      <td>${animals}</td>
-      <td><button class="danger" onclick="deleteContest('${c.id}')">Supprimer</button></td>
-    </tr>`;
-  }).join("");
+  const rows=[...db.contests]
+    .sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||"")))
+    .map(c=>{
+      const animals=db.animals.filter(a=>a.concours_id===c.id).length;
+      const active=contestIsActive(c);
+      return `<tr class="${active?"":"contest-closed-row"}">
+        <td><strong>${escapeHtml(c.nom)}</strong></td>
+        <td>${c.date_concours||""}</td>
+        <td>${c.type_suivi==="gere"?"Concours géré":"Concours suivi"}</td>
+        <td><span class="contest-state-badge ${active?"active":"closed"}">${active?"Actif":"Clos"}</span></td>
+        <td>${animals}</td>
+        <td>
+          <button class="${active?"secondary":"action"}" onclick="setContestActive('${c.id}',${active?"false":"true"})">${active?"Clore":"Réouvrir"}</button>
+          <button class="danger" onclick="deleteContest('${c.id}')">Supprimer</button>
+        </td>
+      </tr>`;
+    }).join("");
   target.innerHTML=rows
-    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Bovins</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun concours enregistré.</div>`;
+}
+async function setContestActive(id,active){
+  const c=contest(id);if(!c)return;
+  if(!active){
+    const ok=confirm(`Clore le concours "${c.nom}" ?\n\nToutes les données seront conservées. Il disparaîtra simplement des listes de travail par défaut.`);
+    if(!ok)return;
+  }
+  await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{actif:!!active}});
+  await loadAll();
 }
 async function deleteContest(id){
   const c=contest(id);
@@ -4082,11 +4129,77 @@ function exportPartnerControlPdf(){
   const c=contest(access.concours_id);
   openControlPrint(controlExportMatrix(access.concours_id,access),`Liste partenaire - ${c?.nom||"Concours"}`,`${access.organisme||""} · Département(s) ${partnerDepartmentLabel(access)}`);
 }
-function renderExport(){
-  const cid=document.getElementById("exportContest")?.value,s=stats(cid);
-  document.getElementById("exportStats").innerHTML=allAnalyses().map(an=>`<div class="kpi"><span>${an}</span><strong>${s[an]}</strong></div>`).join("");
-}
+function canonicalAnalysisGroup(label){
+  const s=String(label||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ").trim();
 
+  if(s==="ibr" || s.includes("ibr serolog"))return "IBR";
+  if(s==="besno" || s.includes("besnoit"))return "Besnoitiose";
+
+  if(s.includes("bvd")){
+    if(s.includes("ag")){
+      if(s.includes("cartilage")||s.includes("biopsie")||s.includes("auriculaire"))return "BVD Ag biopsie auriculaire";
+      if(s.includes("sang")||s.includes("serum"))return "BVD Ag sérum";
+      return "BVD Ag";
+    }
+    if(s.includes("pcr")){
+      if(s.includes("melange"))return "BVD PCR mélange sérum";
+      if(s.includes("biopsie")||s.includes("cartilage")||s.includes("auriculaire"))return "BVD PCR biopsie auriculaire";
+      if(s.includes("individ")||s.includes("serum"))return "BVD PCR individuelle sérum";
+      return null; // generic "BVD PCR" tile is deliberately hidden
+    }
+  }
+  return label||"Autre";
+}
+function exportCanonicalStats(cid){
+  const groups=new Map();
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    Object.entries(db.results[a.id]||{}).forEach(([analysis,r])=>{
+      if(!r || r.statut==="attente")return;
+      const key=canonicalAnalysisGroup(analysis);
+      if(!key)return;
+      if(!groups.has(key))groups.set(key,new Set());
+      groups.get(key).add(a.id);
+    });
+  });
+
+  // Also count currently required preferred methods even when still awaiting result.
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    demandedDiseases(cid).forEach(d=>{
+      const info=diseaseExportInfo(a,cid,d);
+      if(!info.needed||!info.method)return;
+      const key=canonicalAnalysisGroup(info.method);
+      if(!key)return;
+      if(!groups.has(key))groups.set(key,new Set());
+      groups.get(key).add(a.id);
+    });
+  });
+
+  const preferredOrder=[
+    "IBR","BVD Ag sérum","BVD Ag biopsie auriculaire",
+    "BVD PCR individuelle sérum","BVD PCR mélange sérum","BVD PCR biopsie auriculaire",
+    "Besnoitiose"
+  ];
+  return [...groups.entries()]
+    .map(([label,set])=>({label,count:set.size}))
+    .filter(x=>x.count>0)
+    .sort((a,b)=>{
+      const ai=preferredOrder.indexOf(a.label),bi=preferredOrder.indexOf(b.label);
+      if(ai>=0||bi>=0)return (ai<0?999:ai)-(bi<0?999:bi);
+      return a.label.localeCompare(b.label,"fr");
+    });
+}
+function renderExport(){
+  const cid=document.getElementById("exportContest")?.value;
+  const target=document.getElementById("exportStats");
+  if(!target)return;
+  if(!cid){target.innerHTML='<div class="muted">Aucun concours sélectionné.</div>';return;}
+  const items=exportCanonicalStats(cid);
+  target.innerHTML=items.length
+    ? items.map(x=>`<div class="kpi"><span>${escapeHtml(x.label)}</span><strong>${x.count}</strong></div>`).join("")
+    : '<div class="muted">Aucune analyse à afficher pour ce concours.</div>';
+}
 function exportAnimalNumbers(){
   const cid=document.getElementById("exportAnimalContest").value;
   const dept=document.getElementById("exportAnimalDept").value;
