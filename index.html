@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.3</title>
-<link rel="manifest" href="manifest.json?v=103">
+<title>Suivi des concours v0.10.4</title>
+<link rel="manifest" href="manifest.json?v=104">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -263,7 +263,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=103" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">103</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=104" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">104</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -429,7 +429,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <strong>Entêtes conseillées pour optimiser l’import :</strong>
       <div style="margin-top:6px"><code>NUMANIM</code> · <code>DATE_NAISS</code> · <code>N°Travail</code> · <code>DETENTEUR</code></div>
       <div class="muted" style="margin-top:5px">
-        Si le fichier contient également un n° cheptel/EDE, une colonne contenant des valeurs à 8 chiffres sera reconnue automatiquement.
+        Si le fichier contient également un n° cheptel/EDE, une colonne contenant des valeurs à 8 chiffres sera reconnue automatiquement. Le département est déduit automatiquement des 2 premiers chiffres du n° EDE.
         Ces intitulés sont recommandés, mais ils ne sont pas obligatoires : l’import essaie aussi d’identifier les colonnes d’après leur contenu.
       </div>
     </div>
@@ -1008,7 +1008,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.3";
+const APP_VERSION = "0.10.4";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1031,7 +1031,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.3");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.4");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -1639,6 +1639,16 @@ async function loadAll(){
   const originalFarmerAlias=new Map();
   const herdGroups=herdCanonicalMap(db.animals);
   const farmerRepairs=[];
+  const departmentRepairs=[];
+  db.animals.forEach(a=>{
+    const inferred=departmentFromHerd(a.cheptel);
+    if(inferred && a.departement!==inferred){
+      a.departement=inferred;
+      departmentRepairs.push(sb("concours_animaux?id=eq."+encodeURIComponent(a.id),{
+        method:"PATCH",body:{departement:inferred},prefer:"return=minimal"
+      }).catch(()=>null));
+    }
+  });
   herdGroups.forEach(g=>{
     if(!g.farmer)return;
     g.animals.forEach(a=>{
@@ -1654,6 +1664,19 @@ async function loadAll(){
     });
   });
   if(farmerRepairs.length)await Promise.allSettled(farmerRepairs);
+  if(departmentRepairs.length)await Promise.allSettled(departmentRepairs);
+
+  const inferredContestDepts=[...new Map(
+    db.animals.filter(a=>a.departement).map(a=>[a.concours_id+"|"+a.departement,{concours_id:a.concours_id,departement:a.departement}])
+  ).values()];
+  const existingDeptKeys=new Set((db.departments||[]).map(d=>d.concours_id+"|"+d.departement));
+  const missingDeptRows=inferredContestDepts.filter(d=>!existingDeptKeys.has(d.concours_id+"|"+d.departement));
+  if(missingDeptRows.length){
+    await Promise.allSettled(missingDeptRows.map(d=>sb("concours_departements?on_conflict=concours_id,departement",{
+      method:"POST",body:d,prefer:"resolution=ignore-duplicates,return=minimal"
+    }).catch(()=>null)));
+    db.departments.push(...missingDeptRows);
+  }
 
   const certRepairs=[];
   (certs||[]).forEach(c=>{
@@ -1813,9 +1836,18 @@ function renderDepartmentSelectors(){
   const pairs=[["partnerContest","partnerDept"],["businessContest","businessDept"],["exportAnimalContest","exportAnimalDept"]];
   for(const [contestSel,deptSel] of pairs){
     const cid=document.getElementById(contestSel)?.value;
-    const opts=departmentsForContest(cid).map(d=>({value:d.departement,label:d.departement}));
-    if(deptSel==="exportAnimalDept") opts.unshift({value:"",label:"Tous les départements"});
-    else if(!opts.length) opts.push({value:"",label:"— Aucun département —"});
+    const configured=departmentsForContest(cid).map(d=>({value:d.departement,label:d.departement}));
+    const inferred=[...new Set(
+      db.animals.filter(a=>a.concours_id===cid)
+        .map(a=>a.departement||departmentFromHerd(a.cheptel))
+        .filter(Boolean)
+    )].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+    const seen=new Set(),opts=[];
+    [...configured,...inferred.map(d=>({value:d,label:d}))].forEach(o=>{
+      if(!seen.has(o.value)){seen.add(o.value);opts.push(o)}
+    });
+    if(deptSel==="exportAnimalDept")opts.unshift({value:"",label:"Tous les départements"});
+    else opts.unshift({value:"",label:"Automatique depuis le n° EDE"});
     optionize(deptSel,opts);
   }
 }
@@ -1978,8 +2010,9 @@ function renderRules(){
     : `<div class="muted" style="padding:12px 4px">Aucune règle sanitaire enregistrée pour ce concours.</div>`;
 }
 async function addAnimal(){
-  const body={concours_id:document.getElementById("animalContest").value,departement:document.getElementById("manualDept").value.trim()||null,eleveur:document.getElementById("farmerName").value.trim(),
-    cheptel:document.getElementById("herdNo").value.trim(),bovin:document.getElementById("animalNo").value.trim(),
+  const herdValue=document.getElementById("herdNo").value.trim();
+  const body={concours_id:document.getElementById("animalContest").value,departement:departmentFromHerd(herdValue)||document.getElementById("manualDept").value.trim()||null,eleveur:document.getElementById("farmerName").value.trim(),
+    cheptel:herdValue,bovin:document.getElementById("animalNo").value.trim(),
     naissance:document.getElementById("birthDate").value||null,sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,origine:"Ajout manuel"};
   if(!body.concours_id||!body.eleveur||!body.bovin)return alert("Concours, éleveur et n° bovin obligatoires");
   const canonicalForHerd=canonicalFarmerForHerd(body.concours_id,body.cheptel);
@@ -2028,6 +2061,11 @@ function normalizeHerd(v){
   const raw=cleanExcelCell(v);
   const digits=String(raw||"").replace(/\D/g,"");
   return digits || String(raw||"").replace(/[^0-9A-Z]/gi,"").toUpperCase();
+}
+function departmentFromHerd(v){
+  const herd=normalizeHerd(v);
+  const digits=String(herd||"").replace(/\D/g,"");
+  return digits.length>=2 ? digits.slice(0,2) : "";
 }
 function normalizeDate(v){
   const s=cleanExcelCell(v);
@@ -2199,9 +2237,8 @@ async function importPartnerCSV(){
   const f=document.getElementById("partnerCsvFile").files[0];
   if(!f)return alert("Choisir le fichier CSV des inscrits.");
   const cid=document.getElementById("partnerContest").value;
-  const dept=document.getElementById("partnerDept").value;
+  const selectedDept=document.getElementById("partnerDept").value;
   if(!cid)return alert("Choisir un concours.");
-  if(!dept)return alert("Choisir le département.");
 
   const text=await decodeCSVFile(f);
   const parsed=parseCSV(text), rows=[];
@@ -2234,7 +2271,7 @@ async function importPartnerCSV(){
     const sexe=cols.sex?valueFromColumn(o,cols.sex):pick(o,["sexe","sex"]);
     const nomAnimal=cols.animalName?valueFromColumn(o,cols.animalName):pick(o,["nom animal","nom bovin","nom de l animal","nom de animal"]);
     rows.push({
-      concours_id:cid,departement:dept,eleveur,cheptel:cheptel||null,bovin,naissance,
+      concours_id:cid,departement:departmentFromHerd(cheptel)||selectedDept||null,eleveur,cheptel:cheptel||null,bovin,naissance,
       origine:"Import liste inscrits",commune_partenaire:commune||null,sexe:sexe||null,nom_animal:nomAnimal||null,
       controle_metier:"pending",detenteur_metier:null,cheptel_metier:null,naissance_metier:null
     });
@@ -2248,10 +2285,18 @@ async function importPartnerCSV(){
   if(newRows.length){
     await sb("concours_animaux?on_conflict=concours_id,bovin",{method:"POST",body:newRows,prefer:"resolution=ignore-duplicates,return=minimal"});
   }
+  const detectedDepts=[...new Set(rows.map(r=>r.departement).filter(Boolean))];
+  if(detectedDepts.length){
+    await Promise.all(detectedDepts.map(departement=>
+      sb("concours_departements?on_conflict=concours_id,departement",{
+        method:"POST",body:{concours_id:cid,departement},prefer:"resolution=ignore-duplicates,return=minimal"
+      }).catch(()=>null)
+    ));
+  }
 
   lastPartnerImport={
     fileName:f.name,totalLines:parsed.length,recognized:rows.length,imported:newRows.length,
-    duplicatesInFile,alreadyExisting,withoutNumber,contestId:cid,department:dept,
+    duplicatesInFile,alreadyExisting,withoutNumber,contestId:cid,department:selectedDept||"",
     detectedColumns:cols,herdByDigits,herdByName,importedWithoutHerd
   };
   document.getElementById("animalViewContest").value=cid;
@@ -2300,9 +2345,8 @@ async function importBusinessCSV(){
   const f=document.getElementById("businessCsvFile").files[0];
   if(!f)return alert("Choisir le fichier CSV bovins métier.");
   const cid=document.getElementById("businessContest").value;
-  const dept=document.getElementById("businessDept").value;
+  const selectedDept=document.getElementById("businessDept").value;
   if(!cid)return alert("Choisir un concours.");
-  if(!dept)return alert("Choisir le département correspondant au fichier métier.");
 
   const text=await decodeCSVFile(f);
   const source=parseCSV(text);
@@ -2327,6 +2371,7 @@ async function importBusinessCSV(){
     business.set(bovin,{
       bovin,
       cheptel:cheptel||null,
+      departement:departmentFromHerd(cheptel)||selectedDept||null,
       owner:owner||null,
       naissance:normalizeDate(cols.birth?valueFromColumn(o,cols.birth):pick(o,["Date naissance","naissance","date de naissance","date naissance","ddn","DATE_NAISS"])),
       nom:cleanExcelCell(cols.animalName?valueFromColumn(o,cols.animalName):pick(o,["Nom","NOM"])),
@@ -2335,8 +2380,8 @@ async function importBusinessCSV(){
     });
   });
 
-  const inscrits=db.animals.filter(a=>a.concours_id===cid && a.departement===dept);
-  if(!inscrits.length)return alert("Aucun animal inscrit pour ce concours et ce département.");
+  const inscrits=db.animals.filter(a=>a.concours_id===cid && (!selectedDept || (a.departement||departmentFromHerd(a.cheptel))===selectedDept));
+  if(!inscrits.length)return alert(selectedDept?"Aucun animal inscrit pour ce concours et ce département.":"Aucun animal inscrit pour ce concours.");
 
   let ok=0,completed=0,mismatch=0,notfound=0;
   const ops=[];
@@ -2363,6 +2408,7 @@ async function importBusinessCSV(){
       naissance_metier:m.naissance||null,
       detenteur_metier:m.owner||a.detenteur_metier||null,
       cheptel:a.cheptel||m.cheptel||null,
+      departement:a.departement||departmentFromHerd(a.cheptel||m.cheptel)||m.departement||selectedDept||null,
       naissance:a.naissance||m.naissance||null,
       sexe:a.sexe||m.sexe||null,
       nom_animal:a.nom_animal||m.nom||null,
@@ -2541,11 +2587,12 @@ function toggleQuickAnimal(){
 async function quickAddAnimal(){
   const cid=document.getElementById("analysisContest").value;
   const bovin=normalizeBovin(document.getElementById("quickBovin").value);
+  const quickHerdValue=document.getElementById("quickHerd").value.trim();
   const body={
     concours_id:cid,
-    departement:document.getElementById("quickDept").value.trim()||null,
+    departement:departmentFromHerd(quickHerdValue)||document.getElementById("quickDept").value.trim()||null,
     eleveur:document.getElementById("quickFarmer").value.trim(),
-    cheptel:document.getElementById("quickHerd").value.trim()||null,
+    cheptel:quickHerdValue||null,
     bovin,
     naissance:document.getElementById("quickBirth").value||null,
     sexe:document.getElementById("quickSex")?.value.trim()||null,
@@ -4890,6 +4937,14 @@ document.addEventListener("change",e=>{
     if(["partnerContest","businessContest","exportAnimalContest"].includes(e.target.id))renderDepartmentSelectors();
     renderAll();
   }
+});
+document.getElementById("herdNo")?.addEventListener("input",e=>{
+  const d=departmentFromHerd(e.target.value),t=document.getElementById("manualDept");
+  if(t&&d)t.value=d;
+});
+document.getElementById("quickHerd")?.addEventListener("input",e=>{
+  const d=departmentFromHerd(e.target.value),t=document.getElementById("quickDept");
+  if(t&&d)t.value=d;
 });
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
