@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.2</title>
-<link rel="manifest" href="manifest.json?v=102">
+<title>Suivi des concours v0.10.3</title>
+<link rel="manifest" href="manifest.json?v=103">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -263,7 +263,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=102" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">102</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=103" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">103</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1008,7 +1008,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.2";
+const APP_VERSION = "0.10.3";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1031,7 +1031,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.2");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.3");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -3801,17 +3801,24 @@ async function finalizeCertificate(){
   if(receive && !receive.value)receive.value=today;
   if(sign && !sign.value)sign.value=today;
 
-  // Commit the automatically proposed "Validé" choices.
-  const autoRows=animals.filter(a=>{
-    const raw=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
-    return raw==="a_verifier" && animalSanitaryOK(a);
+  // Enregistre réellement le choix animal visible à l'écran.
+  const animalOps=[];
+  animals.forEach(a=>{
+    const finalStatus=defaultCertificateAnimalStatus(a);
+    const patch=finalStatus==="present"
+      ? {sur_certificat:true,statut_certificat_animal:"present"}
+      : finalStatus==="non_present"
+        ? {sur_certificat:false,statut_certificat_animal:"non_present"}
+        : finalStatus==="refuse"
+          ? {sur_certificat:false,statut_certificat_animal:"refuse"}
+          : null;
+    if(!patch)return;
+    Object.assign(a,patch);
+    animalOps.push(sb("concours_animaux?id=eq."+encodeURIComponent(a.id),{
+      method:"PATCH",body:patch,prefer:"return=minimal"
+    }));
   });
-  if(autoRows.length){
-    await Promise.all(autoRows.map(a=>sb("concours_animaux?id=eq."+a.id,{
-      method:"PATCH",body:{sur_certificat:true,statut_certificat_animal:"present"}
-    })));
-    autoRows.forEach(a=>{a.sur_certificat=true;a.statut_certificat_animal="present"});
-  }
+  if(animalOps.length)await Promise.all(animalOps);
 
   const current=db.certificates[cid+"|"+farmer]||{};
   const body={
@@ -3824,18 +3831,23 @@ async function finalizeCertificate(){
     commentaire:document.getElementById("certComment").value.trim()||null,
     updated_at:new Date().toISOString()
   };
-  await sb("concours_certificats?on_conflict=concours_id,eleveur",{method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"});
+  await sb("concours_certificats?on_conflict=concours_id,eleveur",{
+    method:"POST",body,prefer:"resolution=merge-duplicates,return=minimal"
+  });
   db.certificates[cid+"|"+farmer]={...current,...body};
+
+  // Recharge : Remboursements voit immédiatement les animaux présents sur le certificat.
   await loadAll();
-  alert("Certificat validé et enregistré.");
+  alert("Certificat validé et enregistré. Les animaux concernés sont maintenant disponibles dans Remboursements.");
 }
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
 function reimbursementDecision(animal,analysis,status){
+  const certAnimalStatus=animal.statut_certificat_animal || (animal.sur_certificat?"present":"a_verifier");
   if(participationStatus(animal)==="non_participant")return{ok:false,reason:"Participation annulée / animal non participant"};
   const rule=templateRuleFor(animal,analysis);
   const result=getResult(animal.id,analysis);
-  if(!animal.sur_certificat)return{ok:false,reason:"Animal absent du certificat final"};
+  if(certAnimalStatus!=="present")return{ok:false,reason:"Animal absent du certificat final"};
   if(isConformeNonRemboursableResult(result))
     return{ok:false,reason:"Conforme sanitaire, mais Ag suffisait / méthode non remboursable"};
   if(status!=="conforme")return{ok:false,reason:"Analyse non conforme / non validée"};
@@ -3878,6 +3890,9 @@ function refundGroupsByScope(){
     const haystack=(herd+" "+farmer).toLowerCase();
     if(q && !haystack.includes(q))return;
     if(farmerFilter && (herd+"|"+farmer)!==farmerFilter)return;
+
+    const certAnimalStatus=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
+    if(certAnimalStatus!=="present")return;
 
     Object.entries(db.results[a.id]||{}).forEach(([analysis,r])=>{
       if(!r || r.statut==="attente")return;
