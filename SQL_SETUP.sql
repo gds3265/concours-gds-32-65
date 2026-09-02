@@ -466,3 +466,10 @@ DROP CONSTRAINT IF EXISTS concours_delai_signature_jours_check;
 ALTER TABLE public.concours
 ADD CONSTRAINT concours_delai_signature_jours_check
 CHECK (delai_signature_jours IS NULL OR delai_signature_jours >= 0);
+
+
+-- v0.10.9 : race bovin + notes concours
+-- Suivi Concours v0.10.9
+ALTER TABLE public.concours_animaux ADD COLUMN IF NOT EXISTS code_race text;
+ALTER TABLE public.concours_animaux ADD COLUMN IF NOT EXISTS race_libelle text;
+ALTER TABLE public.concours ADD COLUMN IF NOT EXISTS commentaire_gestion text;
