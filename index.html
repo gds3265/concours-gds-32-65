@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.4</title>
-<link rel="manifest" href="manifest.json?v=104">
+<title>Suivi des concours v0.10.6</title>
+<link rel="manifest" href="manifest.json?v=106">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -225,6 +225,10 @@ tr.herd-start td{border-top:3px solid #b9789f}
 
 .certificate-validated-banner{margin-top:12px;padding:12px 16px;border-radius:12px;background:#e7f5e9;border:2px solid #74a97d;color:#245b2d;font-weight:900;font-size:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .certificate-validated-banner span{font-size:12px;font-weight:600}
+
+.manual-analysis-item{border:1px solid var(--line);border-radius:8px;padding:6px;margin:4px 0;background:#fff}
+.manual-analysis-item select{margin-top:5px}
+.manual-analysis-item .mini{margin-top:5px;padding:3px 7px;font-size:10px}
 </style>
 </head>
 <body>
@@ -263,7 +267,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=104" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">104</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=106" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">106</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -436,11 +440,11 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="partnerContest"></select></div>
       <div class="field"><label>Département</label><select id="partnerDept"></select></div>
-      <div class="field"><label>Fichier CSV des inscrits</label><input id="partnerCsvFile" type="file" accept=".csv,text/csv"></div>
-      <button class="action" onclick="importPartnerCSV()">Importer les inscrits</button>
+      <div class="field"><label>Fichier CSV ou Excel des inscrits</label><input id="partnerCsvFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+      <button class="action" onclick="importPartnerCSV()">Importer CSV / Excel</button>
     </div>
     <div class="muted" style="margin-top:8px">
-      Colonnes reconnues automatiquement, notamment : N° ANIMAL, N°CHEPTEL, Propriétaire, DATE NAISSANCE, ainsi que les variantes usuelles. Les CSV Windows/ANSI sont acceptés.
+      Colonnes reconnues automatiquement, notamment : N° ANIMAL, N°CHEPTEL, Propriétaire, DATE NAISSANCE, ainsi que les variantes usuelles. Les CSV Windows/ANSI et les fichiers Excel .xlsx sont acceptés.
     </div>
     <div id="partnerImportSummary" style="margin-top:12px"></div>
     <div id="partnerImportByHerd" style="margin-top:12px"></div>
@@ -466,8 +470,8 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="businessContest"></select></div>
       <div class="field"><label>Département du fichier métier</label><select id="businessDept"></select></div>
-      <div class="field"><label>Fichier CSV bovins métier</label><input id="businessCsvFile" type="file" accept=".csv,text/csv"></div>
-      <button class="action" onclick="importBusinessCSV()">Contrôler / compléter</button>
+      <div class="field"><label>Fichier CSV ou Excel bovins métier</label><input id="businessCsvFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>
+      <button class="action" onclick="importBusinessCSV()">Contrôler / compléter CSV / Excel</button>
     </div>
     <div id="businessImportSummary" class="muted" style="margin-top:10px"></div>
   </div>
@@ -1008,13 +1012,61 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.4";
+const APP_VERSION = "0.10.6";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
 </script>
 <script>
 const BASE_ANALYSES=["IBR sérologie","BVD Ag sang","BVD Ag cartilage","BVD PCR","Besnoitiose"]; function allAnalyses(){return [...new Set([...BASE_ANALYSES,...db.templateRules.map(r=>r.libelle_analyse).filter(Boolean)])]}
+const MANUAL_ANALYSIS_MARKER="[ANALYSE_AJOUTEE_MANUELLEMENT]";
+
+function isManualAnalysisResult(r){
+  return !!r && String(r.commentaire||"").includes(MANUAL_ANALYSIS_MARKER);
+}
+function cleanManualAnalysisComment(r){
+  return String(r?.commentaire||"").replace(MANUAL_ANALYSIS_MARKER,"").trim();
+}
+function manualAnalysisEntries(a){
+  return Object.entries(db.results[a.id]||{})
+    .filter(([analysis,r])=>isManualAnalysisResult(r))
+    .map(([analysis,r])=>({analysis,result:r}))
+    .sort((x,y)=>x.analysis.localeCompare(y.analysis,"fr",{sensitivity:"base"}));
+}
+function manualAnalysisStatusOptions(r){
+  return STATUS.map(([v,l])=>`<option value="${v}" ${v===(r?.statut||"attente")?"selected":""}>${l}</option>`).join("");
+}
+async function setManualAnalysisResult(aid,analysis,status){
+  const a=db.animals.find(x=>x.id===aid);
+  if(a && !confirmPostCertificateEdit(a.concours_id,a.eleveur,`l’analyse ajoutée ${analysis}`))return;
+  const r=getResult(aid,analysis);
+  const comment=[cleanManualAnalysisComment(r),MANUAL_ANALYSIS_MARKER].filter(Boolean).join(" ");
+  await upsertResult(aid,analysis,{statut:status,commentaire:comment});
+  await loadAll();
+}
+async function deleteManualAnalysis(aid,analysis){
+  const a=db.animals.find(x=>x.id===aid);
+  if(a && !confirmPostCertificateEdit(a.concours_id,a.eleveur,`l’analyse ajoutée ${analysis}`))return;
+  if(!confirm(`Retirer l’analyse ajoutée "${analysis}" de ce bovin ?`))return;
+  await sb("concours_resultats?animal_id=eq."+encodeURIComponent(aid)+"&analyse_type=eq."+encodeURIComponent(analysis),{method:"DELETE"});
+  await loadAll();
+}
+function renderManualAnalyses(a){
+  const rows=manualAnalysisEntries(a);
+  if(!rows.length)return '<span class="muted">—</span>';
+  return rows.map(({analysis,result:r})=>{
+    const note=cleanManualAnalysisComment(r);
+    return `<div class="manual-analysis-item">
+      <strong>${escapeHtml(analysis)}</strong>
+      <span class="badge na">Hors protocole</span>
+      <select onchange="setManualAnalysisResult('${a.id}','${escapeHtml(analysis)}',this.value)">
+        ${manualAnalysisStatusOptions(r)}
+      </select>
+      ${note?`<div class="muted">${escapeHtml(note)}</div>`:""}
+      <button class="secondary mini" onclick="deleteManualAnalysis('${a.id}','${escapeHtml(analysis)}')">Retirer</button>
+    </div>`;
+  }).join("");
+}
 const STATUS=[
   ["attente","⏳ Non fait / non reçu"],["labo","🧪 En cours labo"],["conforme","✅ Négatif = conforme"],
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
@@ -1031,7 +1083,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.4");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.6");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -2090,6 +2142,158 @@ async function decodeCSVFile(file){
     return new TextDecoder("windows-1252").decode(buffer);
   }
 }
+
+function u16le(v,o){return v[o]|(v[o+1]<<8)}
+function u32le(v,o){return (v[o]|(v[o+1]<<8)|(v[o+2]<<16)|(v[o+3]<<24))>>>0}
+async function inflateRaw(bytes){
+  if(typeof DecompressionStream==="undefined"){
+    throw new Error("Ce navigateur ne permet pas encore la lecture directe des fichiers Excel. Utilise un CSV ou mets à jour le navigateur.");
+  }
+  const ds=new DecompressionStream("deflate-raw");
+  const stream=new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function readZipEntries(arrayBuffer){
+  const v=new Uint8Array(arrayBuffer);
+  let eocd=-1;
+  for(let i=v.length-22;i>=Math.max(0,v.length-65557);i--){
+    if(u32le(v,i)===0x06054b50){eocd=i;break}
+  }
+  if(eocd<0)throw new Error("Fichier Excel invalide : fin d’archive ZIP introuvable.");
+  const total=u16le(v,eocd+10);
+  const cdOffset=u32le(v,eocd+16);
+  let pos=cdOffset;
+  const entries=new Map();
+
+  for(let n=0;n<total;n++){
+    if(u32le(v,pos)!==0x02014b50)throw new Error("Fichier Excel invalide : répertoire ZIP illisible.");
+    const method=u16le(v,pos+10);
+    const compSize=u32le(v,pos+20);
+    const uncompSize=u32le(v,pos+24);
+    const nameLen=u16le(v,pos+28),extraLen=u16le(v,pos+30),commentLen=u16le(v,pos+32);
+    const localOffset=u32le(v,pos+42);
+    const name=new TextDecoder().decode(v.slice(pos+46,pos+46+nameLen));
+
+    if(u32le(v,localOffset)!==0x04034b50)throw new Error("Fichier Excel invalide : entrée ZIP illisible.");
+    const lNameLen=u16le(v,localOffset+26),lExtraLen=u16le(v,localOffset+28);
+    const dataStart=localOffset+30+lNameLen+lExtraLen;
+    const compressed=v.slice(dataStart,dataStart+compSize);
+    let data;
+    if(method===0)data=compressed;
+    else if(method===8)data=await inflateRaw(compressed);
+    else throw new Error("Compression Excel non prise en charge.");
+    if(uncompSize && data.length!==uncompSize){
+      // certains fichiers peuvent avoir des tailles légèrement différentes selon ZIP64;
+      // on accepte tout de même le flux décompressé si XML lisible.
+    }
+    entries.set(name,data);
+    pos+=46+nameLen+extraLen+commentLen;
+  }
+  return entries;
+}
+function xmlText(bytes){
+  return new TextDecoder("utf-8").decode(bytes||new Uint8Array());
+}
+function xlsxColIndex(ref){
+  const m=String(ref||"").match(/^([A-Z]+)/i);
+  if(!m)return 0;
+  let n=0;
+  for(const ch of m[1].toUpperCase())n=n*26+(ch.charCodeAt(0)-64);
+  return n-1;
+}
+function parseSharedStrings(xml){
+  if(!xml)return [];
+  const doc=new DOMParser().parseFromString(xml,"application/xml");
+  return [...doc.getElementsByTagName("si")].map(si=>
+    [...si.getElementsByTagName("t")].map(t=>t.textContent||"").join("")
+  );
+}
+function xlsxSerialToDate(v){
+  const n=Number(v);
+  if(!Number.isFinite(n))return String(v??"");
+  const utc=Math.round((n-25569)*86400*1000);
+  const d=new Date(utc);
+  if(Number.isNaN(d.getTime()))return String(v??"");
+  const dd=String(d.getUTCDate()).padStart(2,"0"),mm=String(d.getUTCMonth()+1).padStart(2,"0"),yy=d.getUTCFullYear();
+  return `${dd}/${mm}/${yy}`;
+}
+async function parseXlsxFile(file){
+  const entries=await readZipEntries(await file.arrayBuffer());
+
+  const workbookXml=xmlText(entries.get("xl/workbook.xml"));
+  const relsXml=xmlText(entries.get("xl/_rels/workbook.xml.rels"));
+  if(!workbookXml||!relsXml)throw new Error("Classeur Excel illisible.");
+
+  const wbDoc=new DOMParser().parseFromString(workbookXml,"application/xml");
+  const relDoc=new DOMParser().parseFromString(relsXml,"application/xml");
+  const firstSheet=wbDoc.getElementsByTagName("sheet")[0];
+  if(!firstSheet)throw new Error("Aucune feuille dans le fichier Excel.");
+
+  const rid=firstSheet.getAttribute("r:id")||firstSheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+  const rel=[...relDoc.getElementsByTagName("Relationship")].find(r=>r.getAttribute("Id")===rid);
+  if(!rel)throw new Error("Feuille Excel introuvable.");
+
+  let target=rel.getAttribute("Target")||"worksheets/sheet1.xml";
+  target=target.replace(/^\/+/,"");
+  if(!target.startsWith("xl/"))target="xl/"+target.replace(/^(\.\.\/)+/,"");
+  const sheetXml=xmlText(entries.get(target));
+  if(!sheetXml)throw new Error("Première feuille Excel illisible.");
+
+  const shared=parseSharedStrings(xmlText(entries.get("xl/sharedStrings.xml")));
+  const stylesXml=xmlText(entries.get("xl/styles.xml"));
+  const dateStyles=new Set();
+  if(stylesXml){
+    const stylesDoc=new DOMParser().parseFromString(stylesXml,"application/xml");
+    const numFmts=[...stylesDoc.getElementsByTagName("numFmt")];
+    const customDateIds=new Set(numFmts.filter(x=>/[dmy]/i.test(x.getAttribute("formatCode")||"")).map(x=>x.getAttribute("numFmtId")));
+    const xfs=[...stylesDoc.getElementsByTagName("cellXfs")[0]?.getElementsByTagName("xf")||[]];
+    xfs.forEach((xf,i)=>{
+      const id=xf.getAttribute("numFmtId");
+      if(["14","15","16","17","22","45","46","47"].includes(id)||customDateIds.has(id))dateStyles.add(i);
+    });
+  }
+
+  const doc=new DOMParser().parseFromString(sheetXml,"application/xml");
+  const rows=[...doc.getElementsByTagName("row")];
+  const matrix=[];
+  rows.forEach(row=>{
+    const out=[];
+    [...row.getElementsByTagName("c")].forEach(c=>{
+      const idx=xlsxColIndex(c.getAttribute("r"));
+      const t=c.getAttribute("t")||"";
+      const style=Number(c.getAttribute("s")||0);
+      let val="";
+      if(t==="inlineStr"){
+        val=[...c.getElementsByTagName("t")].map(x=>x.textContent||"").join("");
+      }else{
+        const v=c.getElementsByTagName("v")[0]?.textContent??"";
+        if(t==="s")val=shared[Number(v)]??"";
+        else if(t==="b")val=v==="1"?"TRUE":"FALSE";
+        else if(dateStyles.has(style) && v!=="")val=xlsxSerialToDate(v);
+        else val=v;
+      }
+      out[idx]=String(val??"").trim();
+    });
+    matrix.push(out);
+  });
+
+  if(matrix.length<2)return [];
+  const headers=(matrix[0]||[]).map(x=>String(x||"").trim());
+  return matrix.slice(1)
+    .filter(r=>r.some(v=>String(v||"").trim()!==""))
+    .map(r=>{
+      const o={};
+      headers.forEach((h,i)=>{if(h)o[h]=String(r[i]??"").trim()});
+      return o;
+    });
+}
+async function readTabularFile(file){
+  const name=String(file?.name||"").toLowerCase();
+  if(name.endsWith(".xlsx"))return await parseXlsxFile(file);
+  const text=await decodeCSVFile(file);
+  return parseCSV(text);
+}
+
 function detectSeparator(text){
   const counts={";":0,",":0,"\t":0,"|":0};
   let inQuotes=false,lines=0;
@@ -2240,8 +2444,10 @@ async function importPartnerCSV(){
   const selectedDept=document.getElementById("partnerDept").value;
   if(!cid)return alert("Choisir un concours.");
 
-  const text=await decodeCSVFile(f);
-  const parsed=parseCSV(text), rows=[];
+  let parsed;
+  try{parsed=await readTabularFile(f)}
+  catch(e){return alert("Impossible de lire le fichier.\n"+e.message)}
+  const rows=[];
   if(!parsed.length)return alert("Fichier vide ou illisible.");
   const cols=inferCsvColumns(parsed);
 
@@ -2348,8 +2554,9 @@ async function importBusinessCSV(){
   const selectedDept=document.getElementById("businessDept").value;
   if(!cid)return alert("Choisir un concours.");
 
-  const text=await decodeCSVFile(f);
-  const source=parseCSV(text);
+  let source;
+  try{source=await readTabularFile(f)}
+  catch(e){return alert("Impossible de lire le fichier.\n"+e.message)}
   if(!source.length)return alert("Fichier vide ou illisible.");
   const cols=inferCsvColumns(source);
   const business=new Map();
@@ -2678,14 +2885,61 @@ async function quickAddAnimal(){
 async function addUnexpectedAnalysis(){
   const cid=document.getElementById("analysisContest").value;
   const farmer=document.getElementById("analysisFarmer").value;
-  const animalList=db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer));
+  let animalList=db.animals.filter(a=>a.concours_id===cid && (farmer==="__ALL__"||a.eleveur===farmer));
+  animalList=animalList.filter(matchesSearch);
   if(!animalList.length)return alert("Aucun animal dans cette vue.");
-  const bovin=prompt("N° du bovin concerné :"); if(!bovin)return;
-  const a=animalList.find(x=>normalizeBovin(x.bovin)===normalizeBovin(bovin));
-  if(!a)return alert("Bovin non trouvé dans cette vue.");
-  const label=prompt("Libellé de l’analyse non prévue :"); if(!label)return;
-  await upsertResult(a.id,label,{statut:"inutile",commentaire:"Analyse ajoutée manuellement"});
+
+  const entered=prompt("N° de travail (4 derniers chiffres) ou n° bovin complet :");
+  if(!entered)return;
+  const digits=String(entered).replace(/\D/g,"");
+
+  let matches=[];
+  if(digits.length<=4){
+    const work=digits.padStart(4,"0");
+    matches=animalList.filter(a=>String(a.bovin||"").replace(/\D/g,"").slice(-4)===work);
+  }else{
+    const full=normalizeBovin(digits);
+    matches=animalList.filter(a=>normalizeBovin(a.bovin)===full);
+  }
+
+  if(!matches.length)return alert("Bovin non trouvé dans la vue actuelle.");
+  if(matches.length>1){
+    const details=matches.map(a=>`${String(a.bovin||"").slice(-4)} — ${a.bovin} — ${a.eleveur||""}`).join("\n");
+    const full=prompt(`Plusieurs bovins correspondent à ce n° de travail :\n\n${details}\n\nSaisis le n° bovin complet pour choisir :`);
+    if(!full)return;
+    const selected=matches.find(a=>normalizeBovin(a.bovin)===normalizeBovin(full));
+    if(!selected)return alert("N° bovin non retrouvé parmi les correspondances.");
+    matches=[selected];
+  }
+
+  const a=matches[0];
+  if(!confirmPostCertificateEdit(a.concours_id,a.eleveur,"une analyse non prévue"))return;
+
+  const labelRaw=prompt(
+    `Analyse à ajouter pour ${String(a.bovin||"").slice(-4)} — ${a.nom_animal||a.bovin} :\n\n`+
+    `Exemples : Paratuberculose, Besnoitiose, BVD PCR...`
+  );
+  const label=String(labelRaw||"").trim();
+  if(!label)return;
+
+  const existing=getResult(a.id,label);
+  if(existing && isManualAnalysisResult(existing)){
+    return alert("Cette analyse ajoutée existe déjà sur ce bovin. Tu peux modifier son statut directement dans la colonne Analyses ajoutées.");
+  }
+
+  const previousComment=cleanManualAnalysisComment(existing);
+  const comment=[previousComment||"Analyse hors protocole ajoutée manuellement",MANUAL_ANALYSIS_MARKER].join(" ");
+  await upsertResult(a.id,label,{
+    statut:existing?.statut&&existing.statut!=="attente"?existing.statut:"attente",
+    commentaire:comment
+  });
   await loadAll();
+
+  const fsel=document.getElementById("analysisFarmer");
+  if(fsel && farmer!=="__ALL__")fsel.value=farmer;
+  const search=document.getElementById("analysisSearch");
+  if(search)search.value=String(a.bovin||"").slice(-4);
+  renderAnalysis();
 }
 function renderAnalysis(){
   const cid=document.getElementById("analysisContest")?.value, farmer=document.getElementById("analysisFarmer")?.value||"__ALL__";
@@ -2698,7 +2952,7 @@ function renderAnalysis(){
     return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
   const diseases=demandedDiseases(cid);
-  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Naissance / âge au concours</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Commentaire</th></tr></thead><tbody>`;
+  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Naissance / âge au concours</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Analyses ajoutées</th><th>Commentaire</th></tr></thead><tbody>`;
   let previousHerd=null;
   list.forEach(a=>{
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);
@@ -2709,7 +2963,12 @@ function renderAnalysis(){
     diseases.forEach(d=>{
       const dr=getDiseaseResult(a,d);
       if(!dr.method){
-        out+=`<td class="disease-col na">Non concerné</td>`;
+        const manualForDisease=manualAnalysisEntries(a).filter(x=>{
+          const n=normHeader(x.analysis);
+          const dn=normHeader(d);
+          return n.includes(dn)||dn.includes(n)||(dn.includes("besno")&&n.includes("besno"));
+        });
+        out+=`<td class="disease-col na">Non concerné${manualForDisease.length?'<div class="badge warn" style="margin-top:5px">Analyse réalisée hors protocole ↓</div>':""}</td>`;
       }else{
         const r=dr.result||{statut:"attente"};
         out+=`<td class="disease-col">
@@ -2718,8 +2977,8 @@ function renderAnalysis(){
         </td>`;
       }
     });
-    const com=allAnalyses().map(an=>getResult(a.id,an).commentaire).find(Boolean)||"";
-    out+=`<td><input value="${escapeHtml(com)}" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
+    const com=allAnalyses().map(an=>getResult(a.id,an).commentaire).map(x=>String(x||"").replace(MANUAL_ANALYSIS_MARKER,"").trim()).find(Boolean)||"";
+    out+=`<td>${renderManualAnalyses(a)}</td><td><input value="${escapeHtml(com)}" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
   });
   document.getElementById("analysisTable").innerHTML=out+"</tbody>";
 }async function upsertResult(aid,analysis,patch){
@@ -3890,6 +4149,8 @@ async function finalizeCertificate(){
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
 function reimbursementDecision(animal,analysis,status){
+  const manualResult=getResult(animal.id,analysis);
+  if(isManualAnalysisResult(manualResult))return{ok:false,reason:"Analyse ajoutée hors protocole / non remboursable"};
   const certAnimalStatus=animal.statut_certificat_animal || (animal.sur_certificat?"present":"a_verifier");
   if(participationStatus(animal)==="non_participant")return{ok:false,reason:"Participation annulée / animal non participant"};
   const rule=templateRuleFor(animal,analysis);
@@ -4392,7 +4653,12 @@ function controlExportMatrix(cid,access=null){
         const dr=getDiseaseResult(a,d);
         return dr.result?.commentaire||"";
       }).filter(Boolean);
-      comment=[...analysisComments,a.participation_commentaire,a.entree_commentaire].filter(Boolean).join(" | ");
+      const manualComments=manualAnalysisEntries(a).map(({analysis,result})=>{
+        const s=exportStatusText(result.statut||"attente");
+        return `Analyse ajoutée ${analysis}: ${s}`;
+      });
+      comment=[...analysisComments,...manualComments,a.participation_commentaire,a.entree_commentaire]
+        .map(x=>String(x||"").replace(MANUAL_ANALYSIS_MARKER,"").trim()).filter(Boolean).join(" | ");
     }
 
     return [
