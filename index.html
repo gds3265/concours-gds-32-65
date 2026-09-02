@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.1</title>
-<link rel="manifest" href="manifest.json?v=101">
+<title>Suivi des concours v0.10.2</title>
+<link rel="manifest" href="manifest.json?v=102">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -263,7 +263,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=101" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">101</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=102" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">102</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1008,7 +1008,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.1";
+const APP_VERSION = "0.10.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1031,7 +1031,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.2");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -3611,16 +3611,40 @@ function renderCertificateChecks(){
   }
   target.innerHTML=htmlOut||'<div class="muted">Aucun point complémentaire paramétré pour ce concours.</div>';
 }
-function supplementaryChecksOK(cid,farmer){
-  const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
-  const herd=(animals.find(a=>a.cheptel)?.cheptel||farmer||"");
-  const defs=db.checkDefs.filter(d=>d.concours_id===cid&&d.obligatoire&&d.type_controle!=="qualification");
-  return defs.every(d=>{
-    if(d.niveau==="cheptel"){
-      const r=getCheckResult(d.id,"cheptel:"+herd); return ["conforme","nonapp"].includes(r.statut);
-    }
-    return animals.every(a=>["conforme","nonapp"].includes(getCheckResult(d.id,"animal:"+a.id).statut));
+function supplementaryChecksState(cid,farmer){
+  const defs=db.checkDefs.filter(d=>d.concours_id===cid && d.type_controle!=="qualification");
+  if(!defs.length)return {state:"none",label:"Aucun contrôle complémentaire"};
+
+  const animals=db.animals.filter(a=>a.concours_id===cid && a.eleveur===farmer);
+  const herd=animals[0]?.cheptel||"";
+  let total=0, filled=0, ok=0, problem=0;
+
+  defs.forEach(d=>{
+    let keys=[];
+    if(d.niveau==="cheptel" && herd)keys=["cheptel:"+herd];
+    else if(d.niveau==="animal")keys=animals.map(a=>"animal:"+a.id);
+    else keys=[farmer];
+
+    keys.forEach(key=>{
+      total++;
+      const r=getCheckResult(d.id,key);
+      const s=r?.statut||"a_verifier";
+      if(s!=="a_verifier" && s!=="attente" && s!==""){
+        filled++;
+        if(["conforme","ok","valide","validé"].includes(String(s).toLowerCase()))ok++;
+        else problem++;
+      }
+    });
   });
+
+  if(total===0)return {state:"none",label:"Aucun contrôle complémentaire"};
+  if(filled===0)return {state:"empty",label:"Contrôles non renseignés"};
+  if(problem>0)return {state:"problem",label:"Contrôles à finir"};
+  if(ok===total)return {state:"ok",label:"Contrôles OK"};
+  return {state:"partial",label:"Contrôles en cours"};
+}
+function supplementaryChecksOK(cid,farmer){
+  return supplementaryChecksState(cid,farmer).state==="ok" || supplementaryChecksState(cid,farmer).state==="none";
 }
 function sortCertificateRecap(field){
   if(certRecapSort.field===field)certRecapSort.dir*=-1;
@@ -3651,7 +3675,8 @@ function renderCertificateRecap(){
     const absentConforme=absentAnimals.filter(a=>certificateAbsentDetail(a).code==="conforme").length;
     const absentNonPreleve=absentAnimals.filter(a=>certificateAbsentDetail(a).code==="non_preleve").length;
     const absentIncomplete=absentAnimals.filter(a=>certificateAbsentDetail(a).code==="incomplet").length;
-    const extraOK=supplementaryChecksOK(cid,f);
+    const extraState=supplementaryChecksState(cid,f);
+    const extraOK=extraState.state==="ok";
     const participationCancelled=farmerParticipationCancelled(cid,f);
     const participationUI=participationCancelled
       ? `<span class="badge na">Participation annulée</span> <button class="secondary mini" onclick="setFarmerParticipation('${cid}','${escapeHtml(f)}',false)">Réinscrire l’éleveur</button>`
@@ -3659,7 +3684,21 @@ function renderCertificateRecap(){
     return `<tr>
       <td><strong>${escapeHtml(herd)}</strong></td>
       <td><strong>${escapeHtml(f)}</strong></td>
-      <td>${participationCancelled?'<span class="badge na">Participation annulée</span>':certStatusBadge(status)} ${participationCancelled?"":(extraOK?'<span class="badge ok">Contrôles OK</span>':'<span class="badge warn">Contrôles à finir</span>')}</td>
+      <td>${participationCancelled
+        ?'<span class="badge na">Participation annulée</span>'
+        :certStatusBadge(status)}
+        ${participationCancelled?"":(
+          extraState.state==="ok"
+            ?'<span class="badge ok">Contrôles OK</span>'
+            :extraState.state==="none"
+              ?'<span class="badge na">Aucun contrôle complémentaire</span>'
+              :extraState.state==="empty"
+                ?'<span class="badge na">Contrôles non renseignés</span>'
+                :extraState.state==="partial"
+                  ?'<span class="badge warn">Contrôles en cours</span>'
+                  :'<span class="badge warn">Contrôles à finir</span>'
+        )}
+      </td>
       <td><input type="date" value="${c.date_reception||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_reception',this.value)"></td>
       <td><input type="date" value="${c.date_signature||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_signature',this.value)"></td>
       <td>${escapeHtml(c.mode_transmission||"")}</td>
