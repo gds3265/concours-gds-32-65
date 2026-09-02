@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.7</title>
-<link rel="manifest" href="manifest.json?v=107">
+<title>Suivi des concours v0.10.8</title>
+<link rel="manifest" href="manifest.json?v=108">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -271,7 +271,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=107" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">107</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=108" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">108</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -349,6 +349,10 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <div>
         <h2>Concours enregistrés</h2>
         <div class="muted">La suppression efface également les animaux, analyses, certificats et remboursements liés à ce concours.</div>
+      </div>
+      <div class="field" style="max-width:180px">
+        <label>Année</label>
+        <select id="contestYearFilter" onchange="renderContestList()"><option value="">Toutes les années</option></select>
       </div>
     </div>
     <div id="contestList" style="margin-top:12px"></div>
@@ -1006,9 +1010,16 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <button class="secondary" onclick="exportControlPdf()">Liste de contrôle PDF / imprimer</button>
       <button class="secondary" onclick="exportRecapCSV()">Récap détaillé CSV</button>
     </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field" style="min-width:300px">
+        <label>Réimporter une liste de contrôle Excel pointée</label>
+        <input id="controlPointageFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      </div>
+      <button class="action" onclick="importControlPointages()">Analyser et réinjecter les pointages</button>
+    </div>
     <div class="info" style="margin-top:12px">
       <strong>Liste de contrôle :</strong> une ligne par bovin, avec les qualifications et analyses du concours.
-      Le PDF comporte des cases régulières prévues pour être cochées sur papier ; ce format est préparé pour une future relecture automatique des croix.
+      Le fichier Excel peut être réimporté après saisie des pointages. Le PDF comporte des cases régulières prévues pour être cochées sur papier ; la relecture automatique d’un PDF scanné reste une étape future.
     </div>
     <div id="exportStats" class="kpis" style="margin-top:14px"></div>
   </div>
@@ -1017,7 +1028,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.7";
+const APP_VERSION = "0.10.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1088,7 +1099,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.7");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.8");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -1973,7 +1984,19 @@ async function addContest(){
 function renderContestList(){
   const target=document.getElementById("contestList");
   if(!target)return;
+
+  const yearSel=document.getElementById("contestYearFilter");
+  const previousYear=yearSel?.value||"";
+  const years=[...new Set(db.contests.map(c=>String(c.date_concours||"").slice(0,4)).filter(y=>/^\d{4}$/.test(y)))]
+    .sort((a,b)=>Number(b)-Number(a));
+  if(yearSel){
+    yearSel.innerHTML='<option value="">Toutes les années</option>'+years.map(y=>`<option value="${y}">${y}</option>`).join("");
+    if(years.includes(previousYear))yearSel.value=previousYear;
+  }
+  const selectedYear=yearSel?.value||"";
+
   const rows=[...db.contests]
+    .filter(c=>!selectedYear || String(c.date_concours||"").startsWith(selectedYear+"-"))
     .sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||"")))
     .map(c=>{
       const animals=db.animals.filter(a=>a.concours_id===c.id).length;
@@ -4713,9 +4736,10 @@ function controlExportMatrix(cid,access=null){
   ];
 
   const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe","Date naissance","Âge au concours","Signature certificat dès le"];
+  const qualHeaders=quals.map(d=>"QUAL - "+d.libelle);
   const diseaseHeaders=diseases.flatMap(d=>[d+" - méthode",d+" - début prélèvement",d+" - statut"]);
   const finalHeaders=[access?"Validation partenaire":"Statut certificat","Participation","Entrée","Observation"];
-  const headers=[...identity,...diseaseHeaders,...finalHeaders];
+  const headers=[...identity,...qualHeaders,...diseaseHeaders,...finalHeaders];
 
   const rows=animals.map(a=>{
     const ref=`${a.cheptel||"SANS-EDE"}-${String(a.bovin||"").slice(-4)}`;
@@ -4755,6 +4779,7 @@ function controlExportMatrix(cid,access=null){
       ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),
       a.nom_animal||"",a.sexe||"",formatDateFr(a.naissance),age==null?"?":age+" mois",
       certificateSignatureText(cid),
+      ...quals.map(()=>""),
       ...dvals,validation,participationLabel(a),entryStatusLabel(a),comment
     ];
   });
@@ -4833,16 +4858,13 @@ function buildWorksheetXml(headers,rows){
 }
 function groupedControlRows(matrix){
   const rows=[];
-  const qualStatusStart=3;
-  const qualStatusEnd=3+matrix.quals.length;
-  const qualCommentStart=qualStatusEnd;
-
   const herdQualMap=new Map();
   matrix.herdRows.forEach(r=>{
     const key=(r[1]||"")+"|"+(r[2]||"");
     herdQualMap.set(key,r);
   });
 
+  const identityLen=11;
   let currentKey="";
   matrix.rows.forEach(r=>{
     const key=(r[2]||"")+"|"+(r[3]||"");
@@ -4850,18 +4872,19 @@ function groupedControlRows(matrix){
       currentKey=key;
       const hr=herdQualMap.get(key);
       if(hr){
-        const qvals=hr.slice(qualStatusStart,qualStatusEnd);
-        const qcomments=hr.slice(qualCommentStart);
-        const qualText=qvals.map((v,i)=>
-          `${matrix.quals[i]?.libelle||"Qualification"} : ${v}${qcomments[i]?` (${qcomments[i]})`:""}`
-        ).join(" | ");
-
         const vals=new Array(matrix.headers.length).fill("");
         vals[0]="QUALIFICATIONS";
         vals[1]=hr[0]||"";
         vals[2]=hr[1]||"";
         vals[3]=hr[2]||"";
-        vals[4]=qualText;
+        matrix.quals.forEach((q,i)=>{
+          vals[identityLen+i]=exportStatusText(getCheckResult(q.id,"cheptel:"+(hr[1]||"")).statut||"a_verifier");
+        });
+        const comments=matrix.quals.map(q=>{
+          const c=getCheckResult(q.id,"cheptel:"+(hr[1]||"")).commentaire||"";
+          return c?`${q.libelle}: ${c}`:"";
+        }).filter(Boolean).join(" | ");
+        vals[vals.length-1]=comments;
         rows.push({type:"qual",values:vals});
       }
     }
@@ -4914,6 +4937,121 @@ function saveBlob(blob,filename){
   a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function safeFileName(v){return String(v||"concours").replace(/[^\p{L}\p{N}_-]+/gu,"_").replace(/^_+|_+$/g,"")||"concours"}
+
+function pointageStatusToInternal(v){
+  const s=normHeader(v);
+  if(!s || s==="n a" || s==="na" || s==="non applicable")return null;
+  if(["x","ok","oui","v","valide","validee","valide","conforme","negatif","negative","fait"].includes(s) || s.includes("conforme"))return "conforme";
+  if(s.includes("non conforme")||s.includes("positif")||s.includes("refuse"))return "nonconforme";
+  if(s.includes("labo")||s.includes("en cours"))return "labo";
+  if(s.includes("recontrol"))return "recontrole";
+  if(s.includes("non necessaire")||s.includes("inutile"))return "inutile";
+  if(s.includes("attente")||s.includes("verifier")||s.includes("non fait")||s.includes("non recu"))return "attente";
+  return null;
+}
+function displayStatusForCompare(s){
+  return pointageStatusToInternal(s);
+}
+async function importControlPointages(){
+  const cid=document.getElementById("exportContest")?.value;
+  const file=document.getElementById("controlPointageFile")?.files?.[0];
+  if(!cid)return alert("Choisir le concours concerné.");
+  if(!file)return alert("Choisir le fichier Excel de contrôle pointé.");
+
+  let rows;
+  try{rows=await readTabularFile(file)}
+  catch(e){return alert("Impossible de lire le fichier Excel.\\n"+e.message)}
+  if(!rows.length)return alert("Le fichier ne contient aucune ligne lisible.");
+
+  const headers=Object.keys(rows[0]||{});
+  const bovinHeader=headers.find(h=>normHeader(h)==="n bovin");
+  const herdHeader=headers.find(h=>normHeader(h)==="n ede");
+  const refHeader=headers.find(h=>normHeader(h)==="ref papier");
+  const qualHeaders=headers.filter(h=>normHeader(h).startsWith("qual "));
+  const statusHeaders=headers.filter(h=>normHeader(h).endsWith("statut"));
+
+  if(!bovinHeader && !qualHeaders.length){
+    return alert("Ce fichier ne ressemble pas à une liste de contrôle exportée par l'application.");
+  }
+
+  const changes=[];
+  const warnings=[];
+
+  for(const row of rows){
+    const ref=String(row[refHeader]||"").trim();
+    const herd=normalizeHerd(row[herdHeader]||"");
+
+    if(ref==="QUALIFICATIONS" || (!String(row[bovinHeader]||"").trim() && herd && qualHeaders.length)){
+      for(const h of qualHeaders){
+        const raw=String(row[h]||"").trim();
+        if(!raw)continue;
+        const newStatus=pointageStatusToInternal(raw);
+        if(newStatus===null)continue;
+        const label=h.replace(/^QUAL\s*-\s*/i,"").trim();
+        const def=qualificationDefs(cid).find(d=>normHeader(d.libelle)===normHeader(label));
+        if(!def){warnings.push(`Qualification inconnue : ${label}`);continue}
+        const key="cheptel:"+herd;
+        const cur=getCheckResult(def.id,key).statut||"a_verifier";
+        if(cur!==newStatus){
+          changes.push({
+            type:"qualification",label:`${herd} — ${label}`,
+            apply:()=>sb("concours_controles?on_conflict=point_id,cle_cible",{
+              method:"POST",
+              body:{point_id:def.id,concours_id:cid,cle_cible:key,statut:newStatus,commentaire:getCheckResult(def.id,key).commentaire||null,updated_at:new Date().toISOString()},
+              prefer:"resolution=merge-duplicates,return=minimal"
+            })
+          });
+        }
+      }
+      continue;
+    }
+
+    const bovin=normalizeBovin(row[bovinHeader]||"");
+    if(!bovin)continue;
+    const animal=db.animals.find(a=>a.concours_id===cid && normalizeBovin(a.bovin)===bovin);
+    if(!animal){warnings.push(`Bovin non retrouvé : ${bovin}`);continue}
+
+    for(const h of statusHeaders){
+      const raw=String(row[h]||"").trim();
+      if(!raw)continue;
+      const newStatus=pointageStatusToInternal(raw);
+      if(newStatus===null)continue;
+      const disease=h.replace(/\s*-\s*statut$/i,"").trim();
+      const methodHeader=headers.find(x=>normHeader(x)===normHeader(disease+" - méthode"));
+      const method=String(row[methodHeader]||"").trim();
+      if(!method || method==="N/A")continue;
+      const cur=getResult(animal.id,method).statut||"attente";
+      if(cur!==newStatus){
+        changes.push({
+          type:"analyse",label:`${String(animal.bovin).slice(-4)} — ${disease} — ${method}`,
+          apply:()=>upsertResult(animal.id,method,{statut:newStatus})
+        });
+      }
+    }
+  }
+
+  if(!changes.length){
+    return alert(`Aucune modification nouvelle détectée.${warnings.length?`\\n\\n${warnings.slice(0,10).join("\\n")}`:""}`);
+  }
+
+  const byType=changes.reduce((m,c)=>(m[c.type]=(m[c.type]||0)+1,m),{});
+  const preview=changes.slice(0,20).map(c=>"• "+c.label).join("\\n");
+  const msg=`${changes.length} modification(s) détectée(s) :\\n`+
+    `${byType.qualification||0} qualification(s) · ${byType.analyse||0} analyse(s)\\n\\n`+
+    `${preview}${changes.length>20?"\\n…":""}\\n\\n`+
+    `Aucune donnée ne sera modifiée sans confirmation. Appliquer ces pointages ?`;
+  if(!confirm(msg))return;
+
+  const lockedFarmers=[...new Set(db.animals.filter(a=>a.concours_id===cid && certificateIsValidated(cid,a.eleveur)).map(a=>a.eleveur))];
+  if(lockedFarmers.length && !confirm(
+    `⚠️ Certains certificats de ce concours sont déjà validés.\\n\\n`+
+    `La réinjection peut modifier des données sanitaires après validation. Continuer malgré tout ?`
+  ))return;
+
+  for(const c of changes)await c.apply();
+  await loadAll();
+  alert(`${changes.length} pointage(s) réinjecté(s) avec succès.${warnings.length?`\\n${warnings.length} ligne(s) à vérifier.`:""}`);
+}
 function exportControlExcel(){
   const cid=document.getElementById("exportContest")?.value,c=contest(cid);
   if(!cid||!c)return alert("Choisir un concours.");
@@ -4931,8 +5069,12 @@ function pdfCheckCell(value){
 }
 function openControlPrint(matrix,title,subtitle){
   const grouped=groupedControlRows(matrix);
+  const qualStart=11;
+  const diseaseStart=qualStart+matrix.quals.length;
+  const qualIndexes=[];
+  for(let i=qualStart;i<diseaseStart;i++)qualIndexes.push(i);
   const diseaseIndexes=[];
-  for(let i=11;i<matrix.headers.length-4;i++)diseaseIndexes.push(i);
+  for(let i=diseaseStart;i<matrix.headers.length-4;i++)diseaseIndexes.push(i);
   const finalIndexes=[matrix.headers.length-4,matrix.headers.length-3,matrix.headers.length-2,matrix.headers.length-1];
   const diseaseGroups=[];
   for(let i=0;i<diseaseIndexes.length;i+=3)diseaseGroups.push(diseaseIndexes.slice(i,i+3));
@@ -4943,16 +5085,26 @@ function openControlPrint(matrix,title,subtitle){
   const identityIndexes=[0,2,3,4,5,6,7,8,9,10];
 
   const blocks=chunks.map((chunk,chunkIndex)=>{
-    const indexes=[...identityIndexes,...chunk,...finalIndexes];
+    const indexes=[...identityIndexes,...qualIndexes,...chunk,...finalIndexes];
     let htmlRows="";
     grouped.forEach(rowObj=>{
       const r=rowObj.values;
       if(rowObj.type==="qual"){
-        const qualText=r[4]||"";
-        htmlRows+=`<tr class="qual-row"><td colspan="${indexes.length}"><strong>${escapeHtml(r[2]||"")} — ${escapeHtml(r[3]||"")}</strong> · ${escapeHtml(qualText)}</td></tr>`;
+        htmlRows+=`<tr class="qual-row">${indexes.map(idx=>{
+          const val=r[idx]??"";
+          if(qualIndexes.includes(idx)){
+            const cls=exportStatusIsOk(val)?"ok-cell":"";
+            return `<td class="${cls}">${pdfCheckCell(val||"À vérifier")}</td>`;
+          }
+          if(idx===0)return `<td><strong>QUALIFICATIONS</strong></td>`;
+          if(idx===2||idx===3)return `<td><strong>${escapeHtml(val)}</strong></td>`;
+          if(idx===matrix.headers.length-1)return `<td>${escapeHtml(val)}</td>`;
+          return "<td></td>";
+        }).join("")}</tr>`;
       }else{
         htmlRows+=`<tr>${indexes.map(idx=>{
           const val=r[idx]??"";
+          if(qualIndexes.includes(idx))return "<td></td>";
           const isStatus=chunk.includes(idx) && matrix.headers[idx].endsWith(" - statut");
           const isFinal=finalIndexes.includes(idx)&&idx!==matrix.headers.length-1;
           const na=String(val)==="N/A";
