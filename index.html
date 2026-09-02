@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.9.9</title>
-<link rel="manifest" href="manifest.json?v=099">
+<title>Suivi des concours v0.10.0</title>
+<link rel="manifest" href="manifest.json?v=100">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -263,7 +263,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=099" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">099</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=100" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">100</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1008,7 +1008,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.9.9";
+const APP_VERSION = "0.10.0";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1031,7 +1031,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.9.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.0");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -1925,8 +1925,17 @@ async function addAnimal(){
     cheptel:document.getElementById("herdNo").value.trim(),bovin:document.getElementById("animalNo").value.trim(),
     naissance:document.getElementById("birthDate").value||null,sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,origine:"Ajout manuel"};
   if(!body.concours_id||!body.eleveur||!body.bovin)return alert("Concours, éleveur et n° bovin obligatoires");
+  const existing=db.animals.find(a=>a.concours_id===body.concours_id && normalizeBovin(a.bovin)===normalizeBovin(body.bovin));
+  if(existing){
+    return alert(`Ce bovin est déjà inscrit dans ce concours :\n${existing.bovin} — ${existing.cheptel||""} — ${existing.eleveur||""}.\n\nAucun doublon n'a été créé.`);
+  }
   try{await sb("concours_animaux",{method:"POST",body,prefer:"return=representation"});}
-  catch(e){return alert("Impossible d'ajouter l'animal. Vérifie qu'il n'est pas déjà inscrit.\n"+e.message)}
+  catch(e){
+    if(String(e.message||"").includes("duplicate key")||String(e.message||"").includes("concours_animaux_unique")){
+      return alert("Ce bovin existe déjà dans ce concours. Aucun doublon n'a été créé.");
+    }
+    return alert("Impossible d'ajouter l'animal.\n"+e.message);
+  }
   document.getElementById("animalNo").value="";document.getElementById("birthDate").value="";await loadAll();
 }
 
@@ -2472,9 +2481,90 @@ function toggleQuickAnimal(){
 }
 async function quickAddAnimal(){
   const cid=document.getElementById("analysisContest").value;
-  const body={concours_id:cid,departement:document.getElementById("quickDept").value.trim()||null,eleveur:document.getElementById("quickFarmer").value.trim(),cheptel:document.getElementById("quickHerd").value.trim()||null,bovin:normalizeBovin(document.getElementById("quickBovin").value),naissance:document.getElementById("quickBirth").value||null,sexe:document.getElementById("quickSex")?.value.trim()||null,nom_animal:document.getElementById("quickName")?.value.trim()||null,origine:"Ajout depuis Analyses"};
+  const bovin=normalizeBovin(document.getElementById("quickBovin").value);
+  const body={
+    concours_id:cid,
+    departement:document.getElementById("quickDept").value.trim()||null,
+    eleveur:document.getElementById("quickFarmer").value.trim(),
+    cheptel:document.getElementById("quickHerd").value.trim()||null,
+    bovin,
+    naissance:document.getElementById("quickBirth").value||null,
+    sexe:document.getElementById("quickSex")?.value.trim()||null,
+    nom_animal:document.getElementById("quickName")?.value.trim()||null,
+    origine:"Ajout depuis Analyses"
+  };
+
   if(!body.eleveur||!body.bovin)return alert("Éleveur et n° bovin obligatoires.");
-  await sb("concours_animaux",{method:"POST",body,prefer:"return=minimal"}); await loadAll();
+
+  const existing=db.animals.find(a=>
+    a.concours_id===cid && normalizeBovin(a.bovin)===bovin
+  );
+
+  if(existing){
+    const sameFarmer=String(existing.cheptel||"")===String(body.cheptel||"") ||
+                     String(existing.eleveur||"").trim().toLowerCase()===String(body.eleveur||"").trim().toLowerCase();
+
+    const msg=[
+      "Ce bovin existe déjà dans ce concours.",
+      "",
+      `Bovin : ${existing.bovin||""}`,
+      `Éleveur actuel : ${existing.cheptel||""} — ${existing.eleveur||""}`,
+      `Statut participation : ${participationLabel(existing)}`,
+      "",
+      sameFarmer
+        ?"Veux-tu réutiliser cette fiche existante et la remettre en Engagé si nécessaire ?"
+        :"Il est rattaché à un autre éleveur/EDE. Veux-tu ouvrir/réutiliser cette fiche existante plutôt que créer un doublon ?"
+    ].join("\n");
+
+    if(!confirm(msg))return;
+
+    const patch={
+      statut_participation:"engage",
+      participation_commentaire:null
+    };
+
+    // Complète uniquement les champs vides de la fiche existante.
+    if(!existing.departement && body.departement)patch.departement=body.departement;
+    if(!existing.eleveur && body.eleveur)patch.eleveur=body.eleveur;
+    if(!existing.cheptel && body.cheptel)patch.cheptel=body.cheptel;
+    if(!existing.naissance && body.naissance)patch.naissance=body.naissance;
+    if(!existing.sexe && body.sexe)patch.sexe=body.sexe;
+    if(!existing.nom_animal && body.nom_animal)patch.nom_animal=body.nom_animal;
+
+    await sb("concours_animaux?id=eq."+encodeURIComponent(existing.id),{
+      method:"PATCH",
+      body:patch,
+      prefer:"return=minimal"
+    });
+
+    await loadAll();
+
+    const farmerSel=document.getElementById("analysisFarmer");
+    if(farmerSel){
+      const targetFarmer=existing.eleveur||body.eleveur;
+      if([...farmerSel.options].some(o=>o.value===targetFarmer))farmerSel.value=targetFarmer;
+    }
+    const search=document.getElementById("analysisSearch");
+    if(search)search.value=String(existing.bovin||body.bovin);
+
+    renderAnalysis();
+    alert("Le bovin existait déjà : sa fiche a été réutilisée, sans créer de doublon.");
+    return;
+  }
+
+  try{
+    await sb("concours_animaux",{method:"POST",body,prefer:"return=minimal"});
+    await loadAll();
+    ["quickBovin","quickBirth","quickSex","quickName"].forEach(id=>{
+      const el=document.getElementById(id); if(el)el.value="";
+    });
+  }catch(e){
+    if(String(e.message||"").includes("duplicate key") || String(e.message||"").includes("concours_animaux_unique")){
+      await loadAll();
+      return alert("Ce bovin existe déjà dans ce concours. Recharge la fiche puis recherche son numéro : l'application empêchera désormais la création d'un doublon.");
+    }
+    throw e;
+  }
 }
 async function addUnexpectedAnalysis(){
   const cid=document.getElementById("analysisContest").value;
