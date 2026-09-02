@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.0</title>
-<link rel="manifest" href="manifest.json?v=100">
+<title>Suivi des concours v0.10.1</title>
+<link rel="manifest" href="manifest.json?v=101">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -263,7 +263,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=100" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">100</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=101" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">101</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1008,7 +1008,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.0";
+const APP_VERSION = "0.10.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1031,7 +1031,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.0");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.1");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -1633,6 +1633,28 @@ async function loadAll(){
     sb("concours_validations_partenaires?select=*")
   ]);
   db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.certificates={};
+
+  // Le n° EDE est la clé métier : un même EDE ne doit jamais être séparé
+  // parce que le nom éleveur a été saisi différemment.
+  const originalFarmerAlias=new Map();
+  const herdGroups=herdCanonicalMap(db.animals);
+  const farmerRepairs=[];
+  herdGroups.forEach(g=>{
+    if(!g.farmer)return;
+    g.animals.forEach(a=>{
+      originalFarmerAlias.set(a.concours_id+"|"+String(a.eleveur||""),g.farmer);
+      if(String(a.eleveur||"").trim()!==g.farmer){
+        a.eleveur=g.farmer; // effet immédiat dans toute l'interface
+        farmerRepairs.push(
+          sb("concours_animaux?id=eq."+encodeURIComponent(a.id),{
+            method:"PATCH",body:{eleveur:g.farmer},prefer:"return=minimal"
+          }).catch(()=>null)
+        );
+      }
+    });
+  });
+  if(farmerRepairs.length)await Promise.allSettled(farmerRepairs);
+
   const certRepairs=[];
   (certs||[]).forEach(c=>{
     let normalized=c.statut_certificat==="signe"?"valide":c.statut_certificat;
@@ -1644,7 +1666,13 @@ async function loadAll(){
         method:"PATCH",body:{statut_certificat:normalized,updated_at:new Date().toISOString()},prefer:"return=minimal"
       }).catch(()=>null));
     }
-    db.certificates[c.concours_id+"|"+c.eleveur]=c;
+    const canonicalFarmer=originalFarmerAlias.get(c.concours_id+"|"+String(c.eleveur||""))||c.eleveur;
+    const canonicalKey=c.concours_id+"|"+canonicalFarmer;
+    const existingCert=db.certificates[canonicalKey];
+    c.eleveur=canonicalFarmer;
+    if(!existingCert || effectiveCertificateStatus(c)==="valide" || effectiveCertificateStatus(existingCert)!=="valide"){
+      db.certificates[canonicalKey]=c;
+    }
   });
   if(certRepairs.length)await Promise.allSettled(certRepairs);
   db.results={};(results||[]).forEach(r=>{db.results[r.animal_id]||={};db.results[r.animal_id][r.analyse_type]=r});
@@ -1730,7 +1758,34 @@ function getResult(aid,analysis){
   db.results[aid]||={};
   return db.results[aid][analysis]||{animal_id:aid,analyse_type:analysis,statut:"attente",date_prelevement:"",commentaire:""};
 }
-function farmers(cid){return [...new Set(db.animals.filter(a=>a.concours_id===cid).map(a=>a.eleveur).filter(Boolean))].sort()}
+function canonicalFarmerName(names){
+  return [...new Set((names||[]).map(x=>String(x||"").trim()).filter(Boolean))]
+    .sort((a,b)=>b.length-a.length || a.localeCompare(b,"fr",{sensitivity:"base"}))[0]||"";
+}
+function herdCanonicalMap(rows){
+  const map=new Map();
+  (rows||[]).forEach(a=>{
+    const herd=String(a.cheptel||"").trim();
+    if(!a.concours_id||!herd)return;
+    const key=a.concours_id+"|"+herd;
+    if(!map.has(key))map.set(key,{contestId:a.concours_id,herd,names:[],animals:[]});
+    const g=map.get(key);
+    g.names.push(a.eleveur||"");
+    g.animals.push(a);
+  });
+  map.forEach(g=>g.farmer=canonicalFarmerName(g.names));
+  return map;
+}
+function canonicalFarmerForHerd(cid,herd){
+  const names=db.animals.filter(a=>a.concours_id===cid && String(a.cheptel||"")===String(herd||"")).map(a=>a.eleveur);
+  return canonicalFarmerName(names);
+}
+function farmers(cid){
+  return [...new Map(
+    db.animals.filter(a=>a.concours_id===cid && a.cheptel)
+      .map(a=>[String(a.cheptel),canonicalFarmerForHerd(cid,a.cheptel)])
+  ).values()].filter(Boolean).sort();
+}
 function optionize(id,values){
   const s=document.getElementById(id);if(!s)return;const old=s.value;
   s.innerHTML=values.map(v=>`<option value="${escapeHtml(v.value)}">${escapeHtml(v.label)}</option>`).join("");
@@ -1789,11 +1844,13 @@ function renderDepartments(){
 function farmerOptionsByHerd(cid){
   const map=new Map();
   db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
-    const farmer=a.eleveur||"",herd=a.cheptel||"";
-    if(!farmer)return;
-    if(!map.has(farmer))map.set(farmer,{farmer,herd});
+    const herd=String(a.cheptel||"").trim();
+    if(!herd)return;
+    if(!map.has(herd))map.set(herd,{herd,names:[]});
+    map.get(herd).names.push(a.eleveur||"");
   });
   return [...map.values()]
+    .map(x=>({herd:x.herd,farmer:canonicalFarmerName(x.names)}))
     .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}))
     .map(x=>({value:x.farmer,label:`${x.herd||"Sans EDE"} — ${x.farmer}`}));
 }
@@ -1925,6 +1982,8 @@ async function addAnimal(){
     cheptel:document.getElementById("herdNo").value.trim(),bovin:document.getElementById("animalNo").value.trim(),
     naissance:document.getElementById("birthDate").value||null,sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,origine:"Ajout manuel"};
   if(!body.concours_id||!body.eleveur||!body.bovin)return alert("Concours, éleveur et n° bovin obligatoires");
+  const canonicalForHerd=canonicalFarmerForHerd(body.concours_id,body.cheptel);
+  if(canonicalForHerd)body.eleveur=canonicalForHerd;
   const existing=db.animals.find(a=>a.concours_id===body.concours_id && normalizeBovin(a.bovin)===normalizeBovin(body.bovin));
   if(existing){
     return alert(`Ce bovin est déjà inscrit dans ce concours :\n${existing.bovin} — ${existing.cheptel||""} — ${existing.eleveur||""}.\n\nAucun doublon n'a été créé.`);
@@ -2496,6 +2555,9 @@ async function quickAddAnimal(){
 
   if(!body.eleveur||!body.bovin)return alert("Éleveur et n° bovin obligatoires.");
 
+  const canonicalForEnteredHerd=canonicalFarmerForHerd(cid,body.cheptel);
+  if(canonicalForEnteredHerd)body.eleveur=canonicalForEnteredHerd;
+
   const existing=db.animals.find(a=>
     a.concours_id===cid && normalizeBovin(a.bovin)===bovin
   );
@@ -2749,8 +2811,14 @@ function certStatusBadge(s){
 }
 function herdListForContest(cid){
   const map=new Map();
-  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{const herd=(a.cheptel||'').trim();if(!herd)return;if(!map.has(herd))map.set(herd,{herd,farmer:a.eleveur||'',dept:a.departement||''})});
-  return [...map.values()].sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}));
+  db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
+    const herd=(a.cheptel||"").trim();if(!herd)return;
+    if(!map.has(herd))map.set(herd,{herd,names:[],dept:a.departement||""});
+    map.get(herd).names.push(a.eleveur||"");
+  });
+  return [...map.values()]
+    .map(x=>({...x,farmer:canonicalFarmerName(x.names)}))
+    .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}));
 }
 function qualificationDefs(cid){return db.checkDefs.filter(d=>d.concours_id===cid&&d.niveau==='cheptel'&&d.type_controle==='qualification')}
 function renderQualificationGrid(){
@@ -2812,19 +2880,22 @@ async function setAllHerdQualifications(status){
 
 function fastAnimalsList(){
   const cid=document.getElementById("fastContest")?.value;
-  return db.animals.filter(a=>a.concours_id===cid && a.cheptel===fastCurrentHerd && (!fastCurrentFarmer || a.eleveur===fastCurrentFarmer));
+  return db.animals.filter(a=>a.concours_id===cid && a.cheptel===fastCurrentHerd);
 }
 
 
 function fastHerdRows(cid){
   const map=new Map();
   db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
-    const herd=a.cheptel||"Sans EDE",farmer=a.eleveur||"";
-    const key=herd+"|"+farmer;
-    if(!map.has(key))map.set(key,{herd,farmer,animals:[]});
-    map.get(key).animals.push(a);
+    const herd=a.cheptel||"Sans EDE";
+    if(!map.has(herd))map.set(herd,{herd,names:[],animals:[]});
+    const g=map.get(herd);
+    g.names.push(a.eleveur||"");
+    g.animals.push(a);
   });
-  return [...map.values()].sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}));
+  return [...map.values()]
+    .map(g=>({...g,farmer:canonicalFarmerName(g.names)}))
+    .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}));
 }
 function openFastHerd(herd,farmer){
   fastCurrentHerd=herd;
@@ -2869,7 +2940,7 @@ function loadFastValidation(){
   ));
   if(!candidates.length)return alert("Aucun éleveur trouvé.");
 
-  const herds=[...new Map(candidates.map(a=>[(a.cheptel||"")+"|"+(a.eleveur||""),{herd:a.cheptel||"",farmer:a.eleveur||""}])).values()];
+  const herds=[...new Map(candidates.map(a=>[a.cheptel||"",{herd:a.cheptel||"",farmer:canonicalFarmerForHerd(cid,a.cheptel)}])).values()];
   let chosen=herds[0];
   if(herds.length>1){
     const exact=herds.find(h=>String(h.herd).toLowerCase()===q);
@@ -3468,11 +3539,12 @@ function renderCertificates(){
   if(allMode){
     const map=new Map();
     animals.forEach(a=>{
-      const k=(a.cheptel||"Sans EDE")+"|"+(a.eleveur||"");
-      if(!map.has(k))map.set(k,{herd:a.cheptel||"Sans EDE",farmer:a.eleveur||"",animals:[]});
+      const k=a.cheptel||"Sans EDE";
+      if(!map.has(k))map.set(k,{herd:k,names:[],animals:[]});
+      map.get(k).names.push(a.eleveur||"");
       map.get(k).animals.push(a);
     });
-    document.getElementById("certAnimals").innerHTML=[...map.values()].map(h=>`
+    document.getElementById("certAnimals").innerHTML=[...map.values()].map(h=>{h.farmer=canonicalFarmerName(h.names);return `
       <div class="card ${herdBandClass(cid,h.herd)}" style="margin:8px 0">
         <h4 style="margin:0 0 8px">EDE ${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</h4>
         ${h.animals.map(a=>{
@@ -3490,7 +3562,7 @@ function renderCertificates(){
       :'<span class="badge warn">À décider</span>'}</span>
           </div>`;
         }).join("")}
-      </div>`).join("")||"<span class='muted'>Aucun animal.</span>";
+      </div>`}).join("")||"<span class='muted'>Aucun animal.</span>";
     document.getElementById("certChecks").innerHTML='<div class="muted">Choisis un éleveur pour saisir les autres contrôles de son dossier.</div>';
   }else{
     document.getElementById("certAnimals").innerHTML=animals.map(a=>{
