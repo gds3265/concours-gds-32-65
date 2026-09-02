@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.6</title>
-<link rel="manifest" href="manifest.json?v=106">
+<title>Suivi des concours v0.10.7</title>
+<link rel="manifest" href="manifest.json?v=107">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -229,6 +229,10 @@ tr.herd-start td{border-top:3px solid #b9789f}
 .manual-analysis-item{border:1px solid var(--line);border-radius:8px;padding:6px;margin:4px 0;background:#fff}
 .manual-analysis-item select{margin-top:5px}
 .manual-analysis-item .mini{margin-top:5px;padding:3px 7px;font-size:10px}
+
+.sampling-date{margin-top:4px;font-size:10px;font-weight:500;line-height:1.25;color:#6b234e}
+.sampling-date span{font-size:9px;color:#777}
+.signature-deadline-box{margin:10px 0;padding:9px 12px;border-radius:10px;background:#f7eaf2;border:1px solid #dfbfd2;color:#6b234e}
 </style>
 </head>
 <body>
@@ -267,7 +271,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=106" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">106</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=107" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">107</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -334,6 +338,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <div class="row">
       <div class="field"><label>Nom</label><input id="cName" placeholder="Ex. Concours de Tarbes"></div>
       <div class="field"><label>Date du concours</label><input id="cDate" type="date"></div>
+      <div class="field"><label>Délai signature certificat (jours avant concours)</label><input id="cCertDelay" type="number" min="0" placeholder="Ex. 10"></div>
       <div class="field"><label>Type</label><select id="cType"><option value="suivi">Concours suivi</option><option value="gere">Concours géré</option></select></div>
       <button class="action" onclick="addContest()">Créer</button>
     </div>
@@ -520,7 +525,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <button class="secondary" onclick="toggleQuickAnimal()">+ Ajouter un animal</button>
       <button class="secondary" onclick="addUnexpectedAnalysis()">+ Analyse non prévue</button>
     </div>
-    <div class="muted" style="margin-top:8px">Seules les maladies demandées sont affichées. La méthode prioritaire est proposée automatiquement selon l’âge.</div>
+    <div class="muted" style="margin-top:8px">Seules les maladies demandées sont affichées. La méthode prioritaire est proposée automatiquement selon l’âge. La date sous chaque maladie indique le premier jour possible de prélèvement selon le délai de validité paramétré.</div>
     <div id="quickAnimalPanel" class="hidden" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px">
       <div class="row">
         <div class="field"><label>Département</label><input id="quickDept" placeholder="65"></div>
@@ -1012,7 +1017,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.6";
+const APP_VERSION = "0.10.7";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1083,7 +1088,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.6");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.7");
 initClosedContestToggle();
 
 function setSync(text,bad=false){
@@ -1955,8 +1960,13 @@ function renderDemands(){const cid=document.getElementById("demandContest")?.val
 async function addContest(){
   const nom=document.getElementById("cName").value.trim(),date=document.getElementById("cDate").value;
   if(!nom||!date)return alert("Nom et date obligatoires");
-  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true},prefer:"return=representation"});
-  document.getElementById("cName").value="";document.getElementById("cDate").value="";await loadAll();
+  const certDelayRaw=document.getElementById("cCertDelay")?.value??"";
+  const certDelay=certDelayRaw===""?null:Number(certDelayRaw);
+  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true,delai_signature_jours:Number.isFinite(certDelay)?certDelay:null},prefer:"return=representation"});
+  document.getElementById("cName").value="";
+  document.getElementById("cDate").value="";
+  if(document.getElementById("cCertDelay"))document.getElementById("cCertDelay").value="";
+  await loadAll();
 
 }
 
@@ -1972,6 +1982,11 @@ function renderContestList(){
         <td><strong>${escapeHtml(c.nom)}</strong></td>
         <td>${c.date_concours||""}</td>
         <td>${c.type_suivi==="gere"?"Concours géré":"Concours suivi"}</td>
+        <td>
+          <input type="number" min="0" style="width:90px" value="${c.delai_signature_jours??""}"
+            placeholder="jours" onchange="updateContestSignatureDelay('${c.id}',this.value)">
+          <div class="muted" style="margin-top:3px">${certificateSignatureInfo(c.id).date?`Dès le ${escapeHtml(formatDateFr(certificateSignatureInfo(c.id).date))}`:"Non paramétré"}</div>
+        </td>
         <td><span class="contest-state-badge ${active?"active":"closed"}">${active?"Actif":"Clos"}</span></td>
         <td>${animals}</td>
         <td>
@@ -1981,8 +1996,21 @@ function renderContestList(){
       </tr>`;
     }).join("");
   target.innerHTML=rows
-    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Délai signature certif.</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun concours enregistré.</div>`;
+}
+async function updateContestSignatureDelay(id,value){
+  const raw=String(value??"").trim();
+  const days=raw===""?null:Number(raw);
+  if(raw!=="" && (!Number.isFinite(days)||days<0))return alert("Le délai doit être un nombre de jours positif.");
+  await sb("concours?id=eq."+encodeURIComponent(id),{
+    method:"PATCH",
+    body:{delai_signature_jours:days},
+    prefer:"return=minimal"
+  });
+  const c=contest(id);if(c)c.delai_signature_jours=days;
+  renderContestList();
+  renderCertificates();
 }
 async function setContestActive(id,active){
   const c=contest(id);if(!c)return;
@@ -2740,6 +2768,56 @@ function methodOptions(rules,selected,animal,cid,disease){
 function demandedDiseases(cid){
   return db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie);
 }
+function analysisValidityDays(cid,disease,analysis=""){
+  const demand=db.demands.find(d=>d.concours_id===cid && d.maladie===disease);
+  if(demand && Number(demand.delai_max_jours)>0)return Number(demand.delai_max_jours);
+
+  const matching=db.rules.filter(r=>
+    r.concours_id===cid &&
+    (!analysis || r.analyse_type===analysis) &&
+    diseaseForAnalysis(r.analyse_type)===disease &&
+    Number(r.delai_max_jours)>0
+  );
+  return matching.length?Number(matching[0].delai_max_jours):null;
+}
+function subtractDaysISO(dateIso,days){
+  const m=String(dateIso||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m || !Number.isFinite(Number(days)))return null;
+  const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])));
+  d.setUTCDate(d.getUTCDate()-Number(days));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+}
+function samplingStartInfo(cid,disease,analysis=""){
+  const c=contest(cid),days=analysisValidityDays(cid,disease,analysis);
+  if(!c?.date_concours || !days)return {date:null,days};
+  return {date:subtractDaysISO(c.date_concours,days),days};
+}
+function samplingStartText(cid,disease,analysis=""){
+  const x=samplingStartInfo(cid,disease,analysis);
+  return x.date?`${formatDateFr(x.date)} (${x.days} j)`:(x.days?`Délai ${x.days} j`:"—");
+}
+function diseaseSamplingHeaderHtml(cid,disease){
+  const x=samplingStartInfo(cid,disease);
+  return x.date
+    ? `<div class="sampling-date">Prélèvements dès le <strong>${escapeHtml(formatDateFr(x.date))}</strong><br><span>${x.days} jours avant le concours</span></div>`
+    : "";
+}
+function certificateSignatureInfo(cid){
+  const c=contest(cid);
+  const raw=c?.delai_signature_jours;
+  const days=(raw===null||raw===undefined||raw==="")?null:Number(raw);
+  if(!c?.date_concours || days===null || !Number.isFinite(days))return {date:null,days:null};
+  return {date:subtractDaysISO(c.date_concours,days),days};
+}
+function certificateSignatureText(cid){
+  const x=certificateSignatureInfo(cid);
+  return x.date?`${formatDateFr(x.date)} (${x.days} j)`:"—";
+}
+function certificateSignatureBannerHtml(cid){
+  const x=certificateSignatureInfo(cid);
+  if(!x.date)return '<span class="muted">Aucun délai de signature paramétré pour ce concours.</span>';
+  return `<strong>Signature du certificat valable à partir du ${escapeHtml(formatDateFr(x.date))}</strong> <span class="muted">(${x.days} jours avant le concours)</span>`;
+}
 function methodOptionsForDisease(animal,cid,disease){
   return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
 }
@@ -2952,7 +3030,7 @@ function renderAnalysis(){
     return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
   const diseases=demandedDiseases(cid);
-  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Naissance / âge au concours</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}</th>`).join("")}<th>Analyses ajoutées</th><th>Commentaire</th></tr></thead><tbody>`;
+  let out=`<thead><tr><th>Bovin</th><th>Nom / sexe</th><th>Éleveur / EDE</th><th>Naissance / âge au concours</th>${diseases.map(d=>`<th class="disease-head">${escapeHtml(d)}${diseaseSamplingHeaderHtml(cid,d)}</th>`).join("")}<th>Analyses ajoutées</th><th>Commentaire</th></tr></thead><tbody>`;
   let previousHerd=null;
   list.forEach(a=>{
     const age=ageMonths(a.naissance,contest(cid)?.date_concours);
@@ -3833,6 +3911,18 @@ function renderCertificates(){
     }
   }
   renderCertificateAutoStatus();
+  let sigInfo=document.getElementById("certificateSignatureInfo");
+  if(!sigInfo){
+    sigInfo=document.createElement("div");
+    sigInfo.id="certificateSignatureInfo";
+    sigInfo.className="signature-deadline-box";
+    const helpAnchor=document.getElementById("certWorkflowHelp");
+    if(helpAnchor)helpAnchor.insertAdjacentElement("afterend",sigInfo);
+  }
+  if(sigInfo){
+    sigInfo.style.display=allMode?"none":"block";
+    sigInfo.innerHTML=certificateSignatureBannerHtml(cid);
+  }
   const validatedBanner=document.getElementById("certificateValidatedBanner");
   if(validatedBanner)validatedBanner.style.display=(!allMode && effectiveCertificateStatus(cert)==="valide")?"flex":"none";
 
@@ -4622,8 +4712,8 @@ function controlExportMatrix(cid,access=null){
     ...quals.map(d=>"COMMENTAIRE - "+d.libelle)
   ];
 
-  const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe","Date naissance","Âge au concours"];
-  const diseaseHeaders=diseases.flatMap(d=>[d+" - méthode",d+" - statut"]);
+  const identity=["REF papier","Dépt.","N° EDE","Éleveur","N° bovin","N° travail","Nom","Sexe","Date naissance","Âge au concours","Signature certificat dès le"];
+  const diseaseHeaders=diseases.flatMap(d=>[d+" - méthode",d+" - début prélèvement",d+" - statut"]);
   const finalHeaders=[access?"Validation partenaire":"Statut certificat","Participation","Entrée","Observation"];
   const headers=[...identity,...diseaseHeaders,...finalHeaders];
 
@@ -4633,8 +4723,8 @@ function controlExportMatrix(cid,access=null){
     const dvals=[];
     diseases.forEach(d=>{
       const info=diseaseExportInfo(a,cid,d);
-      if(!info.needed)dvals.push("N/A","N/A");
-      else dvals.push(info.method,info.status);
+      if(!info.needed)dvals.push("N/A","N/A","N/A");
+      else dvals.push(info.method,samplingStartText(cid,d,info.method),info.status);
     });
 
     let validation="",comment="";
@@ -4664,6 +4754,7 @@ function controlExportMatrix(cid,access=null){
     return [
       ref,a.departement||"",a.cheptel||"",a.eleveur||"",a.bovin||"",String(a.bovin||"").slice(-4),
       a.nom_animal||"",a.sexe||"",formatDateFr(a.naissance),age==null?"?":age+" mois",
+      certificateSignatureText(cid),
       ...dvals,validation,participationLabel(a),entryStatusLabel(a),comment
     ];
   });
@@ -4841,15 +4932,15 @@ function pdfCheckCell(value){
 function openControlPrint(matrix,title,subtitle){
   const grouped=groupedControlRows(matrix);
   const diseaseIndexes=[];
-  for(let i=10;i<matrix.headers.length-4;i++)diseaseIndexes.push(i);
+  for(let i=11;i<matrix.headers.length-4;i++)diseaseIndexes.push(i);
   const finalIndexes=[matrix.headers.length-4,matrix.headers.length-3,matrix.headers.length-2,matrix.headers.length-1];
-  const pairs=[];
-  for(let i=0;i<diseaseIndexes.length;i+=2)pairs.push(diseaseIndexes.slice(i,i+2));
+  const diseaseGroups=[];
+  for(let i=0;i<diseaseIndexes.length;i+=3)diseaseGroups.push(diseaseIndexes.slice(i,i+3));
   const chunks=[];
-  for(let i=0;i<pairs.length;i+=3)chunks.push(pairs.slice(i,i+3).flat());
+  for(let i=0;i<diseaseGroups.length;i+=2)chunks.push(diseaseGroups.slice(i,i+2).flat());
   if(!chunks.length)chunks.push([]);
 
-  const identityIndexes=[0,2,3,4,5,6,7,8,9];
+  const identityIndexes=[0,2,3,4,5,6,7,8,9,10];
 
   const blocks=chunks.map((chunk,chunkIndex)=>{
     const indexes=[...identityIndexes,...chunk,...finalIndexes];
@@ -4899,7 +4990,7 @@ function openControlPrint(matrix,title,subtitle){
     .paper-box.checked{background:#e7f5e9;border-color:#4b8f58;color:#245b2d;font-size:10px;font-weight:bold;line-height:4.5mm;text-align:center}
   </style></head><body>
     <h1>${escapeHtml(title)}</h1><div class="sub">${escapeHtml(subtitle||"")}</div>
-    <div class="note"><strong>Organisation :</strong> pour chaque éleveur, les qualifications du cheptel apparaissent une seule fois, puis viennent les bovins et leurs analyses.</div>
+    <div class="note"><strong>Dates :</strong> “Début prélèvement” = date du concours moins le délai de validité paramétré. “Signature certificat dès le” = date du concours moins le délai de signature du certificat. <strong>Organisation :</strong> les qualifications apparaissent une seule fois par EDE.</div>
     ${blocks}
     <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
   </body></html>`);

@@ -1,7 +1,7 @@
 {
   "name": "Suivi des concours",
   "short_name": "Concours",
-  "start_url": "./index.html?v=106",
+  "start_url": "./index.html?v=107",
   "display": "standalone",
   "background_color": "#f7f3f6",
   "theme_color": "#7b2f63",
