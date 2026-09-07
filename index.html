@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.8</title>
-<link rel="manifest" href="manifest.json?v=118">
+<title>Suivi des concours v0.11.9</title>
+<link rel="manifest" href="manifest.json?v=119">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -308,7 +308,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=118" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">118</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=119" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">119</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -389,7 +389,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <div class="field"><label>Date du concours</label><input id="cDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
       <div class="field"><label>Délai signature certificat (jours avant concours)</label><input id="cCertDelay" type="number" min="0" placeholder="Ex. 10"></div>
       <div class="field"><label>Remboursements</label><select id="cRefundEnabled"><option value="true">Oui</option><option value="false">Non — concours exclu</option></select></div>
-      <div class="field"><label>BVD — statut Animal non IPI accepté</label><select id="cAnipiAccepted"><option value="false">Non</option><option value="true">Oui</option></select></div>
+
       <div class="field" style="min-width:300px"><label>Notes de gestion</label><input id="cManagementNote" placeholder="Ex. renvoyer à…, contact, consignes…"></div>
       <div class="field"><label>Type</label><select id="cType"><option value="suivi">Concours suivi</option><option value="gere">Concours géré</option></select></div>
       <button class="action" onclick="addContest()">Créer</button>
@@ -440,11 +440,17 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
         <option value="qualification">Qualification</option>
         <option value="vaccination">Vaccination</option>
         <option value="document">Document</option>
+        <option value="statut_sanitaire">Statut sanitaire</option>
         <option value="autre">Autre</option>
       </select></div>
       <div class="field"><label>Point à vérifier</label><input id="checkLabel" placeholder="Ex. Qualification IBR, vaccination FCO…"></div>
       <div class="field"><label>Obligatoire</label><select id="checkRequired"><option value="true">Oui</option><option value="false">Non</option></select></div>
       <button class="action" onclick="addCheckDef()">Ajouter</button>
+      <button class="secondary" onclick="addAnipiCheckDef()">+ BVD ANIPI</button>
+    </div>
+    <div class="muted" style="margin-top:8px">
+      <strong>BVD ANIPI</strong> doit être ajouté ici au niveau <strong>Animal</strong> pour les concours qui l’acceptent.
+      Le contrôle pourra ensuite être réalisé automatiquement à partir du fichier bovins métier.
     </div>
     <div id="checkDefList" style="margin-top:12px"></div>
   </div>
@@ -529,6 +535,12 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
     <div class="muted">
       Ce fichier sert à compléter et contrôler les animaux déjà inscrits : détenteur, n° cheptel et date de naissance.
       Aucun nouvel inscrit n'est créé automatiquement à partir du fichier métier.
+    </div>
+    <div class="info" style="margin-top:10px">
+      <strong>Contrôle BVD ANIPI :</strong> pour permettre la vérification automatique, penser à cocher
+      <strong>ANIPI</strong> dans l’export AGDS, <strong>en plus de Mouvements</strong>.
+      L’application utilise la date de début de l’évènement ANIPI et vérifie qu’aucune date de fin n’est renseignée.
+      Le point <strong>BVD ANIPI</strong> doit également avoir été ajouté dans « Autres points de vérification » pour le concours concerné.
     </div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="businessContest"></select></div>
@@ -666,7 +678,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <section id="controles" class="section controls-card">
   <div class="card">
     <h2>Points de vérification complémentaires</h2>
-    <div class="muted">Vaccinations, documents ou autres exigences. Les qualifications sont gérées dans l’onglet Qualifications.</div>
+    <div class="muted">Vaccinations, documents, statuts sanitaires (dont BVD ANIPI) ou autres exigences. Les qualifications de cheptel sont gérées dans l’onglet Qualifications.</div>
     <div class="controls-grid" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="ctrlContest"></select></div>
       <div class="field"><label>Niveau</label><select id="ctrlLevel"><option value="cheptel">Cheptel</option><option value="animal">Animal</option></select></div>
@@ -1152,7 +1164,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.8";
+const APP_VERSION = "0.11.9";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1253,7 +1265,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.8");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.9");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1619,7 +1631,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.8 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.9 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -2247,8 +2259,7 @@ async function addContest(){
   await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true,
     delai_signature_jours:Number.isFinite(certDelay)?certDelay:null,
     commentaire_gestion:document.getElementById("cManagementNote")?.value.trim()||null,
-    remboursements_actifs:document.getElementById("cRefundEnabled")?.value!=="false",
-    bvd_anipi_accepte:document.getElementById("cAnipiAccepted")?.value==="true"},prefer:"return=representation"});
+    remboursements_actifs:document.getElementById("cRefundEnabled")?.value!=="false"},prefer:"return=representation"});
   document.getElementById("cName").value="";
   document.getElementById("cDate").value="";
   if(document.getElementById("cCertDelay"))document.getElementById("cCertDelay").value="";
@@ -2293,12 +2304,6 @@ function renderContestList(){
             <option value="false" ${c.remboursements_actifs===false?"selected":""}>Non</option>
           </select>
         </td>
-        <td>
-          <select onchange="updateContestAnipiAccepted('${c.id}',this.value)">
-            <option value="false" ${!c.bvd_anipi_accepte?"selected":""}>Non</option>
-            <option value="true" ${c.bvd_anipi_accepte?"selected":""}>Oui</option>
-          </select>
-        </td>
         <td><span class="contest-state-badge ${active?"active":"closed"}">${active?"Actif":"Clos"}</span></td>
         <td>${animals}</td>
         <td>
@@ -2308,7 +2313,7 @@ function renderContestList(){
       </tr>`;
     }).join("");
   target.innerHTML=rows
-    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Délai signature certif.</th><th>Notes de gestion</th><th>Remboursements</th><th>BVD ANIPI</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Délai signature certif.</th><th>Notes de gestion</th><th>Remboursements</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun concours enregistré.</div>`;
 }
 async function updateContestManagementNote(id,value){
@@ -2321,12 +2326,6 @@ async function updateContestRefundEnabled(id,value){
   await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{remboursements_actifs:enabled},prefer:"return=minimal"});
   const c=contest(id);if(c)c.remboursements_actifs=enabled;
   renderRefunds();renderContestList();
-}
-async function updateContestAnipiAccepted(id,value){
-  const enabled=String(value)==="true";
-  await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{bvd_anipi_accepte:enabled},prefer:"return=minimal"});
-  const c=contest(id);if(c)c.bvd_anipi_accepte=enabled;
-  renderAnalysis();renderContestList();
 }
 async function updateContestSignatureDelay(id,value){
   const raw=String(value??"").trim();
@@ -2363,6 +2362,35 @@ async function deleteContest(id){
   await loadAll();
 }
 
+function anipiCheckDef(cid){
+  return db.checkDefs.find(d=>
+    d.concours_id===cid &&
+    d.niveau==="animal" &&
+    normalizeRaceText(d.libelle||"")==="bvd anipi"
+  )||null;
+}
+function contestUsesAnipi(cid){
+  return !!anipiCheckDef(cid);
+}
+async function addAnipiCheckDef(){
+  const cid=document.getElementById("checkContest")?.value;
+  if(!cid)return alert("Choisir un concours.");
+  const existing=anipiCheckDef(cid);
+  if(existing)return alert("Le point BVD ANIPI existe déjà pour ce concours.");
+
+  await sb("concours_points_controle",{
+    method:"POST",
+    body:{
+      concours_id:cid,
+      niveau:"animal",
+      type_controle:"statut_sanitaire",
+      libelle:"BVD ANIPI",
+      obligatoire:true
+    },
+    prefer:"return=minimal"
+  });
+  await loadAll();
+}
 async function addCheckDef(){
   const body={
     concours_id:document.getElementById("checkContest").value,
@@ -2392,7 +2420,7 @@ async function deleteCheckDef(id){
 function renderCheckDefs(){
   const cid=document.getElementById("checkContest")?.value;
   const rows=db.checkDefs.filter(x=>x.concours_id===cid).map(x=>`<tr>
-    <td>${x.niveau==="cheptel"?"Cheptel":"Animal"}</td><td>${escapeHtml(x.type_controle)}</td>
+    <td>${x.niveau==="cheptel"?"Cheptel":"Animal"}</td><td>${x.type_controle==="statut_sanitaire"?"Statut sanitaire":escapeHtml(x.type_controle)}</td>
     <td><strong>${escapeHtml(x.libelle)}</strong></td><td>${x.obligatoire?'<span class="badge warn">Obligatoire</span>':'Non'}</td>
     <td><button class="secondary" onclick="editCheckDef('${x.id}')">Modifier</button> <button class="danger" onclick="deleteCheckDef('${x.id}')">Supprimer</button></td></tr>`).join("");
   const t=document.getElementById("checkDefList"); if(!t)return;
@@ -3031,22 +3059,41 @@ async function importBusinessCSV(){
     const status=(herdMismatch||birthMismatch)?"mismatch":(hadMissing?"completed":"ok");
     if(status==="mismatch")mismatch++; else if(status==="completed")completed++; else ok++;
 
-    if(contest(cid)?.bvd_anipi_accepte){
+    if(contestUsesAnipi(cid)){
+      const def=anipiCheckDef(cid);
+      const key="animal:"+a.id;
       if(m.anipiStart && !m.anipiEnd){
         anipiActive++;
+        const comment=`BVD ANIPI — début ${formatDateFr(m.anipiStart)}${m.anipiInfo?` — ${m.anipiInfo}`:""}`;
+        ops.push(sb("concours_controles?on_conflict=point_id,cle_cible",{
+          method:"POST",
+          body:{point_id:def.id,concours_id:cid,cle_cible:key,statut:"conforme",commentaire:comment,updated_at:new Date().toISOString()},
+          prefer:"resolution=merge-duplicates,return=minimal"
+        }));
+        // Résultat technique conservé uniquement pour la date et les exports.
         ops.push(upsertResult(a.id,ANIPI_ANALYSIS,{
           statut:"conforme",
           date_prelevement:m.anipiStart,
-          commentaire:`Statut Animal non IPI actif${m.anipiInfo?` — ${m.anipiInfo}`:""}`
+          commentaire:"BVD ANIPI"
         }));
       }else{
+        const statusComment=m.anipiEnd
+          ?`BVD ANIPI terminé le ${formatDateFr(m.anipiEnd)}`
+          :"BVD ANIPI non retrouvé dans l’export métier";
         if(m.anipiStart && m.anipiEnd)anipiEnded++; else anipiMissing++;
+
+        ops.push(sb("concours_controles?on_conflict=point_id,cle_cible",{
+          method:"POST",
+          body:{point_id:def.id,concours_id:cid,cle_cible:key,statut:"a_verifier",commentaire:statusComment,updated_at:new Date().toISOString()},
+          prefer:"resolution=merge-duplicates,return=minimal"
+        }));
+
         const existing=getResult(a.id,ANIPI_ANALYSIS);
         if(existing && existing.statut==="conforme"){
           ops.push(upsertResult(a.id,ANIPI_ANALYSIS,{
             statut:"attente",
             date_prelevement:m.anipiStart||null,
-            commentaire:m.anipiEnd?`Statut ANIPI terminé le ${formatDateFr(m.anipiEnd)}`:"Aucun statut ANIPI actif retrouvé"
+            commentaire:"BVD ANIPI"
           }));
         }
       }
@@ -3088,9 +3135,9 @@ async function importBusinessCSV(){
       colonne EDE : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.herd||"absente")}</strong> —
       détenteur : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.owner||"—")}</strong>.
       ${lastBusinessImport.herdMatchedByName?`${lastBusinessImport.herdMatchedByName} EDE rapproché(s) par nom.`:""}
-      ${contest(cid)?.bvd_anipi_accepte?`<br><strong>BVD ANIPI :</strong> date de début présente + aucune date de fin = statut actif.`:""}
+      ${contestUsesAnipi(cid)?`<br><strong>BVD ANIPI :</strong> contrôle réalisé car le point BVD ANIPI est paramétré pour ce concours.`:""}
     </div>
-    ${contest(cid)?.bvd_anipi_accepte?`<div style="margin-top:7px">
+    ${contestUsesAnipi(cid)?`<div style="margin-top:7px">
       <span class="badge ok">${anipiActive} ANIPI actif(s)</span>
       <span class="badge warn">${anipiEnded} ANIPI terminé(s)</span>
       <span class="badge na">${anipiMissing} sans statut ANIPI</span>
@@ -3277,13 +3324,13 @@ function preferredRuleForDisease(animal,cid,disease){
   return rules[0]||null;
 }
 function selectedAnalysisForDisease(animal,cid,disease){
-  if(disease==="BVD" && contest(cid)?.bvd_anipi_accepte && activeAnipiResult(animal))return ANIPI_ANALYSIS;
+  if(disease==="BVD" && contestUsesAnipi(cid) && activeAnipiResult(animal))return ANIPI_ANALYSIS;
   const accepted=acceptedRulesForDisease(animal,cid,disease);
   const withData=accepted.find(r=>{const x=getResult(animal.id,r.libelle_analyse);return x && x.statut && x.statut!=='attente'});
   return withData?.libelle_analyse || preferredRuleForDisease(animal,cid,disease)?.libelle_analyse || '';
 }
 function diseaseSatisfied(animal,cid,disease){
-  if(disease==="BVD" && contest(cid)?.bvd_anipi_accepte && activeAnipiResult(animal))return true;
+  if(disease==="BVD" && contestUsesAnipi(cid) && activeAnipiResult(animal))return true;
   const accepted=acceptedRulesForDisease(animal,cid,disease);
   if(!accepted.length)return true;
   return accepted.some(r=>getResult(animal.id,r.libelle_analyse).statut==='conforme');
@@ -3328,8 +3375,8 @@ function samplingStartText(cid,disease,analysis=""){
 function diseaseSamplingHeaderHtml(cid,disease){
   const x=samplingStartInfo(cid,disease);
   return x.date
-    ? `<div class="sampling-date">Prélèvements dès le <strong>${escapeHtml(formatDateFr(x.date))}</strong><br><span>${x.days} jours avant le concours${disease==="BVD"&&contest(cid)?.bvd_anipi_accepte?" · BVD ANIPI accepté":""}</span></div>`
-    : (disease==="BVD"&&contest(cid)?.bvd_anipi_accepte?'<div class="sampling-date"><span>BVD ANIPI accepté</span></div>':"");
+    ? `<div class="sampling-date">Prélèvements dès le <strong>${escapeHtml(formatDateFr(x.date))}</strong><br><span>${x.days} jours avant le concours${disease==="BVD"&&contestUsesAnipi(cid)?" · BVD ANIPI accepté":""}</span></div>`
+    : (disease==="BVD"&&contestUsesAnipi(cid)?'<div class="sampling-date"><span>BVD ANIPI accepté</span></div>':"");
 }
 function certificateSignatureInfo(cid){
   const c=contest(cid);
@@ -3360,9 +3407,17 @@ function preferredMethodForDisease(animal,cid,disease){
 }
 const ANIPI_ANALYSIS="BVD ANIPI";
 function activeAnipiResult(animal){
-  if(!contest(animal.concours_id)?.bvd_anipi_accepte)return null;
-  const r=getResult(animal.id,ANIPI_ANALYSIS);
-  return r?.statut==="conforme"?r:null;
+  const def=anipiCheckDef(animal.concours_id);
+  if(!def)return null;
+  const control=getCheckResult(def.id,"animal:"+animal.id);
+  if(control.statut!=="conforme")return null;
+
+  const stored=getResult(animal.id,ANIPI_ANALYSIS);
+  return {
+    ...stored,
+    statut:"conforme",
+    commentaire:control.commentaire||stored?.commentaire||"BVD ANIPI"
+  };
 }
 function anipiDateText(animal){
   const r=activeAnipiResult(animal);
