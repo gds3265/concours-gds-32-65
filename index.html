@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.5</title>
-<link rel="manifest" href="manifest.json?v=115">
+<title>Suivi des concours v0.11.6</title>
+<link rel="manifest" href="manifest.json?v=116">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -308,7 +308,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=115" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">115</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=116" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">116</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1150,7 +1150,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.5";
+const APP_VERSION = "0.11.6";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1251,7 +1251,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.5");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.6");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1617,7 +1617,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.5 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.6 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -3522,8 +3522,11 @@ function renderAnalysis(){
         </td>`;
       }
     });
-    const com=allAnalyses().map(an=>getResult(a.id,an).commentaire).map(x=>String(x||"").replace(MANUAL_ANALYSIS_MARKER,"").trim()).find(Boolean)||"";
-    out+=`<td>${renderManualAnalyses(a)}</td><td><input value="${escapeHtml(com)}" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
+    const com=Object.values(db.results[a.id]||{}).map(r=>String(r?.commentaire||"")
+      .replace(MANUAL_ANALYSIS_MARKER,"")
+      .replace(NON_REFUND_MARKER,"")
+      .trim()).find(Boolean)||"";
+    out+=`<td>${renderManualAnalyses(a)}</td><td><input value="${escapeHtml(com)}" placeholder="Commentaire" title="Enregistré automatiquement à la sortie du champ" onchange="setAnimalComment('${a.id}',this.value)"></td></tr>`;
   });
   document.getElementById("analysisTable").innerHTML=out+"</tbody>";
 }async function upsertResult(aid,analysis,patch){
@@ -3554,12 +3557,42 @@ async function setResult(aid,analysis,status){
   }
   await loadAll();
 }
-async function setAnimalCommentRelevant(aid,txt){
-  const a=db.animals.find(x=>x.id===aid);if(!a)return;
+async function setAnimalComment(aid,txt){
+  const a=db.animals.find(x=>String(x.id)===String(aid));if(!a)return;
   if(!confirmPostCertificateEdit(a.concours_id,a.eleveur,"un commentaire d’analyse"))return;
-  const cid=a.concours_id,ops=[];
-  requestedDiseases(cid).forEach(d=>acceptedRulesForDisease(a,cid,d).forEach(r=>ops.push(upsertResult(aid,r.libelle_analyse,{commentaire:txt}))));
-  await Promise.all(ops);await loadAll();
+
+  const cid=a.concours_id;
+  const comment=String(txt??"").trim();
+  const analyses=new Set();
+
+  // Enregistre sur les méthodes réellement affichées/demandées pour ce bovin.
+  demandedDiseases(cid).forEach(d=>{
+    const dr=getDiseaseResult(a,d);
+    if(dr?.method)analyses.add(dr.method);
+  });
+
+  // Si aucune analyse n'est actuellement affichée, conserve malgré tout
+  // le commentaire sur la première analyse connue de l'animal.
+  if(!analyses.size){
+    Object.keys(db.results[a.id]||{}).forEach(an=>analyses.add(an));
+  }
+
+  if(!analyses.size){
+    alert("Aucune analyse disponible pour enregistrer ce commentaire.");
+    return;
+  }
+
+  const ops=[...analyses].map(analysis=>{
+    const current=getResult(aid,analysis);
+    const markers=[];
+    if(String(current.commentaire||"").includes(NON_REFUND_MARKER))markers.push(NON_REFUND_MARKER);
+    if(String(current.commentaire||"").includes(MANUAL_ANALYSIS_MARKER))markers.push(MANUAL_ANALYSIS_MARKER);
+    const finalComment=[comment,...markers].filter(Boolean).join(" ").trim()||null;
+    return upsertResult(aid,analysis,{commentaire:finalComment});
+  });
+
+  await Promise.all(ops);
+  await loadAll();
 }
 async function markUnneededDone(aid,analysis){
   const a=db.animals.find(x=>x.id===aid);
