@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.11</title>
-<link rel="manifest" href="manifest.json?v=1111">
+<title>Suivi des concours v0.11.12</title>
+<link rel="manifest" href="manifest.json?v=1112">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -262,23 +262,19 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   box-shadow:0 12px 40px rgba(0,0,0,.25);
 }
 
-/* En-têtes de tableaux toujours visibles pendant le défilement */
-.scroll table thead th,
-table.sticky-header thead th{
+
+/* En-têtes fixes uniquement dans les zones de défilement interne */
+.scroll{
+  position:relative;
+}
+.scroll > table thead th{
   position:sticky;
   top:0;
-  z-index:6;
+  z-index:3;
   background:#f2e8ee;
   box-shadow:0 1px 0 rgba(125,47,99,.18);
 }
-.scroll{position:relative}
 
-table thead th{
-  position:sticky;
-  top:0;
-  z-index:5;
-  background:#f2e8ee;
-}
 </style>
 </head>
 <body>
@@ -326,7 +322,7 @@ table thead th{
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1111" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1111</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1112" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1112</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1186,7 +1182,7 @@ table thead th{
 </div>
 
 <script>
-const APP_VERSION = "0.11.11";
+const APP_VERSION = "0.11.12";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1287,7 +1283,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.11");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.12");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1660,7 +1656,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.11 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.12 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
