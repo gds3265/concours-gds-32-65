@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.10</title>
-<link rel="manifest" href="manifest.json?v=1110">
+<title>Suivi des concours v0.11.11</title>
+<link rel="manifest" href="manifest.json?v=1111">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -261,6 +261,24 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   width:min(95vw,860px); max-height:90vh; overflow:auto;
   box-shadow:0 12px 40px rgba(0,0,0,.25);
 }
+
+/* En-têtes de tableaux toujours visibles pendant le défilement */
+.scroll table thead th,
+table.sticky-header thead th{
+  position:sticky;
+  top:0;
+  z-index:6;
+  background:#f2e8ee;
+  box-shadow:0 1px 0 rgba(125,47,99,.18);
+}
+.scroll{position:relative}
+
+table thead th{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#f2e8ee;
+}
 </style>
 </head>
 <body>
@@ -308,7 +326,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1110" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1110</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1111" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1111</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -440,7 +458,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
         <option value="qualification">Qualification</option>
         <option value="vaccination">Vaccination</option>
         <option value="document">Document</option>
-        <option value="statut_sanitaire">Statut sanitaire</option>
+        <option value="bvd_anipi">BVD ANIPI</option>
         <option value="autre">Autre</option>
       </select></div>
       <div class="field"><label>Point à vérifier</label><input id="checkLabel" placeholder="Ex. Qualification IBR, vaccination FCO…"></div>
@@ -680,16 +698,16 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <div class="field"><label>Type</label><select id="ctrlType">
         <option value="vaccination">Vaccination</option>
         <option value="document">Document</option>
-        <option value="statut_sanitaire">Statut sanitaire</option>
         <option value="autre">Autre</option>
       </select></div>
       <div class="field"><label>Point à vérifier</label><input id="ctrlLabel" placeholder="Ex. Vaccination FCO"></div>
       <div class="field"><label>Obligatoire</label><select id="ctrlRequired"><option value="true">Oui</option><option value="false">Non</option></select></div>
       <button class="action" onclick="addSupplementaryDef()">Ajouter</button>
-      <button class="secondary" onclick="addAnipiSupplementaryDef()">+ BVD ANIPI</button>
+      <button class="secondary" onclick="verifyAnipiFromBusinessFile()">Vérif statut ANIPI</button>
     </div>
     <div class="muted" style="margin-top:8px">
-      Les points déjà saisis pour ce concours sont listés ci-dessous. Le bouton <strong>+ BVD ANIPI</strong> crée directement un contrôle individuel de type statut sanitaire.
+      Les points déjà paramétrés pour ce concours sont listés ci-dessous.
+      <strong>Vérif statut ANIPI</strong> te renvoie vers l’import du fichier bovins métier AGDS pour lancer le contrôle en masse.
     </div>
   </div>
   <div class="card"><div id="supplementaryDefs"></div></div>
@@ -1168,7 +1186,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.10";
+const APP_VERSION = "0.11.11";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1269,7 +1287,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.10");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.11");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1396,6 +1414,13 @@ function applyAccessMode(){
     document.getElementById("eleveurportail")?.classList.add("active");
     document.querySelectorAll("nav button").forEach(b=>b.style.display=b.dataset.tab==="eleveurportail"?"inline-flex":"none");
     document.getElementById("globalSearch")?.classList.add("hidden");
+  }else{
+    const eb=document.querySelector('nav button[data-tab="eleveurs"]');
+    if(eb)eb.style.display=FARMER_PORTAL_AVAILABLE?"inline-flex":"none";
+    const ep=document.querySelector('nav button[data-tab="eleveurportail"]');
+    if(ep)ep.style.display="none";
+    const pp=document.querySelector('nav button[data-tab="partenaireportail"]');
+    if(pp)pp.style.display="none";
   }
 }
 function portalAccess(){
@@ -1635,7 +1660,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.10 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.11 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -1962,6 +1987,7 @@ async function optionalSb(path,fallback=[]){
       msg.includes("schema cache")
     ){
       FARMER_PORTAL_AVAILABLE=false;
+      setSync("synchronisé");
       return fallback;
     }
     throw e;
@@ -2288,7 +2314,11 @@ function renderContestList(){
 
   const rows=[...db.contests]
     .filter(c=>!selectedYear || String(c.date_concours||"").startsWith(selectedYear+"-"))
-    .sort((a,b)=>String(b.date_concours||"").localeCompare(String(a.date_concours||"")))
+    .sort((a,b)=>{
+      const aa=contestIsActive(a)?1:0,bb=contestIsActive(b)?1:0;
+      if(aa!==bb)return bb-aa;
+      return String(b.date_concours||"").localeCompare(String(a.date_concours||""));
+    })
     .map(c=>{
       const animals=db.animals.filter(a=>a.concours_id===c.id).length;
       const active=contestIsActive(c);
@@ -2396,12 +2426,14 @@ async function addAnipiCheckDef(){
   await loadAll();
 }
 async function addCheckDef(){
+  const selectedType=document.getElementById("checkType").value;
+  const isAnipi=selectedType==="bvd_anipi";
   const body={
     concours_id:document.getElementById("checkContest").value,
-    niveau:document.getElementById("checkLevel").value,
-    type_controle:document.getElementById("checkType").value,
-    libelle:document.getElementById("checkLabel").value.trim(),
-    obligatoire:document.getElementById("checkRequired").value==="true"
+    niveau:isAnipi?"animal":document.getElementById("checkLevel").value,
+    type_controle:isAnipi?"statut_sanitaire":selectedType,
+    libelle:isAnipi?"BVD ANIPI":document.getElementById("checkLabel").value.trim(),
+    obligatoire:isAnipi?true:document.getElementById("checkRequired").value==="true"
   };
   if(!body.concours_id||!body.libelle)return alert("Concours et libellé obligatoires.");
   await sb("concours_points_controle",{method:"POST",body,prefer:"return=minimal"});
@@ -2424,7 +2456,8 @@ async function deleteCheckDef(id){
 function renderCheckDefs(){
   const cid=document.getElementById("checkContest")?.value;
   const rows=db.checkDefs.filter(x=>x.concours_id===cid).map(x=>`<tr>
-    <td>${x.niveau==="cheptel"?"Cheptel":"Animal"}</td><td>${x.type_controle==="statut_sanitaire"?"Statut sanitaire":escapeHtml(x.type_controle)}</td>
+    <td>${x.niveau==="cheptel"?"Cheptel":"Animal"}</td>
+    <td>${normalizeRaceText(x.libelle||"")==="bvd anipi"?"BVD ANIPI":escapeHtml(x.type_controle)}</td>
     <td><strong>${escapeHtml(x.libelle)}</strong></td><td>${x.obligatoire?'<span class="badge warn">Obligatoire</span>':'Non'}</td>
     <td><button class="secondary" onclick="editCheckDef('${x.id}')">Modifier</button> <button class="danger" onclick="deleteCheckDef('${x.id}')">Supprimer</button></td></tr>`).join("");
   const t=document.getElementById("checkDefList"); if(!t)return;
@@ -4684,18 +4717,27 @@ async function addSupplementaryDef(){
   await loadAll();
 }
 
-async function addAnipiSupplementaryDef(){
+
+function verifyAnipiFromBusinessFile(){
   const cid=document.getElementById("ctrlContest")?.value;
   if(!cid)return alert("Choisir un concours.");
-  if(anipiCheckDef(cid))return alert("Le point BVD ANIPI existe déjà pour ce concours.");
-  await sb("concours_points_controle",{
-    method:"POST",
-    body:{concours_id:cid,niveau:"animal",type_controle:"statut_sanitaire",libelle:"BVD ANIPI",obligatoire:true},
-    prefer:"return=minimal"
-  });
-  await loadAll();
+  if(!anipiCheckDef(cid)){
+    alert("Le point BVD ANIPI n’est pas paramétré pour ce concours.\n\nAjoute-le d’abord dans Paramétrage > Autres points de vérification.");
+    return;
+  }
+  const btn=document.querySelector('nav button[data-tab="animaux"]');
+  if(btn)btn.click();
+  setTimeout(()=>{
+    const sel=document.getElementById("businessContest");
+    if(sel){
+      sel.value=cid;
+      sel.dispatchEvent(new Event("change",{bubbles:true}));
+    }
+    const card=document.getElementById("businessFile")?.closest(".card");
+    card?.scrollIntoView({behavior:"smooth",block:"start"});
+    document.getElementById("businessFile")?.focus();
+  },100);
 }
-
 function supplementaryDefsForContest(cid){
   return db.checkDefs
     .filter(d=>d.concours_id===cid && d.type_controle!=="qualification")
@@ -4717,7 +4759,7 @@ function renderSupplementaryDefs(){
     <thead><tr><th>Niveau</th><th>Type</th><th>Point</th><th>Obligatoire</th><th>Actions</th></tr></thead>
     <tbody>${defs.map(d=>`<tr>
       <td>${d.niveau==="animal"?"Animal":"Cheptel"}</td>
-      <td>${d.type_controle==="statut_sanitaire"?"Statut sanitaire":escapeHtml(d.type_controle||"")}</td>
+      <td>${normalizeRaceText(d.libelle||"")==="bvd anipi"?"BVD ANIPI":escapeHtml(d.type_controle||"")}</td>
       <td><strong>${escapeHtml(d.libelle||"")}</strong></td>
       <td>${d.obligatoire?'<span class="badge warn">Oui</span>':'Non'}</td>
       <td>
@@ -6302,6 +6344,14 @@ document.getElementById("animalEditModal")?.addEventListener("click",e=>{
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&!document.getElementById("animalEditModal")?.classList.contains("hidden"))closeAnimalEdit();
+});
+document.getElementById("checkType")?.addEventListener("change",e=>{
+  const isAnipi=e.target.value==="bvd_anipi";
+  if(isAnipi){
+    const level=document.getElementById("checkLevel");if(level)level.value="animal";
+    const label=document.getElementById("checkLabel");if(label)label.value="BVD ANIPI";
+    const req=document.getElementById("checkRequired");if(req)req.value="true";
+  }
 });
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
