@@ -473,3 +473,12 @@ CHECK (delai_signature_jours IS NULL OR delai_signature_jours >= 0);
 ALTER TABLE public.concours_animaux ADD COLUMN IF NOT EXISTS code_race text;
 ALTER TABLE public.concours_animaux ADD COLUMN IF NOT EXISTS race_libelle text;
 ALTER TABLE public.concours ADD COLUMN IF NOT EXISTS commentaire_gestion text;
+
+
+-- v0.11.7 : remboursements + BVD ANIPI
+-- Suivi Concours v0.11.7
+ALTER TABLE public.concours
+ADD COLUMN IF NOT EXISTS remboursements_actifs boolean NOT NULL DEFAULT true;
+
+ALTER TABLE public.concours
+ADD COLUMN IF NOT EXISTS bvd_anipi_accepte boolean NOT NULL DEFAULT false;

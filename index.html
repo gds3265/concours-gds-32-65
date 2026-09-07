@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.6</title>
-<link rel="manifest" href="manifest.json?v=116">
+<title>Suivi des concours v0.11.8</title>
+<link rel="manifest" href="manifest.json?v=118">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -308,7 +308,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=116" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">116</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=118" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">118</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -388,6 +388,8 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <div class="field"><label>Nom</label><input id="cName" placeholder="Ex. Concours de Tarbes"></div>
       <div class="field"><label>Date du concours</label><input id="cDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
       <div class="field"><label>Délai signature certificat (jours avant concours)</label><input id="cCertDelay" type="number" min="0" placeholder="Ex. 10"></div>
+      <div class="field"><label>Remboursements</label><select id="cRefundEnabled"><option value="true">Oui</option><option value="false">Non — concours exclu</option></select></div>
+      <div class="field"><label>BVD — statut Animal non IPI accepté</label><select id="cAnipiAccepted"><option value="false">Non</option><option value="true">Oui</option></select></div>
       <div class="field" style="min-width:300px"><label>Notes de gestion</label><input id="cManagementNote" placeholder="Ex. renvoyer à…, contact, consignes…"></div>
       <div class="field"><label>Type</label><select id="cType"><option value="suivi">Concours suivi</option><option value="gere">Concours géré</option></select></div>
       <button class="action" onclick="addContest()">Créer</button>
@@ -1150,7 +1152,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.6";
+const APP_VERSION = "0.11.8";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1251,7 +1253,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.6");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.8");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1617,7 +1619,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.6 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.8 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -2242,7 +2244,11 @@ async function addContest(){
   if(!nom||!date)return alert("Nom et date obligatoires");
   const certDelayRaw=document.getElementById("cCertDelay")?.value??"";
   const certDelay=certDelayRaw===""?null:Number(certDelayRaw);
-  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true,delai_signature_jours:Number.isFinite(certDelay)?certDelay:null,commentaire_gestion:document.getElementById("cManagementNote")?.value.trim()||null},prefer:"return=representation"});
+  await sb("concours",{method:"POST",body:{nom,date_concours:date,type_suivi:document.getElementById("cType").value,actif:true,
+    delai_signature_jours:Number.isFinite(certDelay)?certDelay:null,
+    commentaire_gestion:document.getElementById("cManagementNote")?.value.trim()||null,
+    remboursements_actifs:document.getElementById("cRefundEnabled")?.value!=="false",
+    bvd_anipi_accepte:document.getElementById("cAnipiAccepted")?.value==="true"},prefer:"return=representation"});
   document.getElementById("cName").value="";
   document.getElementById("cDate").value="";
   if(document.getElementById("cCertDelay"))document.getElementById("cCertDelay").value="";
@@ -2281,6 +2287,18 @@ function renderContestList(){
           <div class="muted" style="margin-top:3px">${certificateSignatureInfo(c.id).date?`Dès le ${escapeHtml(formatDateFr(certificateSignatureInfo(c.id).date))}`:"Non paramétré"}</div>
         </td>
         <td><textarea rows="2" style="min-width:220px" onchange="updateContestManagementNote('${c.id}',this.value)">${escapeHtml(c.commentaire_gestion||"")}</textarea></td>
+        <td>
+          <select onchange="updateContestRefundEnabled('${c.id}',this.value)">
+            <option value="true" ${c.remboursements_actifs!==false?"selected":""}>Oui</option>
+            <option value="false" ${c.remboursements_actifs===false?"selected":""}>Non</option>
+          </select>
+        </td>
+        <td>
+          <select onchange="updateContestAnipiAccepted('${c.id}',this.value)">
+            <option value="false" ${!c.bvd_anipi_accepte?"selected":""}>Non</option>
+            <option value="true" ${c.bvd_anipi_accepte?"selected":""}>Oui</option>
+          </select>
+        </td>
         <td><span class="contest-state-badge ${active?"active":"closed"}">${active?"Actif":"Clos"}</span></td>
         <td>${animals}</td>
         <td>
@@ -2290,13 +2308,25 @@ function renderContestList(){
       </tr>`;
     }).join("");
   target.innerHTML=rows
-    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Délai signature certif.</th><th>Notes de gestion</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="scroll"><table><thead><tr><th>Concours</th><th>Date</th><th>Type</th><th>Délai signature certif.</th><th>Notes de gestion</th><th>Remboursements</th><th>BVD ANIPI</th><th>Statut</th><th>Bovins</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : `<div class="muted">Aucun concours enregistré.</div>`;
 }
 async function updateContestManagementNote(id,value){
   const clean=String(value||"").trim();
   await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{commentaire_gestion:clean||null},prefer:"return=minimal"});
   const c=contest(id);if(c)c.commentaire_gestion=clean||null;
+}
+async function updateContestRefundEnabled(id,value){
+  const enabled=String(value)!=="false";
+  await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{remboursements_actifs:enabled},prefer:"return=minimal"});
+  const c=contest(id);if(c)c.remboursements_actifs=enabled;
+  renderRefunds();renderContestList();
+}
+async function updateContestAnipiAccepted(id,value){
+  const enabled=String(value)==="true";
+  await sb("concours?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{bvd_anipi_accepte:enabled},prefer:"return=minimal"});
+  const c=contest(id);if(c)c.bvd_anipi_accepte=enabled;
+  renderAnalysis();renderContestList();
 }
 async function updateContestSignatureDelay(id,value){
   const raw=String(value??"").trim();
@@ -2950,6 +2980,18 @@ async function importBusinessCSV(){
     const raceRaw=cols.race?valueFromColumn(o,cols.race):pick(o,["code race","coderace","race","type racial"]);
     const raceCode=raceCodeFromText(raceRaw);
     const raceLibelle=raceCode?"":String(raceRaw||"").trim();
+    const anipiStart=normalizeDate(pick(o,[
+      "Date début dernier évènement ANIPI - Animal non IPI (virus BVD-MD)",
+      "Date debut dernier evenement ANIPI - Animal non IPI (virus BVD-MD)"
+    ]));
+    const anipiEnd=normalizeDate(pick(o,[
+      "Date fin dernier évènement ANIPI - Animal non IPI (virus BVD-MD)",
+      "Date fin dernier evenement ANIPI - Animal non IPI (virus BVD-MD)"
+    ]));
+    const anipiInfo=cleanExcelCell(pick(o,[
+      "Informations dernier évènement ANIPI - Animal non IPI (virus BVD-MD)",
+      "Informations dernier evenement ANIPI - Animal non IPI (virus BVD-MD)"
+    ]));
     let cheptel=cols.herd?normalizeHerd(valueFromColumn(o,cols.herd)):"";
     if(!cheptel && owner){
       const byName=findHerdByOwnerName(cid,owner);
@@ -2962,6 +3004,7 @@ async function importBusinessCSV(){
       departement:departmentFromHerd(cheptel)||selectedDept||null,
       owner:owner||null,
       code_race:raceCode||null,race_libelle:raceLibelle||null,
+      anipiStart,anipiEnd,anipiInfo,
       naissance:normalizeDate(cols.birth?valueFromColumn(o,cols.birth):pick(o,["Date naissance","naissance","date de naissance","date naissance","ddn","DATE_NAISS"])),
       nom:cleanExcelCell(cols.animalName?valueFromColumn(o,cols.animalName):pick(o,["Nom","NOM"])),
       sexe:cleanExcelCell(cols.sex?valueFromColumn(o,cols.sex):pick(o,["Sexe","SEXE"])),
@@ -2972,7 +3015,7 @@ async function importBusinessCSV(){
   const inscrits=db.animals.filter(a=>a.concours_id===cid && (!selectedDept || (a.departement||departmentFromHerd(a.cheptel))===selectedDept));
   if(!inscrits.length)return alert(selectedDept?"Aucun animal inscrit pour ce concours et ce département.":"Aucun animal inscrit pour ce concours.");
 
-  let ok=0,completed=0,mismatch=0,notfound=0;
+  let ok=0,completed=0,mismatch=0,notfound=0,anipiActive=0,anipiEnded=0,anipiMissing=0;
   const ops=[];
   for(const a of inscrits){
     const m=business.get(normalizeBovin(a.bovin));
@@ -2987,6 +3030,27 @@ async function importBusinessCSV(){
     const hadMissing=!a.cheptel || !a.naissance;
     const status=(herdMismatch||birthMismatch)?"mismatch":(hadMissing?"completed":"ok");
     if(status==="mismatch")mismatch++; else if(status==="completed")completed++; else ok++;
+
+    if(contest(cid)?.bvd_anipi_accepte){
+      if(m.anipiStart && !m.anipiEnd){
+        anipiActive++;
+        ops.push(upsertResult(a.id,ANIPI_ANALYSIS,{
+          statut:"conforme",
+          date_prelevement:m.anipiStart,
+          commentaire:`Statut Animal non IPI actif${m.anipiInfo?` — ${m.anipiInfo}`:""}`
+        }));
+      }else{
+        if(m.anipiStart && m.anipiEnd)anipiEnded++; else anipiMissing++;
+        const existing=getResult(a.id,ANIPI_ANALYSIS);
+        if(existing && existing.statut==="conforme"){
+          ops.push(upsertResult(a.id,ANIPI_ANALYSIS,{
+            statut:"attente",
+            date_prelevement:m.anipiStart||null,
+            commentaire:m.anipiEnd?`Statut ANIPI terminé le ${formatDateFr(m.anipiEnd)}`:"Aucun statut ANIPI actif retrouvé"
+          }));
+        }
+      }
+    }
 
     const note=[];
     if(herdMismatch)note.push("EDE différent");
@@ -3008,7 +3072,7 @@ async function importBusinessCSV(){
     }}));
   }
   await Promise.all(ops);
-  lastBusinessImport={fileName:f.name,totalLines:source.length,recognized,withoutId,matched:ok+completed+mismatch,notfound,example:[...business.keys()][0]||"",detectedColumns:cols,herdMatchedByName};
+  lastBusinessImport={fileName:f.name,totalLines:source.length,recognized,withoutId,matched:ok+completed+mismatch,notfound,example:[...business.keys()][0]||"",detectedColumns:cols,herdMatchedByName,anipiActive,anipiEnded,anipiMissing};
   document.getElementById("animalViewContest").value=cid;
   await loadAll();
   document.getElementById("businessImportSummary").innerHTML=
@@ -3024,7 +3088,13 @@ async function importBusinessCSV(){
       colonne EDE : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.herd||"absente")}</strong> —
       détenteur : <strong>${escapeHtml(lastBusinessImport.detectedColumns?.owner||"—")}</strong>.
       ${lastBusinessImport.herdMatchedByName?`${lastBusinessImport.herdMatchedByName} EDE rapproché(s) par nom.`:""}
+      ${contest(cid)?.bvd_anipi_accepte?`<br><strong>BVD ANIPI :</strong> date de début présente + aucune date de fin = statut actif.`:""}
     </div>
+    ${contest(cid)?.bvd_anipi_accepte?`<div style="margin-top:7px">
+      <span class="badge ok">${anipiActive} ANIPI actif(s)</span>
+      <span class="badge warn">${anipiEnded} ANIPI terminé(s)</span>
+      <span class="badge na">${anipiMissing} sans statut ANIPI</span>
+    </div>`:""}
     <div style="margin-top:7px">
       <span class="badge ok">${ok} cohérent(s)</span>
       <span class="badge lab">${completed} complété(s)</span>
@@ -3207,11 +3277,13 @@ function preferredRuleForDisease(animal,cid,disease){
   return rules[0]||null;
 }
 function selectedAnalysisForDisease(animal,cid,disease){
+  if(disease==="BVD" && contest(cid)?.bvd_anipi_accepte && activeAnipiResult(animal))return ANIPI_ANALYSIS;
   const accepted=acceptedRulesForDisease(animal,cid,disease);
   const withData=accepted.find(r=>{const x=getResult(animal.id,r.libelle_analyse);return x && x.statut && x.statut!=='attente'});
   return withData?.libelle_analyse || preferredRuleForDisease(animal,cid,disease)?.libelle_analyse || '';
 }
 function diseaseSatisfied(animal,cid,disease){
+  if(disease==="BVD" && contest(cid)?.bvd_anipi_accepte && activeAnipiResult(animal))return true;
   const accepted=acceptedRulesForDisease(animal,cid,disease);
   if(!accepted.length)return true;
   return accepted.some(r=>getResult(animal.id,r.libelle_analyse).statut==='conforme');
@@ -3249,14 +3321,15 @@ function samplingStartInfo(cid,disease,analysis=""){
   return {date:subtractDaysISO(c.date_concours,days),days};
 }
 function samplingStartText(cid,disease,analysis=""){
+  if(analysis===ANIPI_ANALYSIS)return "BVD ANIPI";
   const x=samplingStartInfo(cid,disease,analysis);
   return x.date?`${formatDateFr(x.date)} (${x.days} j)`:(x.days?`Délai ${x.days} j`:"—");
 }
 function diseaseSamplingHeaderHtml(cid,disease){
   const x=samplingStartInfo(cid,disease);
   return x.date
-    ? `<div class="sampling-date">Prélèvements dès le <strong>${escapeHtml(formatDateFr(x.date))}</strong><br><span>${x.days} jours avant le concours</span></div>`
-    : "";
+    ? `<div class="sampling-date">Prélèvements dès le <strong>${escapeHtml(formatDateFr(x.date))}</strong><br><span>${x.days} jours avant le concours${disease==="BVD"&&contest(cid)?.bvd_anipi_accepte?" · BVD ANIPI accepté":""}</span></div>`
+    : (disease==="BVD"&&contest(cid)?.bvd_anipi_accepte?'<div class="sampling-date"><span>BVD ANIPI accepté</span></div>':"");
 }
 function certificateSignatureInfo(cid){
   const c=contest(cid);
@@ -3285,8 +3358,22 @@ function preferredMethodForDisease(animal,cid,disease){
   const opts=methodOptionsForDisease(animal,cid,disease);
   return opts.find(r=>r.methode_reference_remboursement)||opts[0]||null;
 }
+const ANIPI_ANALYSIS="BVD ANIPI";
+function activeAnipiResult(animal){
+  if(!contest(animal.concours_id)?.bvd_anipi_accepte)return null;
+  const r=getResult(animal.id,ANIPI_ANALYSIS);
+  return r?.statut==="conforme"?r:null;
+}
+function anipiDateText(animal){
+  const r=activeAnipiResult(animal);
+  return r?.date_prelevement?formatDateFr(r.date_prelevement):"";
+}
 function getDiseaseResult(animal,disease){
   const cid=animal.concours_id;
+  if(disease==="BVD"){
+    const anipi=activeAnipiResult(animal);
+    if(anipi)return {method:ANIPI_ANALYSIS,result:anipi};
+  }
   const methods=methodOptionsForDisease(animal,cid,disease);
   for(const m of methods){
     const r=getResult(animal.id,m.libelle_analyse);
@@ -3296,6 +3383,9 @@ function getDiseaseResult(animal,disease){
   return {method:pref?.libelle_analyse||"",result:pref?getResult(animal.id,pref.libelle_analyse):null};
 }
 function diseaseMethodSelect(animal,cid,disease,current){
+  if(current===ANIPI_ANALYSIS){
+    return `<div class="badge ok">✅ BVD ANIPI${anipiDateText(animal)?` — depuis le ${escapeHtml(anipiDateText(animal))}`:""}</div>`;
+  }
   const opts=methodOptionsForDisease(animal,cid,disease);
   if(!opts.length)return "";
   return `<select onchange="changeDiseaseMethod('${animal.id}','${escapeHtml(disease)}',this.value)">
@@ -4768,6 +4858,10 @@ async function finalizeCertificate(){
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
 function reimbursementDecision(animal,analysis,status){
+  if(contest(animal.concours_id)?.remboursements_actifs===false)
+    return{ok:false,reason:"Concours exclu des remboursements"};
+  if(analysis===ANIPI_ANALYSIS)
+    return{ok:false,reason:"Statut Animal non IPI — pas une analyse remboursable"};
   const manualResult=getResult(animal.id,analysis);
   if(isManualAnalysisResult(manualResult))return{ok:false,reason:"Analyse ajoutée hors protocole / non remboursable"};
   const certAnimalStatus=animal.statut_certificat_animal || (animal.sur_certificat?"present":"a_verifier");
@@ -4802,7 +4896,7 @@ function contestsForYear(year){
 function currentRefundContestIds(){
   const year=document.getElementById("refundYear")?.value||"";
   const cid=document.getElementById("refundContest")?.value||"";
-  if(cid)return [cid];
+  if(cid)return contest(cid)?.remboursements_actifs===false?[]:[cid];
   if(year)return contestsForYear(year).map(c=>c.id);
   return db.contests.map(c=>c.id);
 }
@@ -4890,6 +4984,13 @@ function renderRefunds(){
   const farmerTarget=document.getElementById("refundFarmerSummary");
   const paidTarget=document.getElementById("refundPaidSummary");
   if(!target||!farmerTarget||!paidTarget)return;
+
+  const selectedRefundContest=document.getElementById("refundContest")?.value||"";
+  if(selectedRefundContest && contest(selectedRefundContest)?.remboursements_actifs===false){
+    target.innerHTML='<div class="info"><strong>Remboursements désactivés pour ce concours.</strong><br>Aucun animal ni analyse de ce concours ne sera proposé au remboursement.</div>';
+    farmerTarget.innerHTML='<option value="">Tous les éleveurs</option>';
+    return;
+  }
 
   const scope=document.getElementById("refundScopeSummary");
   if(scope){
