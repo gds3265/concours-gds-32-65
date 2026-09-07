@@ -1,0 +1,9 @@
+1. Exécuter SQL_PATCH_v0_11_0.sql dans Supabase.
+2. Créer/déployer l'Edge Function `farmer-portal-account` avec :
+   supabase/functions/farmer-portal-account/index.ts
+3. Déployer avec verify_jwt=false.
+   La fonction vérifie elle-même les actions administrateur.
+4. Vérifier la Redirect URL :
+   https://gds3265.github.io/concours-gds-32-65/
+5. Le compte GDS qui invite doit être présent dans concours_admins.
+6. Tester d'abord avec un concours TEST et une adresse email de test.

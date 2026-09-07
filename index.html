@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.10.9</title>
-<link rel="manifest" href="manifest.json?v=109">
+<title>Suivi des concours v0.11.1</title>
+<link rel="manifest" href="manifest.json?v=111">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -233,6 +233,16 @@ tr.herd-start td{border-top:3px solid #b9789f}
 .sampling-date{margin-top:4px;font-size:10px;font-weight:500;line-height:1.25;color:#6b234e}
 .sampling-date span{font-size:9px;color:#777}
 .signature-deadline-box{margin:10px 0;padding:9px 12px;border-radius:10px;background:#f7eaf2;border:1px solid #dfbfd2;color:#6b234e}
+
+body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
+.farmer-steps{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;margin:10px 0}
+.farmer-step{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff3ce}.farmer-step.ok{background:#e7f5e9;border-color:#9bc7a2}
+.farmer-animal{display:grid;grid-template-columns:120px 1fr 2fr 130px;gap:8px;padding:9px;border-bottom:1px solid var(--line);align-items:center}
+@media(max-width:800px){.farmer-steps{grid-template-columns:1fr 1fr}.farmer-animal{grid-template-columns:1fr}}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.modal.hidden{display:none}
+.modal-card{background:#fff;border-radius:16px;padding:20px;width:min(95vw,850px);max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
 </style>
 </head>
 <body>
@@ -263,6 +273,15 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <div class="field" style="margin-top:14px"><label>Email</label><input id="loginEmail" type="email"></div>
     <div class="field" style="margin-top:10px"><label>Mot de passe</label><input id="loginPassword" type="password"></div>
     <button class="action" style="margin-top:14px;width:100%" onclick="login()">Se connecter</button>
+    <button class="secondary" style="margin-top:8px;width:100%" onclick="openFarmerSignup()">Je suis éleveur — demander un accès</button>
+    <div id="farmerSignupBox" class="hidden" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <div class="field"><label>Concours</label><select id="farmerSignupContest"></select></div>
+      <div class="field" style="margin-top:8px"><label>N° EDE</label><input id="farmerSignupHerd" placeholder="8 chiffres"></div>
+      <div class="field" style="margin-top:8px"><label>Nom / raison sociale</label><input id="farmerSignupName"></div>
+      <div class="field" style="margin-top:8px"><label>Email</label><input id="farmerSignupEmail" type="email"></div>
+      <button class="action" style="margin-top:10px;width:100%" onclick="submitFarmerSignup()">Envoyer ma demande</button>
+      <div id="farmerSignupMsg" class="muted" style="margin-top:8px"></div>
+    </div>
     <div id="loginMsg"></div>
     <div class="muted" style="margin-top:12px">Version <span class="version"></span></div>
   </div>
@@ -271,7 +290,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=109" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">109</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=111" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">111</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -290,6 +309,8 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <button data-tab="partenaireportail" style="display:none">Mon espace partenaire</button>
     <button data-group="sanitaire" data-tab="certificats">Certificats</button>
     <button data-group="gestion" data-tab="partenaires">Partenaires</button>
+    <button data-group="gestion" data-tab="eleveurs">Éleveurs</button>
+    <button data-tab="eleveurportail" style="display:none">Mon dossier éleveur</button>
     <button data-group="gestion" data-tab="entreeconcours">Entrée concours</button>
     <button data-group="prep" data-tab="remboursements">Remboursements</button>
     <button data-group="prep" data-tab="export">Exports</button>
@@ -347,7 +368,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <h2>Créer un concours</h2>
     <div class="row">
       <div class="field"><label>Nom</label><input id="cName" placeholder="Ex. Concours de Tarbes"></div>
-      <div class="field"><label>Date du concours</label><input id="cDate" type="date"></div>
+      <div class="field"><label>Date du concours</label><input id="cDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
       <div class="field"><label>Délai signature certificat (jours avant concours)</label><input id="cCertDelay" type="number" min="0" placeholder="Ex. 10"></div>
       <div class="field" style="min-width:300px"><label>Notes de gestion</label><input id="cManagementNote" placeholder="Ex. renvoyer à…, contact, consignes…"></div>
       <div class="field"><label>Type</label><select id="cType"><option value="suivi">Concours suivi</option><option value="gere">Concours géré</option></select></div>
@@ -436,7 +457,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
       <div class="field"><label>Éleveur</label><input id="farmerName"></div>
       <div class="field"><label>N° cheptel</label><input id="herdNo"></div>
       <div class="field"><label>N° bovin</label><input id="animalNo"></div>
-      <div class="field"><label>Date de naissance</label><input id="birthDate" type="date"></div>
+      <div class="field"><label>Date de naissance</label><input id="birthDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
 <div class="field"><label>Sexe</label><input id="animalSex" placeholder="M/F"></div>
 <div class="field"><label>Nom animal</label><input id="animalName" placeholder="Nom si connu"></div>
 <div class="field"><label>Race</label><select id="animalRaceCode"></select></div>
@@ -549,7 +570,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
         <div class="field"><label>Éleveur</label><input id="quickFarmer"></div>
         <div class="field"><label>N° cheptel</label><input id="quickHerd"></div>
         <div class="field"><label>N° bovin</label><input id="quickBovin"></div>
-        <div class="field"><label>Date naissance</label><input id="quickBirth" type="date"></div>
+        <div class="field"><label>Date naissance</label><input id="quickBirth" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
 <div class="field"><label>Sexe</label><input id="quickSex"></div>
 <div class="field"><label>Nom animal</label><input id="quickName"></div>
 <div class="field"><label>Race</label><select id="quickRaceCode"></select></div>
@@ -829,6 +850,39 @@ tr.herd-start td{border-top:3px solid #b9789f}
   </div>
 </section>
 
+
+<section id="eleveurs" class="section">
+  <div class="card">
+    <h2>Accès éleveurs</h2>
+    <div class="muted">Inscription autonome avec validation GDS, ou invitation d'un éleveur déjà inscrit.</div>
+    <div class="row" style="margin-top:12px">
+      <div class="field"><label>Concours</label><select id="farmerMgmtContest"></select></div>
+      <div class="field"><label>N° EDE</label><input id="farmerMgmtHerd" placeholder="8 chiffres"></div>
+      <div class="field"><label>Éleveur</label><input id="farmerMgmtName"></div>
+      <div class="field"><label>Email</label><input id="farmerMgmtEmail" type="email"></div>
+      <div class="field"><label>Modification inscriptions</label><select id="farmerMgmtCanEdit"><option value="false">Lecture seule</option><option value="true">Autorisée</option></select></div>
+      <button class="action" onclick="inviteFarmerFromAdmin()">Créer / inviter</button>
+    </div>
+    <div id="farmerMgmtMsg" class="muted" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <div class="topline"><div><h3>Demandes et accès éleveurs</h3></div><input id="farmerAccessSearch" placeholder="EDE, éleveur, email" style="max-width:300px"></div>
+    <div id="farmerAccessList"></div>
+  </div>
+</section>
+
+<section id="eleveurportail" class="section">
+  <div class="card">
+    <div class="topline"><div><h2>Mon dossier concours</h2><div class="muted">Suivi de l'inscription, des analyses et du certificat.</div></div><select id="farmerPortalContest"></select></div>
+    <div id="farmerPortalStatus" style="margin-top:12px"></div>
+  </div>
+  <div class="card" id="farmerPortalAnimalsCard">
+    <div class="topline"><h3>Mes animaux</h3><div id="farmerPortalEditHint" class="muted"></div></div>
+    <div id="farmerPortalAddAnimal"></div>
+    <div id="farmerPortalAnimals"></div>
+  </div>
+</section>
+
 <section id="certificats" class="section">
   <div class="card" id="certificateWorkflowCard">
     <div class="topline">
@@ -841,13 +895,14 @@ tr.herd-start td{border-top:3px solid #b9789f}
     <div id="certificateValidatedBanner" class="certificate-validated-banner" style="display:none">
       ✓ CERTIFICAT VALIDÉ
       <span>Les données sanitaires sont protégées : toute modification ultérieure demandera confirmation.</span>
+      <button id="certificatePrintBtn" class="action mini" style="margin-left:auto" onclick="printCurrentFarmerCertificate()">Éditer certificat / PDF</button>
     </div>
 
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="certContest"></select></div>
       <div class="field"><label>Éleveur</label><select id="certFarmer"></select></div>
-      <div class="field"><label>Date de réception</label><input id="receiveDate" type="date" onchange="saveCertificateDraft(true)"></div>
-      <div class="field"><label>Date de signature</label><input id="signDate" type="date" onchange="saveCertificateDraft(true)"></div>
+      <div class="field"><label>Date de réception</label><input id="receiveDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA" onchange="saveCertificateDraft(true)"></div>
+      <div class="field"><label>Date de signature</label><input id="signDate" type="text" inputmode="numeric" placeholder="JJ/MM/AA" onchange="saveCertificateDraft(true)"></div>
       <div class="field"><label>Transmission</label>
         <select id="sendMode" onchange="saveCertificateDraft(true)">
           <option value="">—</option>
@@ -1043,7 +1098,7 @@ tr.herd-start td{border-top:3px solid #b9789f}
 </div>
 
 <script>
-const APP_VERSION = "0.10.9";
+const APP_VERSION = "0.11.1";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1136,16 +1191,40 @@ let INVITE_REFRESH_TOKEN="";
 let CURRENT_EMAIL="";
 let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
+let CURRENT_FARMER_ACCESSES=[];
 let certRecapSort={field:"herd",dir:1};
 let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let certificateAnimalEditId="";
-let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{}}; let lastPartnerImport=null; let lastBusinessImport=null;
+let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.10.9");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.1");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
+async function farmerEdgeCall(payload,auth=true){
+  const headers={"Content-Type":"application/json","apikey":SUPABASE_KEY};
+  if(auth&&TOKEN)headers.Authorization="Bearer "+TOKEN;
+  const r=await fetch(SUPABASE_URL+"/functions/v1/farmer-portal-account",{method:"POST",headers,body:JSON.stringify(payload)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.error||data.message||"Erreur du service éleveur.");
+  return data;
+}
+async function openFarmerSignup(){
+  const box=document.getElementById("farmerSignupBox");box?.classList.toggle("hidden");
+  if(box?.classList.contains("hidden"))return;
+  try{
+    const d=await farmerEdgeCall({action:"list_contests"},false);
+    document.getElementById("farmerSignupContest").innerHTML='<option value="">Choisir…</option>'+(d.contests||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.nom)} — ${escapeHtml(formatDateFr(c.date_concours))}</option>`).join("");
+  }catch(e){document.getElementById("farmerSignupMsg").textContent="Portail non activé : "+e.message}
+}
+async function submitFarmerSignup(){
+  const msg=document.getElementById("farmerSignupMsg");
+  const body={action:"self_request",concours_id:document.getElementById("farmerSignupContest")?.value,cheptel:normalizeHerd(document.getElementById("farmerSignupHerd")?.value),eleveur:document.getElementById("farmerSignupName")?.value.trim(),email:document.getElementById("farmerSignupEmail")?.value.trim().toLowerCase()};
+  if(!body.concours_id||body.cheptel.length!==8||!body.eleveur||!body.email)return msg.textContent="Tous les champs sont obligatoires.";
+  try{await farmerEdgeCall(body,false);msg.innerHTML='<span class="success">Demande enregistrée. Un email de création de mot de passe va être envoyé. Le dossier s’ouvrira après validation GDS.</span>'}
+  catch(e){msg.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>'}
+}
 function setSync(text,bad=false){
   const e=document.getElementById("syncState"); if(!e)return;
   e.textContent=(bad?"● ":"● ")+text; e.style.color=bad?"#ffd0d0":"#d8ffe0";
@@ -1217,19 +1296,31 @@ function accessForCurrentUser(){
   const email=currentLoginEmail();
   return (db.partnerAccess||[]).filter(a=>a.actif!==false && String(a.email||"").trim().toLowerCase()===email);
 }
+function farmerAccessForCurrentUser(){
+  const email=currentLoginEmail(),uid=decodeJwtPayload(TOKEN)?.sub||"";
+  return (db.farmerAccess||[]).filter(a=>a.actif!==false && ((a.auth_user_id&&a.auth_user_id===uid)||String(a.email||"").trim().toLowerCase()===email));
+}
+function currentFarmerAccess(){
+  const cid=document.getElementById("farmerPortalContest")?.value;
+  return CURRENT_FARMER_ACCESSES.find(a=>a.concours_id===cid)||CURRENT_FARMER_ACCESSES[0]||null;
+}
 function applyAccessMode(){
   CURRENT_EMAIL=currentLoginEmail();
   CURRENT_PARTNER_ACCESSES=accessForCurrentUser();
-  APP_MODE=CURRENT_PARTNER_ACCESSES.length?"partner":"admin";
+  CURRENT_FARMER_ACCESSES=farmerAccessForCurrentUser();
+  APP_MODE=CURRENT_FARMER_ACCESSES.length?"farmer":(CURRENT_PARTNER_ACCESSES.length?"partner":"admin");
   document.body.classList.toggle("partner-mode",APP_MODE==="partner");
-
-  const portalBtn=document.querySelector('nav button[data-tab="partenaireportail"]');
-  if(portalBtn)portalBtn.style.display=APP_MODE==="partner"?"inline-flex":"none";
-
+  document.body.classList.toggle("farmer-mode",APP_MODE==="farmer");
+  const pb=document.querySelector('nav button[data-tab="partenaireportail"]');if(pb)pb.style.display=APP_MODE==="partner"?"inline-flex":"none";
+  const fb=document.querySelector('nav button[data-tab="eleveurportail"]');if(fb)fb.style.display=APP_MODE==="farmer"?"inline-flex":"none";
   if(APP_MODE==="partner"){
-    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));
     document.getElementById("partenaireportail")?.classList.add("active");
-    renderPartnerPortal();
+  }else if(APP_MODE==="farmer"){
+    document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));
+    document.getElementById("eleveurportail")?.classList.add("active");
+    document.querySelectorAll("nav button").forEach(b=>b.style.display=b.dataset.tab==="eleveurportail"?"inline-flex":"none");
+    document.getElementById("globalSearch")?.classList.add("hidden");
   }
 }
 function portalAccess(){
@@ -1465,6 +1556,59 @@ async function partnerSetParticipation(animalId,status){
 }
 function partnerVisibleAnimals(access){
   return partnerAccessAnimals(access).filter(a=>participationStatus(a)!=="retire");
+}
+function renderFarmerManagement(){
+  const sel=document.getElementById("farmerMgmtContest");
+  if(sel){const cur=sel.value;sel.innerHTML=visibleContests().map(c=>`<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join("");if([...sel.options].some(o=>o.value===cur))sel.value=cur}
+  const q=(document.getElementById("farmerAccessSearch")?.value||"").toLowerCase();
+  const rows=(db.farmerAccess||[]).filter(a=>!q||`${a.cheptel} ${a.eleveur} ${a.email}`.toLowerCase().includes(q));
+  const target=document.getElementById("farmerAccessList");if(!target)return;
+  target.innerHTML=rows.length?`<div class="scroll"><table><thead><tr><th>Concours</th><th>EDE</th><th>Éleveur</th><th>Email</th><th>Origine</th><th>Statut</th><th>Modif.</th><th>Actions</th></tr></thead><tbody>${rows.map(a=>`<tr>
+    <td>${escapeHtml(contest(a.concours_id)?.nom||"")}</td><td><strong>${escapeHtml(a.cheptel)}</strong></td><td>${escapeHtml(a.eleveur)}</td><td>${escapeHtml(a.email)}</td>
+    <td>${escapeHtml(a.source||"")}</td><td>${a.statut==="active"?'<span class="badge ok">Actif</span>':a.statut==="pending"?'<span class="badge warn">À valider</span>':'<span class="badge bad">Refusé</span>'}</td>
+    <td>${a.peut_modifier_inscription?"Oui":"Non"}</td><td>${a.statut!=="active"?`<button class="action" onclick="setFarmerAccessStatus('${a.id}','active')">Valider</button>`:""} <button class="secondary" onclick="resendFarmerInvite('${a.id}')">Invitation</button> ${a.statut!=="rejected"?`<button class="danger" onclick="setFarmerAccessStatus('${a.id}','rejected')">Refuser</button>`:""}</td>
+  </tr>`).join("")}</tbody></table></div>`:'<div class="muted">Aucun accès éleveur.</div>';
+}
+async function inviteFarmerFromAdmin(){
+  const msg=document.getElementById("farmerMgmtMsg");
+  const body={action:"admin_create",concours_id:document.getElementById("farmerMgmtContest")?.value,cheptel:normalizeHerd(document.getElementById("farmerMgmtHerd")?.value),eleveur:document.getElementById("farmerMgmtName")?.value.trim(),email:document.getElementById("farmerMgmtEmail")?.value.trim().toLowerCase(),peut_modifier_inscription:document.getElementById("farmerMgmtCanEdit")?.value==="true"};
+  if(!body.concours_id||body.cheptel.length!==8||!body.eleveur||!body.email)return msg.textContent="Concours, EDE, éleveur et email obligatoires.";
+  try{await farmerEdgeCall(body,true);msg.innerHTML='<span class="success">Accès créé et invitation envoyée.</span>';await loadAll()}catch(e){msg.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>'}
+}
+async function setFarmerAccessStatus(id,status){
+  await sb("concours_acces_eleveurs?id=eq."+encodeURIComponent(id),{method:"PATCH",body:{statut:status,actif:status!=="rejected",updated_at:new Date().toISOString()},prefer:"return=minimal"});await loadAll();
+}
+async function resendFarmerInvite(id){
+  try{await farmerEdgeCall({action:"invite",access_id:id},true);alert("Invitation envoyée.");await loadAll()}catch(e){alert(e.message)}
+}
+function farmerPortalAccessOptions(){
+  const sel=document.getElementById("farmerPortalContest");if(!sel)return;
+  const cur=sel.value;sel.innerHTML=CURRENT_FARMER_ACCESSES.map(a=>`<option value="${a.concours_id}">${escapeHtml(contest(a.concours_id)?.nom||"Concours")} — EDE ${escapeHtml(a.cheptel)}</option>`).join("");
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function renderFarmerPortal(){
+  farmerPortalAccessOptions();
+  const access=currentFarmerAccess(),target=document.getElementById("farmerPortalStatus");if(!access||!target)return;
+  if(access.statut!=="active"){target.innerHTML=`<div class="info"><strong>Demande en attente de validation GDS.</strong><br>EDE ${escapeHtml(access.cheptel)}</div>`;document.getElementById("farmerPortalAnimalsCard")?.classList.add("hidden");return}
+  document.getElementById("farmerPortalAnimalsCard")?.classList.remove("hidden");
+  const cid=access.concours_id,animals=db.animals.filter(a=>a.concours_id===cid&&String(a.cheptel||"")===String(access.cheptel||"")),diseases=demandedDiseases(cid);
+  let req=0,done=0;animals.forEach(a=>diseases.forEach(d=>{const dr=getDiseaseResult(a,d);if(dr.method){req++;if(dr.result?.statut&&dr.result.statut!=="attente")done++}}));
+  const qdefs=qualificationDefs(cid),qdone=qdefs.filter(d=>getCheckResult(d.id,"cheptel:"+access.cheptel).statut!=="a_verifier").length;
+  const cert=db.certificates[cid+"|"+access.eleveur]||{},cs=effectiveCertificateStatus(cert);
+  const steps=[["Inscription",animals.length>0,`${animals.length} bovin(s)`],["Analyses",req>0&&done>=req,`${done}/${req}`],["Qualifications",qdefs.length===0||qdone>=qdefs.length,`${qdone}/${qdefs.length}`],["Certificat reçu",["recu_attente","valide"].includes(cs),cs==="non_recu"?"En attente":"Reçu"],["Certificat validé",cs==="valide",cs==="valide"?"Validé":"En attente"]];
+  target.innerHTML=`<strong>${escapeHtml(access.eleveur)}</strong> — EDE ${escapeHtml(access.cheptel)}<div class="farmer-steps">${steps.map(([l,ok,d])=>`<div class="farmer-step ${ok?"ok":"current"}"><strong>${l}</strong><div>${d}</div></div>`).join("")}</div>${cs==="valide"?`<button class="action" onclick="printFarmerCertificate('${cid}','${escapeHtml(access.eleveur)}')">Certificat validé / PDF</button>`:""}`;
+  renderFarmerPortalAnimals(access,animals);
+}
+function renderFarmerPortalAnimals(access,animals){
+  const canEdit=!!access.peut_modifier_inscription&&contestIsActive(contest(access.concours_id));
+  document.getElementById("farmerPortalEditHint").textContent=canEdit?"Ajout de bovins autorisé.":"Lecture seule.";
+  document.getElementById("farmerPortalAddAnimal").innerHTML=canEdit?`<div class="row"><div class="field"><label>N° bovin</label><input id="farmerAddBovin"></div><div class="field"><label>Naissance</label><input id="farmerAddBirth" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div><div class="field"><label>Sexe</label><input id="farmerAddSex"></div><div class="field"><label>Nom</label><input id="farmerAddName"></div><button class="action" onclick="farmerAddAnimal()">Ajouter</button></div>`:"";
+  document.getElementById("farmerPortalAnimals").innerHTML=animals.length?animals.map(a=>`<div class="farmer-animal"><div><div class="work-no">${escapeHtml(String(a.bovin).slice(-4))}</div><div class="muted">${escapeHtml(a.bovin)}</div></div><div>${escapeHtml(a.nom_animal||"")}<div class="muted">${escapeHtml(animalBirthAgeText(a,a.concours_id))}</div></div><div>${demandedDiseases(a.concours_id).map(d=>{const dr=getDiseaseResult(a,d);return dr.method?`${d}: ${exportStatusText(dr.result?.statut||"attente")}`:`${d}: N/A`}).join(" · ")}</div><div>${a.statut_certificat_animal==="present"?'<span class="badge ok">Validé</span>':a.statut_certificat_animal==="non_present"?'<span class="badge na">Pas sur certif</span>':'<span class="badge warn">En attente</span>'}</div></div>`).join(""):'<div class="muted">Aucun animal.</div>';
+}
+async function farmerAddAnimal(){
+  const a=currentFarmerAccess();if(!a||!a.peut_modifier_inscription)return;
+  const bovin=normalizeBovin(document.getElementById("farmerAddBovin")?.value);if(!bovin)return alert("N° bovin 10 chiffres obligatoire.");
+  await sb("concours_animaux",{method:"POST",body:{concours_id:a.concours_id,departement:departmentFromHerd(a.cheptel),eleveur:a.eleveur,cheptel:a.cheptel,bovin,naissance:(()=>{const d=dateInputISO(document.getElementById("farmerAddBirth")?.value,"la date de naissance");return d==="__INVALID__"?null:d})(),sexe:document.getElementById("farmerAddSex")?.value.trim()||null,nom_animal:document.getElementById("farmerAddName")?.value.trim()||null,origine:"Portail éleveur",statut_participation:"engage"},prefer:"return=minimal"});await loadAll();
 }
 function renderPartnerPortal(){
   if(APP_MODE!=="partner")return;
@@ -1728,7 +1872,7 @@ async function startApp(){
   }
 }
 async function loadAll(){
-  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations,farmerAccess]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
@@ -1742,9 +1886,10 @@ async function loadAll(){
     sb("concours_resultats?select=*"),
     sb("concours_certificats?select=*"),
     sb("concours_acces_partenaires?select=*&order=organisme.asc"),
-    sb("concours_validations_partenaires?select=*")
+    sb("concours_validations_partenaires?select=*"),
+    sb("concours_acces_eleveurs?select=*&order=created_at.desc")
   ]);
-  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.farmerAccess=farmerAccess||[];db.certificates={};
 
   // Le n° EDE est la clé métier : un même EDE ne doit jamais être séparé
   // parce que le nom éleveur a été saisi différemment.
@@ -2013,7 +2158,9 @@ async function deleteContestDemand(id){if(!confirm("Retirer cette maladie du con
 function renderDemands(){const cid=document.getElementById("demandContest")?.value;const rows=db.demands.filter(d=>d.concours_id===cid).map(d=>`<tr><td><strong>${escapeHtml(d.maladie)}</strong></td><td>${d.delai_max_jours} j</td><td>${db.templateRules.filter(r=>r.maladie===d.maladie).length} règle(s)</td><td><button class="danger" onclick="deleteContestDemand('${d.id}')">Retirer</button></td></tr>`).join("");document.getElementById("demandList").innerHTML=rows?`<div class="scroll"><table><thead><tr><th>Maladie</th><th>Délai</th><th>Règles générales</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="muted" style="padding:12px 4px">Aucune maladie demandée pour ce concours.</div>'}
 
 async function addContest(){
-  const nom=document.getElementById("cName").value.trim(),date=document.getElementById("cDate").value;
+  const nom=document.getElementById("cName").value.trim();
+  const date=dateInputISO(document.getElementById("cDate").value,"la date du concours");
+  if(date==="__INVALID__")return;
   if(!nom||!date)return alert("Nom et date obligatoires");
   const certDelayRaw=document.getElementById("cCertDelay")?.value??"";
   const certDelay=certDelayRaw===""?null:Number(certDelayRaw);
@@ -2175,10 +2322,11 @@ async function addAnimal(){
   const herdValue=document.getElementById("herdNo").value.trim();
   const body={concours_id:document.getElementById("animalContest").value,departement:departmentFromHerd(herdValue)||document.getElementById("manualDept").value.trim()||null,eleveur:document.getElementById("farmerName").value.trim(),
     cheptel:herdValue,bovin:document.getElementById("animalNo").value.trim(),
-    naissance:document.getElementById("birthDate").value||null,sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,
+    naissance:(()=>{const d=dateInputISO(document.getElementById("birthDate").value,"la date de naissance");return d==="__INVALID__"?null:d})(),sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,
     code_race:(document.getElementById("animalRaceCode")?.value||"")==="OTHER"?null:(document.getElementById("animalRaceCode")?.value||null),
     race_libelle:(document.getElementById("animalRaceCode")?.value||"")==="OTHER"?(document.getElementById("animalRaceOther")?.value.trim()||null):null,
     origine:"Ajout manuel"};
+  if(document.getElementById("birthDate").value && !body.naissance)return alert("Date de naissance incorrecte. Utilise JJ/MM/AA.");
   if(!body.concours_id||!body.eleveur||!body.bovin)return alert("Concours, éleveur et n° bovin obligatoires");
   const canonicalForHerd=canonicalFarmerForHerd(body.concours_id,body.cheptel);
   if(canonicalForHerd)body.eleveur=canonicalForHerd;
@@ -2242,6 +2390,29 @@ function normalizeDate(v){
     return `${y}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
   }
   return null;
+}
+
+function dateInputShort(v){
+  const iso=normalizeDate(v);
+  if(!iso)return "";
+  const [y,m,d]=iso.split("-");
+  return `${d}/${m}/${String(y).slice(-2)}`;
+}
+function dateInputISO(v,fieldLabel="date"){
+  const raw=String(v||"").trim();
+  if(!raw)return null;
+  const iso=normalizeDate(raw);
+  if(!iso){
+    alert(`Format incorrect pour ${fieldLabel}. Utilise JJ/MM/AA ou JJ/MM/AAAA.`);
+    return "__INVALID__";
+  }
+  return iso;
+}
+function normalizeDateFieldElement(id,label){
+  const el=document.getElementById(id);if(!el)return null;
+  const iso=dateInputISO(el.value,label);
+  if(iso && iso!=="__INVALID__")el.value=dateInputShort(iso);
+  return iso;
 }
 function sameText(a,b){
   const clean=s=>normHeader(s).replace(/[^a-z0-9]/g,"");
@@ -2485,7 +2656,8 @@ function inferColumn(rows, kind){
     work:["numero travail","num travail","n travail","ntravail"],
     sex:["sexe","sex"],
     animalName:["nom animal","nom bovin","nom de l animal","nom"],
-    race:["code race","coderace","race","race bovin","type racial","code racial"]
+    race:["code race","coderace","race","race bovin","type racial","code racial"],
+    email:["email","mail","e mail","courriel","adresse mail","adresse email"]
   };
   const ah=aliases[kind]||[];
   let best=null,bestScore=-999;
@@ -2525,7 +2697,8 @@ function inferCsvColumns(rows){
     work:inferColumn(rows,"work"),
     sex:inferColumn(rows,"sex"),
     animalName:inferColumn(rows,"animalName"),
-    race:inferColumn(rows,"race")
+    race:inferColumn(rows,"race"),
+    email:inferColumn(rows,"email")
   };
 }
 function valueFromColumn(o,col){return col?cleanExcelCell(o[col]):""}
@@ -2567,7 +2740,7 @@ async function importPartnerCSV(){
   const cols=inferCsvColumns(parsed);
 
   let withoutNumber=0, duplicatesInFile=0, herdByDigits=0, herdByName=0, importedWithoutHerd=0;
-  const seen=new Set();
+  const seen=new Set(),farmerAccessToCreate=new Map();
 
   parsed.forEach(o=>{
     const rawBovin=cols.bovin?valueFromColumn(o,cols.bovin):pick(o,["bovin","animal","numero","numéro","n bovin","n° bovin","n animal","n° animal","numero animal","numéro animal","numero national","identifiant bovin","NUMANIM"]);
@@ -2594,6 +2767,8 @@ async function importPartnerCSV(){
     const raceRaw=cols.race?valueFromColumn(o,cols.race):pick(o,["code race","coderace","race","type racial"]);
     const raceCode=raceCodeFromText(raceRaw);
     const raceLibelle=raceCode?"":String(raceRaw||"").trim();
+    const farmerEmail=cols.email?valueFromColumn(o,cols.email):pick(o,["email","mail","courriel","adresse mail"]);
+    if(farmerEmail&&cheptel)farmerAccessToCreate.set(cheptel+"|"+String(farmerEmail).toLowerCase(),{concours_id:cid,cheptel,eleveur,email:String(farmerEmail).trim().toLowerCase(),statut:"active",source:"import",peut_modifier_inscription:false,actif:true});
     rows.push({
       concours_id:cid,departement:departmentFromHerd(cheptel)||selectedDept||null,eleveur,cheptel:cheptel||null,bovin,naissance,
       origine:"Import liste inscrits",commune_partenaire:commune||null,sexe:sexe||null,nom_animal:nomAnimal||null,
@@ -2619,6 +2794,12 @@ async function importPartnerCSV(){
     ));
   }
 
+  for(const access of farmerAccessToCreate.values()){
+    try{
+      const saved=await sb("concours_acces_eleveurs?on_conflict=concours_id,cheptel,email",{method:"POST",body:access,prefer:"resolution=merge-duplicates,return=representation"});
+      const row=Array.isArray(saved)?saved[0]:saved;if(row){try{await farmerEdgeCall({action:"invite",access_id:row.id},true)}catch(e){}}
+    }catch(e){}
+  }
   lastPartnerImport={
     fileName:f.name,totalLines:parsed.length,recognized:rows.length,imported:newRows.length,
     duplicatesInFile,alreadyExisting,withoutNumber,contestId:cid,department:selectedDept||"",
@@ -2782,6 +2963,62 @@ function checkBadge(a){
   if(s==="mismatch")return '<span class="badge warn">Détenteur à vérifier</span>';
   if(s==="notfound")return '<span class="badge bad">Non retrouvé</span>';
   return '<span class="badge na">Pas encore contrôlé</span>';
+}
+
+function openAnimalEdit(id){
+  const a=db.animals.find(x=>x.id===id);if(!a)return;
+  document.getElementById("editAnimalId").value=a.id;
+  document.getElementById("editAnimalBovin").value=a.bovin||"";
+  document.getElementById("editAnimalHerd").value=a.cheptel||"";
+  document.getElementById("editAnimalFarmer").value=a.eleveur||"";
+  document.getElementById("editAnimalDept").value=a.departement||departmentFromHerd(a.cheptel)||"";
+  document.getElementById("editAnimalBirth").value=dateInputShort(a.naissance);
+  document.getElementById("editAnimalSex").value=a.sexe||"";
+  document.getElementById("editAnimalName").value=a.nom_animal||"";
+  const raceSel=document.getElementById("editAnimalRaceCode");
+  const known=String(a.code_race||"").trim();
+  raceSel.innerHTML=raceSelectOptions(known||(a.race_libelle?"OTHER":""));
+  raceSel.value=known||(a.race_libelle?"OTHER":"");
+  document.getElementById("editAnimalRaceOther").value=a.race_libelle||"";
+  document.getElementById("animalEditModal").classList.remove("hidden");
+}
+function closeAnimalEdit(){
+  document.getElementById("animalEditModal")?.classList.add("hidden");
+}
+async function saveAnimalEdit(){
+  const id=document.getElementById("editAnimalId").value;
+  const a=db.animals.find(x=>x.id===id);if(!a)return;
+  if(!confirmPostCertificateEdit(a.concours_id,a.eleveur,"les informations d’un bovin"))return;
+
+  const bovin=normalizeBovin(document.getElementById("editAnimalBovin").value);
+  const herd=normalizeHerd(document.getElementById("editAnimalHerd").value);
+  const farmer=document.getElementById("editAnimalFarmer").value.trim();
+  const birthRaw=document.getElementById("editAnimalBirth").value.trim();
+  const birth=birthRaw?dateInputISO(birthRaw,"la date de naissance"):null;
+  if(birth==="__INVALID__")return;
+
+  if(bovin.length!==10)return alert("Le n° bovin doit comporter 10 chiffres.");
+  if(herd.length!==8)return alert("Le n° EDE doit comporter 8 chiffres.");
+  if(!farmer)return alert("Le nom de l’éleveur est obligatoire.");
+
+  const duplicate=db.animals.find(x=>x.id!==id&&x.concours_id===a.concours_id&&normalizeBovin(x.bovin)===bovin);
+  if(duplicate)return alert(`Ce n° bovin existe déjà dans ce concours : ${duplicate.bovin} — ${duplicate.eleveur||""}.`);
+
+  const raceChoice=document.getElementById("editAnimalRaceCode").value;
+  const patch={
+    bovin,
+    cheptel:herd,
+    eleveur:farmer,
+    departement:departmentFromHerd(herd)||a.departement||null,
+    naissance:birth,
+    sexe:document.getElementById("editAnimalSex").value.trim()||null,
+    nom_animal:document.getElementById("editAnimalName").value.trim()||null,
+    code_race:raceChoice&&raceChoice!=="OTHER"?raceChoice:null,
+    race_libelle:raceChoice==="OTHER"?(document.getElementById("editAnimalRaceOther").value.trim()||null):null
+  };
+  await sb("concours_animaux?id=eq."+encodeURIComponent(id),{method:"PATCH",body:patch,prefer:"return=minimal"});
+  closeAnimalEdit();
+  await loadAll();
 }
 function renderAnimals(){
   const cid=document.getElementById("animalViewContest")?.value || document.getElementById("animalContest")?.value;
@@ -2980,7 +3217,7 @@ async function quickAddAnimal(){
     eleveur:document.getElementById("quickFarmer").value.trim(),
     cheptel:quickHerdValue||null,
     bovin,
-    naissance:document.getElementById("quickBirth").value||null,
+    naissance:(()=>{const d=dateInputISO(document.getElementById("quickBirth").value,"la date de naissance");return d==="__INVALID__"?null:d})(),
     sexe:document.getElementById("quickSex")?.value.trim()||null,
     nom_animal:document.getElementById("quickName")?.value.trim()||null,
     code_race:(document.getElementById("quickRaceCode")?.value||"")==="OTHER"?null:(document.getElementById("quickRaceCode")?.value||null),
@@ -2988,6 +3225,7 @@ async function quickAddAnimal(){
     origine:"Ajout depuis Analyses"
   };
 
+  if(document.getElementById("quickBirth").value && !body.naissance)return alert("Date de naissance incorrecte. Utilise JJ/MM/AA.");
   if(!body.eleveur||!body.bovin)return alert("Éleveur et n° bovin obligatoires.");
 
   const canonicalForEnteredHerd=canonicalFarmerForHerd(cid,body.cheptel);
@@ -3244,8 +3482,8 @@ function confirmPostCertificateEdit(cid,farmer,what){
 }
 
 function certificateDraftStatus(){
-  if(document.getElementById("signDate")?.value)return "valide";
-  if(document.getElementById("receiveDate")?.value)return "recu_attente";
+  if(normalizeDate(document.getElementById("signDate")?.value))return "valide";
+  if(normalizeDate(document.getElementById("receiveDate")?.value))return "recu_attente";
   return "non_recu";
 }
 function renderCertificateAutoStatus(){
@@ -3998,8 +4236,8 @@ function renderCertificates(){
   const cert=allMode?null:db.certificates[cid+"|"+farmer];
   const wholeFarmerCancelled=!allMode && farmerParticipationCancelled(cid,farmer);
 
-  document.getElementById("receiveDate").value=cert?.date_reception||"";
-  document.getElementById("signDate").value=cert?.date_signature||"";
+  document.getElementById("receiveDate").value=dateInputShort(cert?.date_reception);
+  document.getElementById("signDate").value=dateInputShort(cert?.date_signature);
   document.getElementById("sendMode").value=cert?.mode_transmission||"";
   document.getElementById("certComment").value=cert?.commentaire||"";
 
@@ -4154,6 +4392,51 @@ function sortCertificateRecap(field){
   else certRecapSort={field,dir:1};
   renderCertificateRecap();
 }
+function partnerValidationSummaryForCertificate(cid,herd,animals){
+  const targets=new Set(["cheptel:"+herd,...animals.map(a=>"animal:"+a.id)]),accessMap=new Map((db.partnerAccess||[]).filter(a=>a.concours_id===cid).map(a=>[a.id,a]));
+  return (db.partnerValidations||[]).filter(v=>accessMap.has(v.acces_partenaire_id)&&targets.has(v.cible_cle)&&v.statut_validation!=="attente").map(v=>({org:accessMap.get(v.acces_partenaire_id)?.organisme||"Partenaire",status:v.statut_validation,date:v.updated_at?.slice(0,10)||"",comment:v.commentaire||""}));
+}
+function printCurrentFarmerCertificate(){
+  const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value;
+  if(cid&&farmer&&farmer!=="__ALL__")printFarmerCertificate(cid,farmer);
+}
+function printFarmerCertificate(cid,farmer){
+  const c=contest(cid),cert=db.certificates[cid+"|"+farmer];if(!c||effectiveCertificateStatus(cert)!=="valide")return alert("Certificat non validé.");
+  const all=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer),animals=all.filter(a=>a.statut_certificat_animal==="present"),herd=all[0]?.cheptel||"";
+  const quals=qualificationDefs(cid).map(d=>({label:d.libelle,r:getCheckResult(d.id,"cheptel:"+herd)})),partners=partnerValidationSummaryForCertificate(cid,herd,all);
+  const w=window.open("","_blank");if(!w)return alert("Autorise les fenêtres contextuelles.");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Certificat ${escapeHtml(farmer)}</title><style>body{font-family:Arial;margin:28px}h1,h2{color:#7d2f63}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #bbb;padding:6px}th{background:#f1e5ed}.box{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0}@media print{button{display:none}}</style></head><body>
+  <h1>Certificat sanitaire — ${escapeHtml(c.nom)}</h1><div class="box"><strong>Élevage :</strong> ${escapeHtml(farmer)}<br><strong>EDE :</strong> ${escapeHtml(herd)}<br><strong>Concours :</strong> ${escapeHtml(formatDateFr(c.date_concours))}<br><strong>Reçu :</strong> ${escapeHtml(formatDateFr(cert.date_reception))}<br><strong>Validé :</strong> ${escapeHtml(formatDateFr(cert.date_signature))}</div>
+  <h2>Qualifications</h2><div class="box">${quals.length?quals.map(x=>`<div>${escapeHtml(x.label)} : <strong>${escapeHtml(exportStatusText(x.r.statut||"a_verifier"))}</strong></div>`).join(""):"Aucune"}</div>
+  <h2>Validations partenaires</h2><div class="box">${partners.length?partners.map(x=>`<div><strong>${escapeHtml(x.org)}</strong> — ${escapeHtml(exportStatusText(x.status))} — ${escapeHtml(formatDateFr(x.date))}${x.comment?` — ${escapeHtml(x.comment)}`:""}</div>`).join(""):"Aucune validation partenaire enregistrée."}</div>
+  <h2>Animaux validés (${animals.length})</h2><table><thead><tr><th>N° bovin</th><th>Nom</th><th>Sexe</th><th>Naissance</th><th>Race</th><th>Analyses</th></tr></thead><tbody>${animals.map(a=>`<tr><td>${escapeHtml(a.bovin)}</td><td>${escapeHtml(a.nom_animal||"")}</td><td>${escapeHtml(a.sexe||"")}</td><td>${escapeHtml(formatDateFr(a.naissance))}</td><td>${escapeHtml(raceDisplay(a)||"")}</td><td>${demandedDiseases(cid).map(d=>{const dr=getDiseaseResult(a,d);return dr.method?`${escapeHtml(d)} : ${escapeHtml(exportStatusText(dr.result?.statut||"attente"))}`:""}).join("<br>")}</td></tr>`).join("")}</tbody></table><button onclick="window.print()">Imprimer / enregistrer en PDF</button>
+<div id="animalEditModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="topline">
+      <div><h2>Modifier le bovin</h2><div class="muted">Les analyses et l'historique restent liés au même animal.</div></div>
+      <button class="secondary" onclick="closeAnimalEdit()">Fermer</button>
+    </div>
+    <input type="hidden" id="editAnimalId">
+    <div class="row" style="margin-top:12px">
+      <div class="field"><label>N° bovin</label><input id="editAnimalBovin" maxlength="10"></div>
+      <div class="field"><label>N° EDE</label><input id="editAnimalHerd" maxlength="8"></div>
+      <div class="field"><label>Éleveur</label><input id="editAnimalFarmer"></div>
+      <div class="field"><label>Département</label><input id="editAnimalDept" readonly></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Date de naissance</label><input id="editAnimalBirth" type="text" inputmode="numeric" placeholder="JJ/MM/AA"></div>
+      <div class="field"><label>Sexe</label><input id="editAnimalSex" placeholder="M/F"></div>
+      <div class="field"><label>Nom</label><input id="editAnimalName"></div>
+      <div class="field"><label>Race</label><select id="editAnimalRaceCode"></select></div>
+      <div class="field"><label>Autre race</label><input id="editAnimalRaceOther" placeholder="Si autre race"></div>
+    </div>
+    <div style="margin-top:14px"><button class="action" onclick="saveAnimalEdit()">Enregistrer les modifications</button></div>
+  </div>
+</div>
+
+</body></html>`);
+  w.document.close();
+}
 function renderCertificateRecap(){
   const cid=document.getElementById("certContest")?.value;
   const filter=document.getElementById("certStatusFilter")?.value||"";
@@ -4202,8 +4485,8 @@ function renderCertificateRecap(){
                   :'<span class="badge warn">Contrôles à finir</span>'
         )}
       </td>
-      <td><input type="date" value="${c.date_reception||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_reception',this.value)"></td>
-      <td><input type="date" value="${c.date_signature||""}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_signature',this.value)"></td>
+      <td><input type="text" inputmode="numeric" placeholder="JJ/MM/AA" value="${dateInputShort(c.date_reception)}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_reception',this.value)"></td>
+      <td><input type="text" inputmode="numeric" placeholder="JJ/MM/AA" value="${dateInputShort(c.date_signature)}" onchange="updateCertificateDate('${cid}','${escapeHtml(f)}','date_signature',this.value)"></td>
       <td>${escapeHtml(c.mode_transmission||"")}</td>
       <td>${count}
         ${absent?` · ${absent} pas sur certif`:""}
@@ -4223,6 +4506,9 @@ function renderCertificateRecap(){
 }
 async function updateCertificateDate(cid,farmer,field,value){
   const current=db.certificates[cid+"|"+farmer]||{};
+  const normalized=value?dateInputISO(value,field==="date_reception"?"la date de réception":"la date de validation"):null;
+  if(normalized==="__INVALID__")return;
+  value=normalized;
   const body={
     concours_id:cid,
     eleveur:farmer,
@@ -4263,12 +4549,15 @@ async function saveCertificateDraft(silent=false){
   const farmer=document.getElementById("certFarmer")?.value||"__ALL__";
   if(!cid||farmer==="__ALL__")return;
   const current=db.certificates[cid+"|"+farmer]||{};
+  const reception=dateInputISO(document.getElementById("receiveDate").value,"la date de réception");
+  const signature=dateInputISO(document.getElementById("signDate").value,"la date de signature");
+  if(reception==="__INVALID__"||signature==="__INVALID__")return;
   const body={
     concours_id:cid,
     eleveur:farmer,
-    statut_certificat:certificateDraftStatus(),
-    date_reception:document.getElementById("receiveDate").value||null,
-    date_signature:document.getElementById("signDate").value||null,
+    statut_certificat:signature?"valide":(reception?"recu_attente":"non_recu"),
+    date_reception:reception,
+    date_signature:signature,
     mode_transmission:document.getElementById("sendMode").value||null,
     commentaire:document.getElementById("certComment").value.trim()||null,
     updated_at:new Date().toISOString()
@@ -4301,8 +4590,8 @@ async function finalizeCertificate(){
   const today=new Date().toLocaleDateString("en-CA");
   const receive=document.getElementById("receiveDate");
   const sign=document.getElementById("signDate");
-  if(receive && !receive.value)receive.value=today;
-  if(sign && !sign.value)sign.value=today;
+  if(receive && !receive.value)receive.value=dateInputShort(today);
+  if(sign && !sign.value)sign.value=dateInputShort(today);
 
   // Enregistre réellement le choix animal visible à l'écran.
   const animalOps=[];
@@ -4328,8 +4617,8 @@ async function finalizeCertificate(){
     concours_id:cid,
     eleveur:farmer,
     statut_certificat:"valide",
-    date_reception:receive?.value||today,
-    date_signature:sign?.value||today,
+    date_reception:normalizeDate(receive?.value)||today,
+    date_signature:normalizeDate(sign?.value)||today,
     mode_transmission:document.getElementById("sendMode").value||null,
     commentaire:document.getElementById("certComment").value.trim()||null,
     updated_at:new Date().toISOString()
@@ -4553,7 +4842,7 @@ function renderRefunds(){
         <td><input type="checkbox" ${line.justificatif_recu?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{justificatif_recu:this.checked})"></td>
         <td><input type="checkbox" ${line.a_rembourser?"checked":""} onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{a_rembourser:this.checked})"></td>
         <td><input type="checkbox" ${line.rembourse?"checked":""} onchange="markRefundPaid('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',this.checked)"></td>
-        <td><input type="date" value="${line.date_rembourse||""}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{date_rembourse:this.value||null})"></td>
+        <td><input type="text" inputmode="numeric" placeholder="JJ/MM/AA" value="${dateInputShort(line.date_rembourse)}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{date_rembourse:this.value||null})"></td>
         <td><input type="number" step="0.01" value="${price}" onchange="saveRefundLine('${g.contestId}','${escapeHtml(g.herd)}','${escapeHtml(g.analysis)}',{cout_unitaire_override:Number(this.value)})"></td>
         <td>${(qty*price).toFixed(2)} € HT</td>
       </tr>`;
@@ -4567,6 +4856,11 @@ async function markRefundPaid(cid,herd,analysis,checked){
   });
 }
 async function saveRefundLine(cid,herd,analysis,patch){
+  if(Object.prototype.hasOwnProperty.call(patch,"date_rembourse")){
+    const d=patch.date_rembourse?dateInputISO(patch.date_rembourse,"la date de remboursement"):null;
+    if(d==="__INVALID__")return;
+    patch.date_rembourse=d;
+  }
   const current=getRefundLine(cid,herd,analysis);
   const body={
     concours_id:cid,cheptel:herd,analyse_type:analysis,
@@ -5496,9 +5790,10 @@ function exportEntryCsv(){
   ]));
   downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview(); if(fastCurrentHerd)renderFastValidation(); if(APP_MODE==="partner")renderPartnerPortal()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview();if(fastCurrentHerd)renderFastValidation();if(APP_MODE==="partner")renderPartnerPortal();if(APP_MODE==="admin")renderFarmerManagement();if(APP_MODE==="farmer")renderFarmerPortal()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
+  if(APP_MODE==="farmer" && b.dataset.tab!=="eleveurportail")return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   document.getElementById(b.dataset.tab)?.classList.add("active");
@@ -5531,6 +5826,10 @@ document.addEventListener("change",e=>{
     renderAll();
   }
 });
+document.getElementById("editAnimalHerd")?.addEventListener("input",e=>{
+  const d=departmentFromHerd(e.target.value);
+  const t=document.getElementById("editAnimalDept");if(t)t.value=d;
+});
 document.getElementById("herdNo")?.addEventListener("input",e=>{
   const d=departmentFromHerd(e.target.value),t=document.getElementById("manualDept");
   if(t&&d)t.value=d;
@@ -5539,6 +5838,8 @@ document.getElementById("quickHerd")?.addEventListener("input",e=>{
   const d=departmentFromHerd(e.target.value),t=document.getElementById("quickDept");
   if(t&&d)t.value=d;
 });
+document.getElementById("farmerAccessSearch")?.addEventListener("input",()=>renderFarmerManagement());
+document.getElementById("farmerPortalContest")?.addEventListener("change",()=>renderFarmerPortal());
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
 document.getElementById("analysisSearch")?.addEventListener("input",()=>renderAnalysis());
