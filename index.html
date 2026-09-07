@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.1</title>
-<link rel="manifest" href="manifest.json?v=111">
+<title>Suivi des concours v0.11.2</title>
+<link rel="manifest" href="manifest.json?v=112">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -290,7 +290,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=111" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">111</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=112" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">112</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1098,7 +1098,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.1";
+const APP_VERSION = "0.11.2";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1192,13 +1192,14 @@ let CURRENT_EMAIL="";
 let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let CURRENT_FARMER_ACCESSES=[];
+let FARMER_PORTAL_AVAILABLE=true;
 let certRecapSort={field:"herd",dir:1};
 let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.1");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.2");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1211,6 +1212,10 @@ async function farmerEdgeCall(payload,auth=true){
   return data;
 }
 async function openFarmerSignup(){
+  if(!FARMER_PORTAL_AVAILABLE){
+    alert("Le portail éleveur n’est pas encore activé sur Supabase. Le reste de l’application fonctionne normalement.");
+    return;
+  }
   const box=document.getElementById("farmerSignupBox");box?.classList.toggle("hidden");
   if(box?.classList.contains("hidden"))return;
   try{
@@ -1558,6 +1563,11 @@ function partnerVisibleAnimals(access){
   return partnerAccessAnimals(access).filter(a=>participationStatus(a)!=="retire");
 }
 function renderFarmerManagement(){
+  if(!FARMER_PORTAL_AVAILABLE){
+    const target=document.getElementById("farmerAccessList");
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.2 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    return;
+  }
   const sel=document.getElementById("farmerMgmtContest");
   if(sel){const cur=sel.value;sel.innerHTML=visibleContests().map(c=>`<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join("");if([...sel.options].some(o=>o.value===cur))sel.value=cur}
   const q=(document.getElementById("farmerAccessSearch")?.value||"").toLowerCase();
@@ -1871,6 +1881,22 @@ async function startApp(){
     alert("Erreur au chargement : "+e.message+"\n\nIl s’agit d’un bug d’affichage de l’application, sauf si le message indique explicitement une table ou une colonne SQL manquante.");
   }
 }
+async function optionalSb(path,fallback=[]){
+  try{
+    return await sb(path);
+  }catch(e){
+    const msg=String(e?.message||e||"");
+    if(
+      msg.includes("concours_acces_eleveurs") ||
+      msg.includes("Could not find the table") ||
+      msg.includes("schema cache")
+    ){
+      FARMER_PORTAL_AVAILABLE=false;
+      return fallback;
+    }
+    throw e;
+  }
+}
 async function loadAll(){
   const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations,farmerAccess]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
@@ -1887,7 +1913,7 @@ async function loadAll(){
     sb("concours_certificats?select=*"),
     sb("concours_acces_partenaires?select=*&order=organisme.asc"),
     sb("concours_validations_partenaires?select=*"),
-    sb("concours_acces_eleveurs?select=*&order=created_at.desc")
+    optionalSb("concours_acces_eleveurs?select=*&order=created_at.desc",[])
   ]);
   db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.farmerAccess=farmerAccess||[];db.certificates={};
 
