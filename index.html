@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.21</title>
-<link rel="manifest" href="manifest.json?v=1121">
+<title>Suivi des concours v0.11.22</title>
+<link rel="manifest" href="manifest.json?v=1122">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -376,7 +376,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1121" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1121</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1122" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1122</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1188,6 +1188,8 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <div class="field"><label>Concours</label><select id="exportContest"></select></div>
       <button class="action" onclick="exportControlExcel()">Liste de contrôle Excel</button>
       <button class="secondary" onclick="exportControlPdf()">Liste de contrôle PDF / imprimer</button>
+      <button class="secondary" onclick="exportSimpleCertificateRecapPdf()">Récap simple collègues PDF</button>
+      <button class="secondary" onclick="exportSimpleCertificateRecapExcel()">Récap simple collègues Excel</button>
       <button class="secondary" onclick="exportRecapCSV()">Récap détaillé CSV</button>
     </div>
     <div class="row" style="margin-top:10px">
@@ -1199,7 +1201,8 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
     </div>
     <div class="info" style="margin-top:12px">
       <strong>Liste de contrôle :</strong> une ligne par bovin, avec les qualifications et analyses du concours.
-      Le fichier Excel peut être réimporté après saisie des pointages. Le PDF comporte des cases régulières prévues pour être cochées sur papier ; la relecture automatique d’un PDF scanné reste une étape future.
+      Le fichier Excel peut être réimporté après saisie des pointages. Le PDF comporte des cases régulières prévues pour être cochées sur papier ; la relecture automatique d’un PDF scanné reste une étape future.<br>
+      <strong>Récap simple collègues :</strong> document de transmission pour savoir immédiatement si un certificat papier peut être signé. Il masque les méthodes d’analyse, la participation et l’entrée au concours.
     </div>
     <div id="exportStats" class="kpis" style="margin-top:14px"></div>
   </div>
@@ -1260,7 +1263,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.21";
+const APP_VERSION = "0.11.22";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1364,7 +1367,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.21");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.22");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1737,7 +1740,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.21 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.22 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -6529,6 +6532,104 @@ function exportFullBackupJson(){
   }
 }
 
+
+function simpleStatusFromCheck(status){
+  const s=String(status||'a_verifier').toLowerCase();
+  if(['conforme','ok','valide','validé','negatif','négatif'].includes(s))return 'Conforme';
+  if(['nonconforme','non_conforme','positif','refuse','refusé'].includes(s))return 'Non conforme';
+  return 'À vérifier';
+}
+function simpleDiseaseStatus(a,cid,disease){
+  if(disease==='BVD' && contestUsesAnipi(cid) && activeAnipiResult(a))return 'Conforme';
+  const accepted=acceptedRulesForDisease(a,cid,disease);
+  if(!accepted.length)return 'N/A';
+  const dr=getDiseaseResult(a,disease);
+  const s=String(dr?.result?.statut||'attente').toLowerCase();
+  if(s==='conforme')return 'Conforme';
+  if(['nonconforme','positif'].includes(s))return 'Non conforme';
+  return 'À vérifier';
+}
+function simpleOtherControlsStatus(a,cid){
+  const defs=supplementaryDefsForContest(cid).filter(d=>d.obligatoire!==false);
+  if(!defs.length)return 'Aucun';
+  const values=[];
+  defs.forEach(d=>{
+    const key=d.niveau==='cheptel'?'cheptel:'+String(a.cheptel||''):'animal:'+a.id;
+    values.push(simpleStatusFromCheck(getCheckResult(d.id,key)?.statut));
+  });
+  if(values.includes('Non conforme'))return 'Non conforme';
+  if(values.includes('À vérifier'))return 'À vérifier';
+  return 'Conforme';
+}
+function simpleCertificateSignedStatus(a,cid){
+  const cert=db.certificates[cid+'|'+a.eleveur];
+  return effectiveCertificateStatus(cert)==='valide'?'Signé':'Non signé';
+}
+function simpleAnimalDecision(a,cid){
+  const choice=defaultCertificateAnimalStatus(a);
+  if(choice==='non_present')return 'PAS SUR CERTIF';
+  if(choice==='refuse')return 'À REFUSER';
+  if(participationStatus(a)==='non_participant')return 'PAS SUR CERTIF';
+
+  const quals=qualificationDefs(cid).map(d=>simpleStatusFromCheck(getCheckResult(d.id,'cheptel:'+String(a.cheptel||''))?.statut));
+  const diseases=requestedDiseases(cid).map(d=>simpleDiseaseStatus(a,cid,d));
+  const other=simpleOtherControlsStatus(a,cid);
+  const all=[...quals,...diseases,other].filter(x=>x!=='N/A'&&x!=='Aucun');
+  if(all.includes('Non conforme'))return 'À REFUSER';
+  if(all.includes('À vérifier'))return 'À VÉRIFIER';
+  return 'OK';
+}
+function simpleRecapMatrix(cid){
+  const animals=db.animals.filter(a=>a.concours_id===cid&&participationStatus(a)!=='retire')
+    .slice().sort((a,b)=>String(a.cheptel||'').localeCompare(String(b.cheptel||''),undefined,{numeric:true})||String(a.bovin||'').localeCompare(String(b.bovin||''),undefined,{numeric:true}));
+  const quals=qualificationDefs(cid);
+  const diseases=requestedDiseases(cid);
+  const headers=['N° EDE','Éleveur','N° bovin','N° travail','Nom','Sexe','Naissance','Âge',
+    ...quals.map(d=>'QUAL - '+d.libelle),
+    ...diseases.map(d=>d),
+    'Autres contrôles','Certificat','Décision bovin'];
+  const rows=animals.map(a=>[
+    a.cheptel||'',a.eleveur||'',a.bovin||'',String(a.bovin||'').slice(-4),a.nom_animal||'',a.sexe||'',formatDateFr(a.naissance),
+    (animalAgeAtContest(a,cid)==null?'?':animalAgeAtContest(a,cid)+' mois'),
+    ...quals.map(d=>simpleStatusFromCheck(getCheckResult(d.id,'cheptel:'+String(a.cheptel||''))?.statut)),
+    ...diseases.map(d=>simpleDiseaseStatus(a,cid,d)),
+    simpleOtherControlsStatus(a,cid),
+    simpleCertificateSignedStatus(a,cid),
+    simpleAnimalDecision(a,cid)
+  ]);
+  return {headers,rows,quals,diseases,animals};
+}
+function simpleRecapCellClass(v){
+  const s=String(v||'').toUpperCase();
+  if(['CONFORME','SIGNÉ','OK'].includes(s))return 'ok';
+  if(s.includes('REFUSER')||s==='NON CONFORME')return 'bad';
+  if(s.includes('VÉRIFIER')||s==='NON SIGNÉ')return 'warn';
+  if(s==='PAS SUR CERTIF'||s==='N/A'||s==='AUCUN')return 'na';
+  return '';
+}
+function exportSimpleCertificateRecapPdf(){
+  const cid=document.getElementById('exportContest')?.value,c=contest(cid);
+  if(!cid||!c)return alert('Choisir un concours.');
+  const m=simpleRecapMatrix(cid);
+  const w=window.open('','_blank');
+  if(!w)return alert('Autorise les fenêtres contextuelles.');
+  let prev='';
+  const body=m.rows.map(r=>{
+    const herd=r[0];
+    const start=herd!==prev;prev=herd;
+    return `<tr class="${start?'herd-start':''}">${r.map(v=>`<td class="${simpleRecapCellClass(v)}">${escapeHtml(v)}</td>`).join('')}</tr>`;
+  }).join('');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Récap simple - ${escapeHtml(c.nom)}</title><style>
+    @page{size:A3 landscape;margin:8mm}body{font-family:Arial;margin:0;color:#111}h1{font-size:18px;color:#7d2f63;margin:0 0 4px}.sub{font-size:11px;margin-bottom:8px}.note{font-size:10px;background:#f7eef4;border:1px solid #d7b9cb;padding:6px;margin-bottom:8px}table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:8px}thead{display:table-header-group}th{background:#7d2f63;color:#fff;border:1px solid #666;padding:4px}td{border:1px solid #aaa;padding:3px;vertical-align:middle;overflow-wrap:anywhere}.herd-start td{border-top:2px solid #7d2f63}.ok{background:#e7f5e9;color:#245b2d;font-weight:bold}.bad{background:#f8dada;color:#8b1f1f;font-weight:bold}.warn{background:#fff1c9;color:#775600;font-weight:bold}.na{background:#e7e7e7;color:#666}.decision{font-weight:bold}
+  </style></head><body><h1>Récap simple validation certificats — ${escapeHtml(c.nom)}</h1><div class="sub">Concours du ${escapeHtml(formatDateFr(c.date_concours))} · ${m.animals.length} bovin${m.animals.length===1?'':'s'} inscrit${m.animals.length===1?'':'s'}</div><div class="note"><strong>Lecture :</strong> ce document reprend uniquement les conclusions déjà contrôlées dans l’application. Les méthodes d’analyse, la participation et l’entrée au concours sont volontairement masquées. <strong>Décision bovin</strong> indique directement OK / À VÉRIFIER / À REFUSER / PAS SUR CERTIF.</div><table><thead><tr>${m.headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+  w.document.close();
+}
+function exportSimpleCertificateRecapExcel(){
+  const cid=document.getElementById('exportContest')?.value,c=contest(cid);
+  if(!cid||!c)return alert('Choisir un concours.');
+  const m=simpleRecapMatrix(cid);
+  saveBlob(makeControlXlsx({headers:m.headers,rows:m.rows,quals:[],diseases:[],animals:m.animals,herdHeaders:[],herdRows:[]},c.nom),`Recap_simple_certificats_${safeFileName(c.nom)}.xlsx`);
+}
 function exportControlExcel(){
   const cid=document.getElementById("exportContest")?.value,c=contest(cid);
   if(!cid||!c)return alert("Choisir un concours.");
