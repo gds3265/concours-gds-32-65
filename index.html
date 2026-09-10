@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.17</title>
-<link rel="manifest" href="manifest.json?v=1117">
+<title>Suivi des concours v0.11.18</title>
+<link rel="manifest" href="manifest.json?v=1118">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -305,6 +305,30 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   background:#faf7f9;
   border-radius:10px;
 }
+
+.certificate-precheck{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px 14px;
+  background:#faf7f9;
+}
+.certificate-precheck.ok{
+  background:#edf8ef;
+  border-color:#9ecdaa;
+}
+.certificate-precheck.warn{
+  background:#fff8e5;
+  border-color:#e5c66e;
+}
+.certificate-precheck h3{margin:0 0 8px}
+.certificate-precheck ul{margin:8px 0 0 20px;padding:0}
+.certificate-precheck li{margin:3px 0}
+.certificate-precheck .precheck-summary{font-weight:700}
+.cert-final-button:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter:grayscale(.25);
+}
 </style>
 </head>
 <body>
@@ -352,7 +376,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1117" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1117</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1118" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1118</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1016,12 +1040,15 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <div id="certAnimals" style="margin-top:12px"></div>
     </div>
 
+    <div id="certificatePrecheck" class="certificate-precheck" style="margin-top:18px"></div>
+
     <div id="certFinalizeActions" style="margin-top:18px;border-top:2px solid var(--line);padding-top:14px">
       <div class="topline">
         <div class="muted">
-          Les champs du haut sont sauvegardés au fur et à mesure. Le bouton ci-contre finalise le dossier en une seule fois.
+          La validation finale n'est disponible qu'après contrôle de toutes les qualifications, analyses et vérifications obligatoires.
+          Tu peux toujours modifier un bovin, le passer en <strong>Pas sur certif</strong> ou le <strong>Refuser</strong> avant de valider.
         </div>
-        <button class="action cert-final-button" onclick="finalizeCertificate()">✓ Valider et enregistrer le certificat</button>
+        <button id="certFinalButton" class="action cert-final-button" onclick="finalizeCertificate()">✓ Valider et enregistrer le certificat</button>
       </div>
     </div>
   </div>
@@ -1215,7 +1242,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.17";
+const APP_VERSION = "0.11.18";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1319,7 +1346,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.17");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.18");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1692,7 +1719,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.17 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.18 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -4626,6 +4653,150 @@ function certificateAnimalChoiceHtml(a){
     ${auto?'<div class="cert-auto-note">Proposé automatiquement car conforme</div>':""}
   </div>`;
 }
+
+function certificateCheckStatusIsPending(status){
+  const s=String(status||"").toLowerCase();
+  return !s || ["attente","a_verifier","labo","recontrole"].includes(s);
+}
+function certificateCheckStatusIsConforming(status){
+  const s=String(status||"").toLowerCase();
+  return ["conforme","ok","valide","validé","negatif","négatif"].includes(s);
+}
+function certificateAnimalShort(a){
+  return String(a?.bovin||"").slice(-4)||String(a?.bovin||"")||"—";
+}
+function certificatePrecheckState(cid,farmer){
+  const all=db.animals
+    .filter(a=>a.concours_id===cid && a.eleveur===farmer && participationStatus(a)!=="retire");
+
+  const animals=all.filter(a=>participationStatus(a)!=="non_participant");
+  const herd=animals.find(a=>a.cheptel)?.cheptel || all.find(a=>a.cheptel)?.cheptel || "";
+  const issues=[];
+
+  // Qualifications de cheptel
+  qualificationDefs(cid).forEach(d=>{
+    const r=getCheckResult(d.id,"cheptel:"+herd);
+    const st=r?.statut||"a_verifier";
+    if(certificateCheckStatusIsPending(st)){
+      issues.push(`Qualification ${d.libelle} à contrôler`);
+    }else if(!certificateCheckStatusIsConforming(st)){
+      const present=animals.filter(a=>defaultCertificateAnimalStatus(a)==="present");
+      if(present.length){
+        issues.push(`Qualification ${d.libelle} : ${exportStatusText(st)} — les animaux maintenus sur le certificat ne peuvent pas être validés`);
+      }
+    }
+  });
+
+  // Analyses demandées : tous les animaux doivent avoir été contrôlés,
+  // même ceux qui seront finalement refusés ou retirés du certificat.
+  const diseases=requestedDiseases(cid);
+  animals.forEach(a=>{
+    const finalChoice=defaultCertificateAnimalStatus(a);
+    diseases.forEach(disease=>{
+      if(disease==="BVD" && contestUsesAnipi(cid) && activeAnipiResult(a))return;
+
+      const accepted=acceptedRulesForDisease(a,cid,disease);
+      if(!accepted.length)return; // non concerné pour cet âge
+
+      const dr=getDiseaseResult(a,disease);
+      const st=dr?.result?.statut||"attente";
+      const short=certificateAnimalShort(a);
+
+      if(certificateCheckStatusIsPending(st)){
+        issues.push(`Bovin ${short} : analyse ${disease} à contrôler${dr?.method?` (${dr.method})`:""}`);
+      }else if(finalChoice==="present" && !certificateCheckStatusIsConforming(st)){
+        issues.push(`Bovin ${short} : ${dr?.method||disease} = ${exportStatusText(st)} — choisir Refusé / Pas sur certif ou corriger le résultat`);
+      }
+    });
+  });
+
+  // Autres points obligatoires
+  supplementaryDefsForContest(cid).filter(d=>d.obligatoire!==false).forEach(d=>{
+    if(d.niveau==="cheptel"){
+      const r=getCheckResult(d.id,"cheptel:"+herd);
+      const st=r?.statut||"a_verifier";
+      if(certificateCheckStatusIsPending(st)){
+        issues.push(`${d.libelle} (cheptel) à contrôler`);
+      }else if(!certificateCheckStatusIsConforming(st)){
+        const present=animals.filter(a=>defaultCertificateAnimalStatus(a)==="present");
+        if(present.length){
+          issues.push(`${d.libelle} (cheptel) : ${exportStatusText(st)} — contrôle non conforme pour les animaux maintenus sur le certificat`);
+        }
+      }
+      return;
+    }
+
+    animals.forEach(a=>{
+      const r=getCheckResult(d.id,"animal:"+a.id);
+      const st=r?.statut||"a_verifier";
+      const finalChoice=defaultCertificateAnimalStatus(a);
+      const short=certificateAnimalShort(a);
+
+      if(certificateCheckStatusIsPending(st)){
+        issues.push(`Bovin ${short} : ${d.libelle} à contrôler`);
+      }else if(finalChoice==="present" && !certificateCheckStatusIsConforming(st)){
+        issues.push(`Bovin ${short} : ${d.libelle} = ${exportStatusText(st)} — choisir Refusé / Pas sur certif ou corriger le contrôle`);
+      }
+    });
+  });
+
+  // Choix final certificat
+  animals.forEach(a=>{
+    const choice=defaultCertificateAnimalStatus(a);
+    if(choice==="a_verifier"){
+      issues.push(`Bovin ${certificateAnimalShort(a)} : choix certificat à décider`);
+    }
+  });
+
+  const validated=animals.filter(a=>defaultCertificateAnimalStatus(a)==="present");
+  const refused=animals.filter(a=>defaultCertificateAnimalStatus(a)==="refuse");
+  const absent=animals.filter(a=>defaultCertificateAnimalStatus(a)==="non_present");
+  const nonparticipants=all.filter(a=>participationStatus(a)==="non_participant");
+
+  return {ok:issues.length===0,issues,total:animals.length,validated,refused,absent,nonparticipants};
+}
+
+function renderCertificatePrecheck(){
+  const box=document.getElementById("certificatePrecheck");
+  const button=document.getElementById("certFinalButton");
+  if(!box)return;
+
+  const cid=document.getElementById("certContest")?.value;
+  const farmer=document.getElementById("certFarmer")?.value||"__ALL__";
+
+  if(!cid || farmer==="__ALL__"){
+    box.style.display="none";
+    if(button)button.disabled=true;
+    return;
+  }
+
+  box.style.display="";
+  const state=certificatePrecheckState(cid,farmer);
+  const nums=list=>list.map(a=>certificateAnimalShort(a)).join(", ");
+
+  if(state.ok){
+    box.className="certificate-precheck ok";
+    let summary=`✅ <strong>Tout est contrôlé.</strong><br>`;
+    summary+=`Validation possible pour <strong>${state.validated.length} animal${state.validated.length===1?"":"x"} sur ${state.total}</strong>.`;
+    if(state.refused.length)summary+=` <strong>Refusé${state.refused.length===1?"":"s"} :</strong> ${escapeHtml(nums(state.refused))}.`;
+    if(state.absent.length)summary+=` <strong>Pas sur certif :</strong> ${escapeHtml(nums(state.absent))}.`;
+    if(state.nonparticipants.length)summary+=` <strong>N’assisteront pas :</strong> ${escapeHtml(nums(state.nonparticipants))}.`;
+    box.innerHTML=`<h3>Pré-vérification du dossier</h3><div class="precheck-summary">${summary}</div>`;
+    if(button)button.disabled=false;
+  }else{
+    box.className="certificate-precheck warn";
+    const exclusions=[];
+    if(state.refused.length)exclusions.push(`Refusés : ${nums(state.refused)}`);
+    if(state.absent.length)exclusions.push(`Pas sur certif : ${nums(state.absent)}`);
+    if(state.nonparticipants.length)exclusions.push(`N’assisteront pas : ${nums(state.nonparticipants)}`);
+
+    box.innerHTML=`<h3>Pré-vérification du dossier</h3>
+      <div class="precheck-summary">⚠️ Validation bloquée : ${state.issues.length} point${state.issues.length===1?"":"s"} reste${state.issues.length===1?"":"nt"} à vérifier.</div>
+      ${exclusions.length?`<div class="muted" style="margin-top:6px">${escapeHtml(exclusions.join(" · "))}</div>`:""}
+      <ul>${state.issues.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`;
+    if(button)button.disabled=true;
+  }
+}
 function renderCertificates(){
   const cid=document.getElementById("certContest")?.value,farmer=document.getElementById("certFarmer")?.value||"__ALL__";
   const allMode=farmer==="__ALL__";
@@ -4654,7 +4825,7 @@ function renderCertificates(){
     if(wholeFarmerCancelled){
       help.innerHTML='<strong>Participation annulée :</strong> cet éleveur n’amène finalement aucun bovin. Le dossier reste conservé dans l’historique.';
     }else{
-      help.innerHTML='<strong>Statut automatique :</strong> sans date = Non reçu · date de réception = Reçu / en attente · validation finale = Validé. Les bovins sanitairement conformes sont proposés <strong>Validés par défaut</strong> : tu ne modifies que les exceptions.';
+      help.innerHTML='<strong>Statut automatique :</strong> sans date = Non reçu · date de réception = Reçu / en attente · validation finale = Validé. La <strong>pré-vérification finale contrôle qualifications, analyses et autres points obligatoires pour chaque dossier et chaque animal</strong>. Tu peux toujours choisir <strong>Pas sur certif</strong> ou <strong>Refusé</strong>.';
     }
   }
   renderCertificateAutoStatus();
@@ -4719,6 +4890,7 @@ function renderCertificates(){
     }).join("")||"<span class='muted'>Aucun animal.</span>";
     renderCertificateChecks();
   }
+  renderCertificatePrecheck();
   renderCertificateRecap();
 }
 function renderCertificateChecks(){
@@ -5287,18 +5459,15 @@ async function finalizeCertificate(){
   const farmer=document.getElementById("certFarmer")?.value||"__ALL__";
   if(!cid||farmer==="__ALL__")return alert("Choisis un éleveur.");
 
-  const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer);
+  const animals=db.animals.filter(a=>a.concours_id===cid&&a.eleveur===farmer&&participationStatus(a)!=="retire");
   if(!animals.length)return alert("Aucun bovin dans ce dossier.");
 
-  const unresolved=animals.filter(a=>defaultCertificateAnimalStatus(a)==="a_verifier");
-  if(unresolved.length){
-    const nums=unresolved.map(a=>String(a.bovin||"").slice(-4)).join(", ");
-    return alert(`${unresolved.length} bovin(s) doivent encore être décidés : ${nums}.\n\nChoisis Validé, Pas sur certif ou Refusé avant de finaliser.`);
-  }
-
-  if(!supplementaryChecksOK(cid,farmer)){
-    const ok=confirm("Certains contrôles complémentaires obligatoires ne sont pas encore conformes.\n\nValider quand même le certificat ?");
-    if(!ok)return;
+  const precheck=certificatePrecheckState(cid,farmer);
+  if(!precheck.ok){
+    renderCertificatePrecheck();
+    const details=precheck.issues.slice(0,12).map(x=>"• "+x).join("\n");
+    const more=precheck.issues.length>12?`\n… et ${precheck.issues.length-12} autre(s) point(s).`:"";
+    return alert(`Validation impossible pour le moment.\n\n${details}${more}\n\nCorrige ou vérifie ces éléments, puis relance la validation.`);
   }
 
   const today=new Date().toLocaleDateString("en-CA");
@@ -5307,9 +5476,9 @@ async function finalizeCertificate(){
   if(receive && !receive.value)receive.value=dateInputShort(today);
   if(sign && !sign.value)sign.value=dateInputShort(today);
 
-  // Enregistre réellement le choix animal visible à l'écran.
   const animalOps=[];
   animals.forEach(a=>{
+    if(participationStatus(a)==="non_participant")return;
     const finalStatus=defaultCertificateAnimalStatus(a);
     const patch=finalStatus==="present"
       ? {sur_certificat:true,statut_certificat_animal:"present"}
@@ -5342,9 +5511,13 @@ async function finalizeCertificate(){
   });
   db.certificates[cid+"|"+farmer]={...current,...body};
 
-  // Recharge : Remboursements voit immédiatement les animaux présents sur le certificat.
   await loadAll();
-  alert("Certificat validé et enregistré. Les animaux concernés sont maintenant disponibles dans Remboursements.");
+
+  const nums=list=>list.map(a=>certificateAnimalShort(a)).join(", ");
+  let msg=`Certificat validé pour ${precheck.validated.length} animal${precheck.validated.length===1?"":"x"} sur ${precheck.total}.`;
+  if(precheck.refused.length)msg+=`\nRefusé${precheck.refused.length===1?"":"s"} : ${nums(precheck.refused)}.`;
+  if(precheck.absent.length)msg+=`\nPas sur certif : ${nums(precheck.absent)}.`;
+  alert(msg);
 }
 
 function templateRuleFor(animal,analysis){return applicableTemplateRules(animal,animal.concours_id,diseaseForAnalysis(analysis)).find(r=>r.libelle_analyse===analysis)||null}
