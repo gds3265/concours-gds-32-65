@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.19</title>
-<link rel="manifest" href="manifest.json?v=1119">
+<title>Suivi des concours v0.11.21</title>
+<link rel="manifest" href="manifest.json?v=1121">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -376,7 +376,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1119" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1119</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1121" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1121</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1203,6 +1203,24 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
     </div>
     <div id="exportStats" class="kpis" style="margin-top:14px"></div>
   </div>
+
+  <div class="card">
+    <h2>Sauvegarde complète de l’application</h2>
+    <div class="info">
+      Cette sauvegarde concerne <strong>tous les concours et toutes les années</strong>, pas seulement le concours sélectionné ci-dessus.
+      Elle reprend les concours, animaux, analyses, qualifications, autres contrôles, certificats, partenaires,
+      validations, remboursements, paramètres sanitaires et accès éleveurs chargés par l’application.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="action" onclick="exportFullBackupExcel()">Sauvegarde complète Excel</button>
+      <button class="secondary" onclick="exportFullBackupJson()">Sauvegarde technique JSON</button>
+    </div>
+    <div class="muted" style="margin-top:8px">
+      <strong>Excel :</strong> lecture humaine, un onglet par table.
+      <strong>JSON :</strong> copie technique structurée destinée à une reprise ou une restauration future.
+      Les mots de passe et jetons de connexion ne sont jamais exportés.
+    </div>
+  </div>
 </section>
 </main>
 </div>
@@ -1242,7 +1260,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.19";
+const APP_VERSION = "0.11.21";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1346,7 +1364,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.19");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.21");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1719,7 +1737,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.19 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.21 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -4786,7 +4804,7 @@ function renderCertificatePrecheck(){
   if(state.ok){
     box.className="certificate-precheck ok";
     let summary=`✅ <strong>Tout est contrôlé.</strong><br>`;
-    summary+=`Validation possible pour <strong>${state.validated.length} animal${state.validated.length===1?"":"x"} sur ${state.total}</strong>.`;
+    summary+=`Validation possible pour <strong>${state.validated.length} ${state.validated.length===1?"animal":"animaux"} sur ${state.total}</strong>.`;
     if(state.refused.length)summary+=` <strong>Refusé${state.refused.length===1?"":"s"} :</strong> ${escapeHtml(nums(state.refused))}.`;
     if(state.absent.length)summary+=` <strong>Pas sur certif :</strong> ${escapeHtml(nums(state.absent))}.`;
     if(state.nonparticipants.length)summary+=` <strong>N’assisteront pas :</strong> ${escapeHtml(nums(state.nonparticipants))}.`;
@@ -5523,7 +5541,7 @@ async function finalizeCertificate(){
   await loadAll();
 
   const nums=list=>list.map(a=>certificateAnimalShort(a)).join(", ");
-  let msg=`Certificat validé pour ${precheck.validated.length} animal${precheck.validated.length===1?"":"x"} sur ${precheck.total}.`;
+  let msg=`Certificat validé pour ${precheck.validated.length} ${precheck.validated.length===1?"animal":"animaux"} sur ${precheck.total}.`;
   if(precheck.refused.length)msg+=`\nRefusé${precheck.refused.length===1?"":"s"} : ${nums(precheck.refused)}.`;
   if(precheck.absent.length)msg+=`\nPas sur certif : ${nums(precheck.absent)}.`;
   alert(msg);
@@ -6338,6 +6356,179 @@ async function importControlPointages(){
   await loadAll();
   alert(`${changes.length} pointage(s) réinjecté(s) avec succès.${warnings.length?`\\n${warnings.length} ligne(s) à vérifier.`:""}`);
 }
+
+function fullBackupTables(){
+  // Noms alignés sur les tables Supabase pour faciliter une reprise technique.
+  const results=[];
+  Object.entries(db.results||{}).forEach(([animalId,byAnalysis])=>{
+    Object.entries(byAnalysis||{}).forEach(([analysis,row])=>{
+      if(!row)return;
+      results.push({...row,animal_id:row.animal_id||animalId,analyse_type:row.analyse_type||analysis});
+    });
+  });
+
+  const certificates=Object.values(db.certificates||{}).filter(Boolean);
+
+  return {
+    concours:(db.contests||[]).map(x=>({...x})),
+    concours_departements:(db.departments||[]).map(x=>({...x})),
+    concours_regles:(db.rules||[]).map(x=>({...x})),
+    concours_regles_catalogue:(db.templateRules||[]).map(x=>({...x})),
+    concours_demandes:(db.demands||[]).map(x=>({...x})),
+    concours_points_controle:(db.checkDefs||[]).map(x=>({...x})),
+    concours_controles:(db.checkResults||[]).map(x=>({...x})),
+    concours_tarifs_analyses:(db.tariffs||[]).map(x=>({...x})),
+    concours_remboursement_lignes:(db.refundLines||[]).map(x=>({...x})),
+    concours_animaux:(db.animals||[]).map(x=>({...x})),
+    concours_resultats:results,
+    concours_certificats:certificates,
+    concours_acces_partenaires:(db.partnerAccess||[]).map(x=>({...x})),
+    concours_validations_partenaires:(db.partnerValidations||[]).map(x=>({...x})),
+    concours_acces_eleveurs:(db.farmerAccess||[]).map(x=>({...x}))
+  };
+}
+
+function backupTimestamp(){
+  const d=new Date(),pad=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+function backupCellValue(v){
+  if(v===null||v===undefined)return "";
+  if(typeof v==="object"){
+    try{return JSON.stringify(v)}
+    catch(_){return String(v)}
+  }
+  if(typeof v==="boolean")return v?"true":"false";
+  return String(v);
+}
+function backupTableMatrix(rows){
+  rows=Array.isArray(rows)?rows:[];
+  if(!rows.length)return {headers:["Information"],rows:[["Aucune donnée"]]};
+  const headers=[];
+  const seen=new Set();
+  rows.forEach(row=>Object.keys(row||{}).forEach(k=>{
+    if(!seen.has(k)){seen.add(k);headers.push(k)}
+  }));
+  return {
+    headers,
+    rows:rows.map(row=>headers.map(h=>backupCellValue(row?.[h])))
+  };
+}
+function safeSheetName(name,used){
+  let s=String(name||"Feuille").replace(/[\\/?*[\]:]/g,"_").slice(0,31)||"Feuille";
+  let base=s,n=2;
+  while(used.has(s)){
+    const suffix="_"+n++;
+    s=(base.slice(0,31-suffix.length)+suffix);
+  }
+  used.add(s);
+  return s;
+}
+function makeFullBackupXlsx(tables){
+  const sheetEntries=[];
+  const used=new Set();
+
+  // Sommaire en premier.
+  const summaryRows=Object.entries(tables).map(([name,rows])=>[
+    name,
+    Array.isArray(rows)?rows.length:0
+  ]);
+  sheetEntries.push({
+    name:"SOMMAIRE",
+    xml:buildWorksheetXml(
+      ["Sauvegarde Suivi des concours","Valeur"],
+      [
+        ["Version application",APP_VERSION],
+        ["Export réalisé le",new Date().toLocaleString("fr-FR")],
+        ["Portail éleveur disponible",FARMER_PORTAL_AVAILABLE?"Oui":"Non"],
+        ["",""],
+        ["Table","Nombre de lignes"],
+        ...summaryRows
+      ]
+    )
+  });
+  used.add("SOMMAIRE");
+
+  const shortNames={
+    concours:"Concours",
+    concours_departements:"Départements",
+    concours_regles:"Règles concours",
+    concours_regles_catalogue:"Catalogue règles",
+    concours_demandes:"Demandes analyses",
+    concours_points_controle:"Points contrôle",
+    concours_controles:"Contrôles",
+    concours_tarifs_analyses:"Tarifs analyses",
+    concours_remboursement_lignes:"Remboursements",
+    concours_animaux:"Animaux",
+    concours_resultats:"Résultats analyses",
+    concours_certificats:"Certificats",
+    concours_acces_partenaires:"Accès partenaires",
+    concours_validations_partenaires:"Validations partenaires",
+    concours_acces_eleveurs:"Accès éleveurs"
+  };
+
+  Object.entries(tables).forEach(([tableName,rows])=>{
+    const matrix=backupTableMatrix(rows);
+    const name=safeSheetName(shortNames[tableName]||tableName,used);
+    sheetEntries.push({name,xml:buildWorksheetXml(matrix.headers,matrix.rows)});
+  });
+
+  const sheetOverrides=sheetEntries.map((_,i)=>
+    `<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+  ).join("");
+
+  const workbookSheets=sheetEntries.map((s,i)=>
+    `<sheet name="${xlsxXmlEscape(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`
+  ).join("");
+
+  const worksheetRels=sheetEntries.map((_,i)=>
+    `<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`
+  ).join("");
+  const stylesRid=sheetEntries.length+1;
+
+  const files={
+    "[Content_Types].xml":`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheetOverrides}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "_rels/.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    "xl/workbook.xml":`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels":`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${worksheetRels}<Relationship Id="rId${stylesRid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml":`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="4"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF245B2D"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF6B234E"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7D2F63"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E5E5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7F5E9"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF7EAF2"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="4" borderId="0" xfId="0" applyFill="1" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="5" borderId="0" xfId="0" applyFill="1" applyFont="1"/></cellXfs></styleSheet>`
+  };
+  sheetEntries.forEach((s,i)=>files[`xl/worksheets/sheet${i+1}.xml`]=s.xml);
+  return zipStore(files);
+}
+
+function exportFullBackupExcel(){
+  try{
+    const tables=fullBackupTables();
+    saveBlob(
+      makeFullBackupXlsx(tables),
+      `Sauvegarde_Suivi_Concours_${backupTimestamp()}.xlsx`
+    );
+  }catch(e){
+    alert("Impossible de créer la sauvegarde Excel.\n"+(e?.message||e));
+  }
+}
+
+function exportFullBackupJson(){
+  try{
+    const payload={
+      format:"suivi-concours-backup",
+      format_version:1,
+      app_version:APP_VERSION,
+      exported_at:new Date().toISOString(),
+      farmer_portal_available:FARMER_PORTAL_AVAILABLE,
+      tables:fullBackupTables()
+    };
+    const blob=new Blob(
+      [JSON.stringify(payload,null,2)],
+      {type:"application/json;charset=utf-8"}
+    );
+    saveBlob(blob,`Sauvegarde_Suivi_Concours_${backupTimestamp()}.json`);
+  }catch(e){
+    alert("Impossible de créer la sauvegarde JSON.\n"+(e?.message||e));
+  }
+}
+
 function exportControlExcel(){
   const cid=document.getElementById("exportContest")?.value,c=contest(cid);
   if(!cid||!c)return alert("Choisir un concours.");
