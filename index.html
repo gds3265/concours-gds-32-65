@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.14</title>
-<link rel="manifest" href="manifest.json?v=1114">
+<title>Suivi des concours v0.11.16</title>
+<link rel="manifest" href="manifest.json?v=1116">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -284,6 +284,27 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   background:#f3fbf5!important;
   border-color:#9ccaa5!important;
 }
+
+.registered-count-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-left:6px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#efe1eb;
+  color:#7d2f63;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.control-filter-summary{
+  margin-top:8px;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  background:#faf7f9;
+  border-radius:10px;
+}
 </style>
 </head>
 <body>
@@ -331,7 +352,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1114" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1114</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1116" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1116</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -613,6 +634,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       <button class="secondary" onclick="toggleQuickAnimal()">+ Ajouter un animal</button>
       <button class="secondary" onclick="addUnexpectedAnalysis()">+ Analyse non prévue</button>
     </div>
+    <div id="analysisRegisteredCount" style="margin-top:8px"></div>
     <div class="muted" style="margin-top:8px">Seules les maladies demandées sont affichées. La méthode prioritaire est proposée automatiquement selon l’âge. La date sous chaque maladie indique le premier jour possible de prélèvement selon le délai de validité paramétré.</div>
     <div id="quickAnimalPanel" class="hidden" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px">
       <div class="row">
@@ -699,6 +721,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
     <div class="muted">Vaccinations, documents, statuts sanitaires (dont BVD ANIPI) ou autres exigences. Les qualifications de cheptel sont gérées dans l’onglet Qualifications.</div>
     <div class="controls-grid" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="ctrlContest"></select></div>
+      <div class="field" style="min-width:230px"><label>Rechercher éleveur / n° EDE</label><input id="ctrlSearch" placeholder="Nom éleveur ou n° EDE"></div>
       <div class="field"><label>Niveau</label><select id="ctrlLevel"><option value="cheptel">Cheptel</option><option value="animal">Animal</option></select></div>
       <div class="field"><label>Type</label><select id="ctrlType">
         <option value="vaccination">Vaccination</option>
@@ -714,6 +737,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
       Les points déjà paramétrés pour ce concours sont listés ci-dessous.
       <strong>Vérif statut ANIPI</strong> te renvoie vers l’import du fichier bovins métier AGDS pour lancer le contrôle en masse.
     </div>
+    <div id="ctrlFilterSummary" class="control-filter-summary"></div>
   </div>
   <div class="card"><div id="supplementaryDefs"></div></div>
   <div class="card"><div id="supplementaryChecks"></div></div>
@@ -981,7 +1005,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
     <div style="margin-top:18px;border-top:2px solid var(--line);padding-top:14px">
       <div class="topline">
         <div>
-          <h3>Animaux du certificat final</h3>
+          <h3>Animaux du certificat final <span id="certRegisteredCount"></span></h3>
           <div class="muted">Vérifie surtout les absents du certificat ou les bovins refusés.</div>
         </div>
         <div class="row">
@@ -1191,7 +1215,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.14";
+const APP_VERSION = "0.11.16";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1275,7 +1299,7 @@ function renderManualAnalyses(a){
   }).join("");
 }
 const STATUS=[
-  ["attente","⏳ Non fait / non reçu"],["labo","🧪 En cours labo"],["conforme","✅ Négatif = conforme"],
+  ["attente","⏳ Non fait / non reçu"],["labo","🧪 En cours labo"],["conforme","✅ Négatif / Conforme"],
   ["nonconforme","❌ Non conforme"],["positif","🔴 Positif"],["recontrole","🔁 À recontrôler"],["inutile","⚠️ Réalisée mais non nécessaire"]
 ];
 let TOKEN=localStorage.getItem("concours_access_token")||"";
@@ -1292,7 +1316,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.14");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.16");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1665,7 +1689,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.14 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.16 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -2268,7 +2292,7 @@ function farmerOptionsByHerd(cid){
   return [...map.values()]
     .map(x=>({herd:x.herd,farmer:canonicalFarmerName(x.names)}))
     .sort((a,b)=>String(a.herd).localeCompare(String(b.herd),undefined,{numeric:true}))
-    .map(x=>({value:x.farmer,label:`${x.herd||"Sans EDE"} — ${x.farmer}`}));
+    .map(x=>({value:x.farmer,label:`${x.herd||"Sans EDE"} — ${x.farmer} — ${registeredAnimalCountForHerd(cid,x.herd)} inscrit${registeredAnimalCountForHerd(cid,x.herd)===1?"":"s"}`}));
 }
 function renderFarmerSelectors(){
   [["analysisContest","analysisFarmer"],["certContest","certFarmer"]].forEach(([cid,fid])=>{
@@ -3302,7 +3326,7 @@ function renderAnimals(){
     previousHerd=herd;
     return `<tr class="${cls}">
       <td>${escapeHtml(a.departement||"")}</td>
-      <td>${escapeHtml(a.eleveur)}</td>
+      <td>${escapeHtml(a.eleveur)} ${registeredCountBadge(registeredAnimalCountForHerd(cid,a.cheptel),"animal")}</td>
       <td><span class="herd-label">${escapeHtml(a.cheptel||"")}</span></td>
       <td><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}</div></td>
       <td>${escapeHtml(a.nom_animal||"")} ${a.sexe?`<span class="badge na">${escapeHtml(a.sexe)}</span>`:""}</td>
@@ -3680,6 +3704,13 @@ function renderAnalysis(){
     return h||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true});
   });
   const diseases=demandedDiseases(cid);
+  const countBox=document.getElementById("analysisRegisteredCount");
+  if(countBox){
+    const n=farmer==="__ALL__"
+      ? db.animals.filter(a=>a.concours_id===cid&&participationStatus(a)!=="retire").length
+      : registeredAnimalCountForFarmer(cid,farmer);
+    countBox.innerHTML=(farmer==="__ALL__"?"Concours complet : ":"Éleveur sélectionné : ")+registeredCountBadge(n,"animal inscrit");
+  }
   let noteBox=document.getElementById("analysisManagementNote");
   const analysisCard=document.getElementById("analysisTable")?.closest(".card");
   if(analysisCard&&!noteBox){noteBox=document.createElement("div");noteBox.id="analysisManagementNote";analysisCard.insertBefore(noteBox,document.getElementById("analysisTable")?.parentElement||null)}
@@ -3880,6 +3911,19 @@ function certStatusBadge(s){
   if(s==="valide"||s==="signe")return '<span class="badge ok">Validé</span>';
   return '<span class="badge na">Non reçu</span>';
 }
+function registeredAnimalsForHerd(cid,herd){
+  return db.animals.filter(a=>a.concours_id===cid && String(a.cheptel||"")===String(herd||"") && participationStatus(a)!=="retire");
+}
+function registeredAnimalCountForHerd(cid,herd){
+  return registeredAnimalsForHerd(cid,herd).length;
+}
+function registeredAnimalCountForFarmer(cid,farmer){
+  if(!cid||!farmer||farmer==="__ALL__")return db.animals.filter(a=>a.concours_id===cid && participationStatus(a)!=="retire").length;
+  return db.animals.filter(a=>a.concours_id===cid && a.eleveur===farmer && participationStatus(a)!=="retire").length;
+}
+function registeredCountBadge(n,label="inscrit"){
+  return `<span class="registered-count-badge">${Number(n)||0} ${label}${Number(n)===1?"":"s"}</span>`;
+}
 function herdListForContest(cid){
   const map=new Map();
   db.animals.filter(a=>a.concours_id===cid).forEach(a=>{
@@ -3914,7 +3958,7 @@ function renderQualificationGrid(){
 
   let out=`<div class="scroll"><table>
     <thead><tr>
-      <th>Dépt.</th><th>N° EDE</th><th>Éleveur</th>
+      <th>Dépt.</th><th>N° EDE</th><th>Éleveur</th><th>Inscrits</th>
       ${defs.map(d=>`<th>${escapeHtml(d.libelle)}</th>`).join("")}
     </tr></thead><tbody>`;
 
@@ -3922,7 +3966,8 @@ function renderQualificationGrid(){
     out+=`<tr class="${herdBandClass(cid,hd.herd)} herd-start">
       <td>${escapeHtml(hd.dept)}</td>
       <td><strong>${escapeHtml(hd.herd)}</strong></td>
-      <td>${escapeHtml(hd.farmer)}</td>`;
+      <td>${escapeHtml(hd.farmer)}</td>
+      <td>${registeredCountBadge(registeredAnimalCountForHerd(cid,hd.herd),"animal")}</td>`;
 
     defs.forEach(d=>{
       const key="cheptel:"+hd.herd;
@@ -4577,6 +4622,12 @@ function renderCertificates(){
   const allMode=farmer==="__ALL__";
   const cert=allMode?null:db.certificates[cid+"|"+farmer];
   const wholeFarmerCancelled=!allMode && farmerParticipationCancelled(cid,farmer);
+  const certCount=document.getElementById("certRegisteredCount");
+  if(certCount){
+    certCount.innerHTML=allMode
+      ? registeredCountBadge(db.animals.filter(a=>a.concours_id===cid&&participationStatus(a)!=="retire").length,"animal inscrit")
+      : registeredCountBadge(registeredAnimalCountForFarmer(cid,farmer),"animal inscrit");
+  }
 
   document.getElementById("receiveDate").value=dateInputShort(cert?.date_reception);
   document.getElementById("signDate").value=dateInputShort(cert?.date_signature);
@@ -4800,6 +4851,7 @@ function renderSupplementaryChecks(){
   const target=document.getElementById("supplementaryChecks");if(!target)return;
   const cid=document.getElementById("ctrlContest")?.value;
   const defs=supplementaryDefsForContest(cid);
+  const q=(document.getElementById("ctrlSearch")?.value||"").trim().toLowerCase();
 
   if(!defs.length){
     target.innerHTML='<div class="muted">Ajoute d’abord un point de vérification pour afficher les contrôles.</div>';
@@ -4811,14 +4863,15 @@ function renderSupplementaryChecks(){
   let out='<h3>Saisie / suivi des contrôles</h3>';
 
   if(herdDefs.length){
-    const herds=herdListForContest(cid);
+    let herds=herdListForContest(cid);
+    if(q)herds=herds.filter(h=>`${h.herd||""} ${h.farmer||""} ${herdRaceText(cid,h.herd)}`.toLowerCase().includes(q));
     out+=`<h4>Contrôles cheptel</h4>`;
     if(!herds.length){
       out+='<div class="muted">Aucun cheptel inscrit pour ce concours.</div>';
     }else{
-      out+=`<div class="scroll"><table><thead><tr><th>N° EDE</th><th>Éleveur</th>${herdDefs.map(d=>`<th>${escapeHtml(d.libelle)}${d.obligatoire?" *":""}</th>`).join("")}</tr></thead><tbody>`;
+      out+=`<div class="scroll"><table><thead><tr><th>N° EDE</th><th>Éleveur</th><th>Inscrits</th>${herdDefs.map(d=>`<th>${escapeHtml(d.libelle)}${d.obligatoire?" *":""}</th>`).join("")}</tr></thead><tbody>`;
       herds.forEach(h=>{
-        out+=`<tr class="${herdBandClass(cid,h.herd)} herd-start"><td><strong>${escapeHtml(h.herd)}</strong></td><td>${escapeHtml(h.farmer)}</td>`;
+        out+=`<tr class="${herdBandClass(cid,h.herd)} herd-start"><td><strong>${escapeHtml(h.herd)}</strong></td><td>${escapeHtml(h.farmer)}</td><td>${registeredCountBadge(registeredAnimalCountForHerd(cid,h.herd))}</td>`;
         herdDefs.forEach(d=>{
           const key="cheptel:"+h.herd,r=getCheckResult(d.id,key);
           out+=`<td>
@@ -4833,9 +4886,10 @@ function renderSupplementaryChecks(){
   }
 
   if(animalDefs.length){
-    const animals=db.animals
-      .filter(a=>a.concours_id===cid)
-      .sort((a,b)=>String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true}));
+    let animals=db.animals
+      .filter(a=>a.concours_id===cid && participationStatus(a)!=="retire");
+    if(q)animals=animals.filter(a=>`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""} ${raceDisplay(a)||""}`.toLowerCase().includes(q));
+    animals.sort((a,b)=>String(a.cheptel||"").localeCompare(String(b.cheptel||""),undefined,{numeric:true})||String(a.bovin||"").localeCompare(String(b.bovin||""),undefined,{numeric:true}));
     out+=`<h4 style="margin-top:18px">Contrôles individuels</h4>`;
     if(!animals.length){
       out+='<div class="muted">Aucun bovin inscrit pour ce concours.</div>';
@@ -4869,6 +4923,20 @@ function renderSupplementaryChecks(){
   }
 
   target.innerHTML=out;
+
+  const summary=document.getElementById("ctrlFilterSummary");
+  if(summary){
+    const matching=db.animals.filter(a=>a.concours_id===cid && participationStatus(a)!=="retire" && (!q||`${a.cheptel||""} ${a.eleveur||""} ${a.bovin||""} ${a.nom_animal||""} ${raceDisplay(a)||""}`.toLowerCase().includes(q)));
+    const herds=[...new Set(matching.map(a=>a.cheptel||"").filter(Boolean))];
+    if(q && herds.length===1){
+      const herd=herds[0],farmer=canonicalFarmerForHerd(cid,herd);
+      summary.innerHTML=`<strong>${escapeHtml(herd)} — ${escapeHtml(farmer||"")}</strong> ${registeredCountBadge(registeredAnimalCountForHerd(cid,herd),"animal inscrit")}`;
+    }else if(q){
+      summary.innerHTML=`${registeredCountBadge(matching.length,"animal trouvé")} · ${herds.length} élevage${herds.length===1?"":"s"} correspondant${herds.length===1?"":"s"}`;
+    }else{
+      summary.innerHTML=`Concours complet : ${registeredCountBadge(matching.length,"animal inscrit")} · ${herds.length} élevage${herds.length===1?"":"s"}`;
+    }
+  }
 }
 function supplementaryChecksState(cid,farmer){
   const defs=db.checkDefs.filter(d=>d.concours_id===cid && d.type_controle!=="qualification");
@@ -5381,8 +5449,9 @@ function renderRefundSelectors(){
   const pairs=new Map();
   db.animals.filter(a=>ids.includes(a.concours_id)).forEach(a=>{
     const herd=a.cheptel||"Sans EDE", farmer=a.eleveur||"";
-    const label=`${herd} — ${farmer}`;
-    if(q && !label.toLowerCase().includes(q))return;
+    const count=registeredAnimalCountForHerd(a.concours_id,herd);
+    const label=`${herd} — ${farmer} — ${count} inscrit${count===1?"":"s"}`;
+    if(q && !(`${herd} — ${farmer}`).toLowerCase().includes(q))return;
     pairs.set(herd+"|"+farmer,{value:herd+"|"+farmer,label});
   });
 
@@ -6398,7 +6467,7 @@ function renderEntry(){
     out+=`<div class="card entry-herd ${herdBandClass(cid,h.ede)} ${arrived?"entry-herd-arrived":""}">
       <div class="topline">
         <div><h3 style="margin-bottom:4px">EDE ${escapeHtml(h.ede)} — ${escapeHtml(h.farmer||"—")}</h3>
-        <div class="muted">Département ${escapeHtml(h.dept||"—")} · ${presentCount}/${expectedCount} bovin(s) présent(s)</div></div>
+        <div class="muted">Département ${escapeHtml(h.dept||"—")} · <strong>${h.animals.length} inscrit(s)</strong> · ${presentCount}/${expectedCount} bovin(s) présent(s)</div></div>
         <button class="secondary" onclick="entrySetHerdPresent('${escapeHtml(h.ede)}')">Tout le cheptel présent</button>
       </div>
       <div class="entry-row head"><div>Bovin</div><div>Nom / sexe</div><div>Statut</div><div>Heure contrôle</div><div>Observation / motif</div><div>Actions</div></div>`;
@@ -6502,6 +6571,7 @@ document.getElementById("checkType")?.addEventListener("change",e=>{
     const req=document.getElementById("checkRequired");if(req)req.value="true";
   }
 });
+document.getElementById("ctrlSearch")?.addEventListener("input",()=>renderSupplementaryChecks());
 document.getElementById("globalSearch")?.addEventListener("input",()=>renderAll());
 document.getElementById("qualSearch")?.addEventListener("input",()=>renderQualifications());
 document.getElementById("analysisSearch")?.addEventListener("input",()=>renderAnalysis());
