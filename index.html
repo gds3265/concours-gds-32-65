@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.24</title>
-<link rel="manifest" href="manifest.json?v=1124">
+<title>Suivi des concours v0.11.25</title>
+<link rel="manifest" href="manifest.json?v=1125">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1124" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1124</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1125" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1125</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.24";
+const APP_VERSION = "0.11.25";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.24");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.25");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1987,7 +1987,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.24 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.25 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -3709,13 +3709,24 @@ function requestedDiseases(cid){
 function acceptedRulesForDisease(animal,cid,disease){
   const exceptions=contestExceptionRules(cid,disease);
   if(exceptions.length){
-    return applicableContestExceptionRules(animal,cid,disease).map(r=>({
-      libelle_analyse:r.analyse_type,
-      methode_reference_remboursement:true,
-      technique:r.analyse_type,
-      matrice:"",
-      _exception_concours:true
-    }));
+    return applicableContestExceptionRules(animal,cid,disease).map(r=>{
+      // Reprendre autant que possible les caractéristiques de la règle générale
+      // portant le même libellé, tout en conservant les bornes d'âge/délai
+      // spécifiques au concours.
+      const base=db.templateRules.find(t=>t.maladie===disease && t.libelle_analyse===r.analyse_type) || {};
+      return {
+        ...base,
+        libelle_analyse:r.analyse_type,
+        age_min_mois:r.age_min_mois,
+        age_max_mois:r.age_max_mois,
+        delai_max_jours:r.delai_max_jours,
+        recevable_validation:true,
+        methode_reference_remboursement:base.methode_reference_remboursement!==false,
+        technique:base.technique||r.analyse_type,
+        matrice:base.matrice||"",
+        _exception_concours:true
+      };
+    });
   }
   if(activeDemand(cid,disease)){
     return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
@@ -3757,7 +3768,10 @@ function methodOptions(rules,selected,animal,cid,disease){
 }
 
 function demandedDiseases(cid){
-  return db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie);
+  return [...new Set([
+    ...db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie),
+    ...db.rules.filter(r=>r.concours_id===cid).map(r=>diseaseForAnalysis(r.analyse_type))
+  ].filter(Boolean))];
 }
 function analysisValidityDays(cid,disease,analysis=""){
   const exceptions=contestExceptionRules(cid,disease).filter(r=>
@@ -3814,7 +3828,9 @@ function certificateSignatureBannerHtml(cid){
   return `<strong>Signature du certificat valable à partir du ${escapeHtml(formatDateFr(x.date))}</strong> <span class="muted">(${x.days} jours avant le concours)</span>`;
 }
 function methodOptionsForDisease(animal,cid,disease){
-  return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
+  // Toujours utiliser le moteur final de règles :
+  // exception concours prioritaire, sinon paramétrage général.
+  return acceptedRulesForDisease(animal,cid,disease);
 }
 function preferredMethodForDisease(animal,cid,disease){
   const opts=methodOptionsForDisease(animal,cid,disease);
@@ -4083,8 +4099,10 @@ function renderAnalysis(){
         out+=`<td class="disease-col na">Non concerné${manualForDisease.length?'<div class="badge warn" style="margin-top:5px">Analyse réalisée hors protocole ↓</div>':""}</td>`;
       }else{
         const r=dr.result||{statut:"attente"};
+        const exceptionActive=contestExceptionRules(cid,d).length>0;
         out+=`<td class="disease-col">
           ${diseaseMethodSelect(a,cid,d,dr.method)}
+          ${exceptionActive?'<div class="muted" style="font-size:10px;margin-top:3px">Règle propre au concours</div>':""}
           <select style="margin-top:6px" onchange="setResult('${a.id}','${escapeHtml(dr.method)}',this.value)">${analysisStatusOptions(r,d)}</select>
         </td>`;
       }
