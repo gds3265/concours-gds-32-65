@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.22</title>
-<link rel="manifest" href="manifest.json?v=1122">
+<title>Suivi des concours v0.11.24</title>
+<link rel="manifest" href="manifest.json?v=1124">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -329,6 +329,24 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   cursor:not-allowed;
   filter:grayscale(.25);
 }
+
+.role-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:5px 9px;
+  border-radius:999px;
+  background:rgba(255,255,255,.18);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.internal-user-row.inactive{opacity:.55}
+.internal-role-note{
+  font-size:11px;
+  color:var(--muted);
+}
 </style>
 </head>
 <body>
@@ -376,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1122" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1122</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1124" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1124</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -409,6 +427,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
   <div style="margin-top:10px;display:grid;grid-template-columns:minmax(220px,420px) auto;gap:8px;align-items:center">
     <input id="globalSearch" placeholder="Rechercher un éleveur ou n° cheptel…" style="width:100%;padding:8px 10px;border-radius:8px;border:0">
     <span class="small" style="opacity:.9"><span class="global-search-label">Filtre les listes de l’écran affiché</span></span>
+    <span id="internalRoleBadge" class="role-badge" style="display:none"></span>
   </div>
 </header>
 
@@ -425,6 +444,44 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </section>
 
 <section id="parametres" class="section">
+  <div class="card" id="internalUsersCard">
+    <div class="topline">
+      <div>
+        <h2>Utilisateurs et droits</h2>
+        <div class="muted">
+          Gestion directement dans l’application. Supabase ne sert ici que de stockage temporaire du rôle :
+          tu n’as pas besoin d’y retourner pour faire évoluer une collègue.
+        </div>
+      </div>
+      <span class="badge ok">Gestion complète uniquement</span>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="field" style="min-width:260px">
+        <label>Email de la personne</label>
+        <input id="internalUserEmail" type="email" placeholder="prenom.nom@...">
+      </div>
+      <div class="field">
+        <label>Rôle</label>
+        <select id="internalUserRole">
+          <option value="simplifie">Simplifié</option>
+          <option value="intermediaire">Intermédiaire</option>
+          <option value="gestion_complete">Gestion complète</option>
+        </select>
+      </div>
+      <button class="action" type="button" onclick="addInternalUser()">Ajouter / autoriser</button>
+    </div>
+
+    <div class="info" style="margin-top:10px">
+      <strong>Simplifié :</strong> suivi sanitaire et certificats uniquement.
+      <strong>Intermédiaire :</strong> suivi + listes/imports usuels.
+      <strong>Gestion complète :</strong> création des concours, règles, remboursements, partenaires, sauvegardes et gestion des droits.
+      <br>La personne doit déjà disposer d’un compte de connexion à l’application ; ici tu règles seulement ce qu’elle voit et peut utiliser.
+    </div>
+
+    <div id="internalUsersList" style="margin-top:12px"></div>
+  </div>
+
   <div class="card"><h2>Paramétrage des règles sanitaires</h2><div class="muted">Règles générales réutilisables pour tous les concours.</div></div>
   <div class="card"><h3>Ajouter une règle</h3><div class="row">
     <div class="field"><label>Maladie</label><select id="tplDisease"><option>BVD</option><option>IBR</option><option>Besnoitiose</option><option>Autre</option></select></div>
@@ -520,7 +577,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 
   <div class="card">
     <h2>Exceptions propres au concours</h2>
-    <div class="muted">À utiliser seulement si ce concours a une règle différente du paramétrage général.</div>
+    <div class="muted">À utiliser seulement si ce concours a une règle différente du paramétrage général. <strong>Pour une maladie donnée, dès qu’une exception est définie ici, elle remplace les règles générales de cette maladie pour ce concours.</strong></div>
     <div class="row" style="margin-top:10px">
       <div class="field"><label>Concours</label><select id="ruleContest"></select></div>
       <div class="field"><label>Analyse</label><select id="ruleAnalysis">
@@ -1263,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.22";
+const APP_VERSION = "0.11.24";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1361,13 +1418,15 @@ let APP_MODE="admin";
 let CURRENT_PARTNER_ACCESSES=[];
 let CURRENT_FARMER_ACCESSES=[];
 let FARMER_PORTAL_AVAILABLE=true;
+let INTERNAL_USERS_AVAILABLE=true;
+let CURRENT_INTERNAL_ROLE="gestion_complete";
 let certRecapSort={field:"herd",dir:1};
 let fastCurrentHerd="";
 let fastCurrentFarmer="";
 let certificateAnimalEditId="";
-let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
+let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.22");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.24");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1477,32 +1536,220 @@ function currentFarmerAccess(){
   const cid=document.getElementById("farmerPortalContest")?.value;
   return CURRENT_FARMER_ACCESSES.find(a=>a.concours_id===cid)||CURRENT_FARMER_ACCESSES[0]||null;
 }
+function internalRoleLabel(role){
+  return role==="gestion_complete"?"Gestion complète":role==="intermediaire"?"Intermédiaire":"Simplifié";
+}
+function currentInternalRole(){
+  if(!INTERNAL_USERS_AVAILABLE)return "gestion_complete";
+
+  const email=currentLoginEmail();
+  const uid=decodeJwtPayload(TOKEN)?.sub||"";
+  const explicit=(db.internalUsers||[]).find(u=>
+    u.actif!==false &&
+    String(u.email||"").trim().toLowerCase()===email
+  );
+  if(explicit)return explicit.role||"simplifie";
+
+  // Les anciens administrateurs restent gestionnaires complets :
+  // cela évite de perdre l'accès lors de l'installation du nouveau système.
+  const bootstrap=(db.admins||[]).some(a=>
+    (a.user_id&&String(a.user_id)===String(uid)) ||
+    String(a.email||"").trim().toLowerCase()===email
+  );
+  return bootstrap?"gestion_complete":"simplifie";
+}
+function internalAllowedTabs(role){
+  if(role==="gestion_complete")return new Set([
+    "dashboard","parametres","concours","animaux","analyses","qualifications","controles",
+    "validationrapide","certificats","partenaires","eleveurs","entreeconcours","remboursements","export"
+  ]);
+  if(role==="intermediaire")return new Set([
+    "dashboard","animaux","analyses","qualifications","controles","validationrapide",
+    "certificats","entreeconcours","export"
+  ]);
+  return new Set([
+    "validationrapide","analyses","controles","certificats","entreeconcours"
+  ]);
+}
+function internalDefaultTab(role){
+  return role==="gestion_complete"?"dashboard":role==="intermediaire"?"dashboard":"validationrapide";
+}
+function internalTabAllowed(tab){
+  if(APP_MODE!=="admin")return true;
+  return internalAllowedTabs(CURRENT_INTERNAL_ROLE).has(tab);
+}
+function applyInternalRoleUi(){
+  if(APP_MODE!=="admin")return;
+
+  const allowed=internalAllowedTabs(CURRENT_INTERNAL_ROLE);
+  document.querySelectorAll("nav button[data-tab]").forEach(b=>{
+    const tab=b.dataset.tab;
+    if(["partenaireportail","eleveurportail"].includes(tab))return;
+    b.style.display=allowed.has(tab)?"inline-flex":"none";
+  });
+
+  const roleBadge=document.getElementById("internalRoleBadge");
+  if(roleBadge){
+    roleBadge.style.display="inline-flex";
+    roleBadge.textContent=internalRoleLabel(CURRENT_INTERNAL_ROLE);
+  }
+
+  const card=document.getElementById("internalUsersCard");
+  if(card)card.style.display=CURRENT_INTERNAL_ROLE==="gestion_complete"?"":"none";
+
+  const active=document.querySelector(".section.active");
+  if(active && !allowed.has(active.id)){
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+    const target=internalDefaultTab(CURRENT_INTERNAL_ROLE);
+    document.getElementById(target)?.classList.add("active");
+    document.querySelector(`nav button[data-tab="${target}"]`)?.classList.add("active");
+  }
+}
+
 function applyAccessMode(){
   CURRENT_EMAIL=currentLoginEmail();
   CURRENT_PARTNER_ACCESSES=accessForCurrentUser();
   CURRENT_FARMER_ACCESSES=farmerAccessForCurrentUser();
   APP_MODE=CURRENT_FARMER_ACCESSES.length?"farmer":(CURRENT_PARTNER_ACCESSES.length?"partner":"admin");
+
+  if(APP_MODE==="admin")CURRENT_INTERNAL_ROLE=currentInternalRole();
+
   document.body.classList.toggle("partner-mode",APP_MODE==="partner");
   document.body.classList.toggle("farmer-mode",APP_MODE==="farmer");
-  const pb=document.querySelector('nav button[data-tab="partenaireportail"]');if(pb)pb.style.display=APP_MODE==="partner"?"inline-flex":"none";
-  const fb=document.querySelector('nav button[data-tab="eleveurportail"]');if(fb)fb.style.display=APP_MODE==="farmer"?"inline-flex":"none";
+
+  const roleBadge=document.getElementById("internalRoleBadge");
+  if(roleBadge)roleBadge.style.display="none";
+
+  const pb=document.querySelector('nav button[data-tab="partenaireportail"]');
+  if(pb)pb.style.display=APP_MODE==="partner"?"inline-flex":"none";
+  const fb=document.querySelector('nav button[data-tab="eleveurportail"]');
+  if(fb)fb.style.display=APP_MODE==="farmer"?"inline-flex":"none";
+
   if(APP_MODE==="partner"){
     document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));
     document.getElementById("partenaireportail")?.classList.add("active");
+    document.querySelectorAll("nav button").forEach(b=>b.style.display=b.dataset.tab==="partenaireportail"?"inline-flex":"none");
   }else if(APP_MODE==="farmer"){
     document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));
     document.getElementById("eleveurportail")?.classList.add("active");
     document.querySelectorAll("nav button").forEach(b=>b.style.display=b.dataset.tab==="eleveurportail"?"inline-flex":"none");
     document.getElementById("globalSearch")?.classList.add("hidden");
   }else{
+    document.getElementById("globalSearch")?.classList.remove("hidden");
     const eb=document.querySelector('nav button[data-tab="eleveurs"]');
     if(eb)eb.style.display=FARMER_PORTAL_AVAILABLE?"inline-flex":"none";
     const ep=document.querySelector('nav button[data-tab="eleveurportail"]');
     if(ep)ep.style.display="none";
     const pp=document.querySelector('nav button[data-tab="partenaireportail"]');
     if(pp)pp.style.display="none";
+    applyInternalRoleUi();
   }
 }
+
+function canManageInternalUsers(){
+  return APP_MODE==="admin" && CURRENT_INTERNAL_ROLE==="gestion_complete";
+}
+async function addInternalUser(){
+  if(!canManageInternalUsers())return alert("Seul un profil Gestion complète peut gérer les droits.");
+  if(!INTERNAL_USERS_AVAILABLE)return alert("Le module Utilisateurs et droits n'est pas encore installé. Exécute d'abord le SQL de cette version.");
+
+  const email=String(document.getElementById("internalUserEmail")?.value||"").trim().toLowerCase();
+  const role=document.getElementById("internalUserRole")?.value||"simplifie";
+  if(!email || !email.includes("@"))return alert("Saisis une adresse email valide.");
+
+  const body={
+    email,
+    role,
+    actif:true,
+    updated_at:new Date().toISOString(),
+    updated_by:CURRENT_EMAIL||currentLoginEmail()||null
+  };
+  await sb("concours_utilisateurs?on_conflict=email",{
+    method:"POST",
+    body,
+    prefer:"resolution=merge-duplicates,return=minimal"
+  });
+  const input=document.getElementById("internalUserEmail");if(input)input.value="";
+  await loadAll();
+  applyAccessMode();
+}
+async function updateInternalUserRole(email,role){
+  if(!canManageInternalUsers())return;
+  const normalized=String(email||"").trim().toLowerCase();
+  if(normalized===CURRENT_EMAIL && role!=="gestion_complete"){
+    alert("Sécurité : tu ne peux pas retirer toi-même ton rôle Gestion complète.");
+    renderInternalUsers();
+    return;
+  }
+  await sb("concours_utilisateurs?email=eq."+encodeURIComponent(normalized),{
+    method:"PATCH",
+    body:{role,updated_at:new Date().toISOString(),updated_by:CURRENT_EMAIL||null},
+    prefer:"return=minimal"
+  });
+  await loadAll();
+  applyAccessMode();
+}
+async function setInternalUserActive(email,active){
+  if(!canManageInternalUsers())return;
+  const normalized=String(email||"").trim().toLowerCase();
+  if(normalized===CURRENT_EMAIL && !active){
+    alert("Sécurité : tu ne peux pas désactiver ton propre accès.");
+    renderInternalUsers();
+    return;
+  }
+  await sb("concours_utilisateurs?email=eq."+encodeURIComponent(normalized),{
+    method:"PATCH",
+    body:{actif:!!active,updated_at:new Date().toISOString(),updated_by:CURRENT_EMAIL||null},
+    prefer:"return=minimal"
+  });
+  await loadAll();
+  applyAccessMode();
+}
+function renderInternalUsers(){
+  const target=document.getElementById("internalUsersList");
+  if(!target)return;
+  if(!canManageInternalUsers()){
+    target.innerHTML="";
+    return;
+  }
+  if(!INTERNAL_USERS_AVAILABLE){
+    target.innerHTML='<div class="info"><strong>Module non installé.</strong> Exécute le fichier SQL_PATCH_v0_11_23.sql une seule fois. Ensuite toute la gestion se fera ici, dans l’application.</div>';
+    return;
+  }
+
+  const rows=(db.internalUsers||[]).slice().sort((a,b)=>String(a.email||"").localeCompare(String(b.email||""),"fr")).map(u=>{
+    const email=String(u.email||"").toLowerCase();
+    const self=email===CURRENT_EMAIL;
+    return `<tr class="internal-user-row ${u.actif===false?"inactive":""}">
+      <td><strong>${escapeHtml(email)}</strong>${self?' <span class="badge ok">Moi</span>':""}</td>
+      <td>
+        <select onchange="updateInternalUserRole('${escapeHtml(email)}',this.value)" ${self?"":""}>
+          <option value="simplifie" ${u.role==="simplifie"?"selected":""}>Simplifié</option>
+          <option value="intermediaire" ${u.role==="intermediaire"?"selected":""}>Intermédiaire</option>
+          <option value="gestion_complete" ${u.role==="gestion_complete"?"selected":""}>Gestion complète</option>
+        </select>
+      </td>
+      <td>${u.actif===false?'<span class="badge bad">Désactivé</span>':'<span class="badge ok">Actif</span>'}</td>
+      <td><button class="secondary mini" onclick="setInternalUserActive('${escapeHtml(email)}',${u.actif===false?"true":"false"})">${u.actif===false?"Réactiver":"Désactiver"}</button></td>
+    </tr>`;
+  }).join("");
+
+  const bootstrap=(db.admins||[]).filter(a=>{
+    const email=String(a.email||"").trim().toLowerCase();
+    return email && !(db.internalUsers||[]).some(u=>String(u.email||"").trim().toLowerCase()===email);
+  }).map(a=>`<tr>
+    <td><strong>${escapeHtml(String(a.email||"").toLowerCase())}</strong> <span class="badge na">Admin initial</span></td>
+    <td>Gestion complète</td>
+    <td><span class="badge ok">Actif</span></td>
+    <td><span class="internal-role-note">Ajoute cet email ci-dessus si tu veux gérer son rôle dans l’application.</span></td>
+  </tr>`).join("");
+
+  target.innerHTML=(rows||bootstrap)
+    ? `<div class="scroll"><table><thead><tr><th>Utilisateur</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody>${rows}${bootstrap}</tbody></table></div>`
+    : '<div class="muted">Aucun utilisateur interne paramétré. Ajoute une collègue ci-dessus.</div>';
+}
+
 function portalAccess(){
   const cid=document.getElementById("portalContest")?.value;
   return CURRENT_PARTNER_ACCESSES.find(a=>a.concours_id===cid)||CURRENT_PARTNER_ACCESSES[0]||null;
@@ -1740,7 +1987,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.22 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.24 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -2073,8 +2320,25 @@ async function optionalSb(path,fallback=[]){
     throw e;
   }
 }
+async function optionalInternalUsersSb(path,fallback=[]){
+  try{
+    return await sb(path);
+  }catch(e){
+    const msg=String(e?.message||e||"");
+    if(
+      msg.includes("concours_utilisateurs") ||
+      msg.includes("Could not find the table") ||
+      msg.includes("schema cache")
+    ){
+      INTERNAL_USERS_AVAILABLE=false;
+      setSync("synchronisé");
+      return fallback;
+    }
+    throw e;
+  }
+}
 async function loadAll(){
-  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations,farmerAccess]=await Promise.all([
+  const [contests,departments,rules,templateRules,demands,checkDefs,checkResults,tariffs,refundLines,animals,results,certs,partnerAccess,partnerValidations,farmerAccess,internalUsers,admins]=await Promise.all([
     sb("concours?select=*&order=date_concours.desc"),
     sb("concours_departements?select=*&order=departement.asc"),
     sb("concours_regles?select=*&order=created_at.asc"),
@@ -2089,9 +2353,11 @@ async function loadAll(){
     sb("concours_certificats?select=*"),
     sb("concours_acces_partenaires?select=*&order=organisme.asc"),
     sb("concours_validations_partenaires?select=*"),
-    optionalSb("concours_acces_eleveurs?select=*&order=created_at.desc",[])
+    optionalSb("concours_acces_eleveurs?select=*&order=created_at.desc",[]),
+    optionalInternalUsersSb("concours_utilisateurs?select=*&order=email.asc",[]),
+    sb("concours_admins?select=*").catch(()=>[])
   ]);
-  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.farmerAccess=farmerAccess||[];db.certificates={};
+  db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.farmerAccess=farmerAccess||[];db.internalUsers=internalUsers||[];db.admins=admins||[];db.certificates={};
 
   // Le n° EDE est la clé métier : un même EDE ne doit jamais être séparé
   // parce que le nom éleveur a été saisi différemment.
@@ -2234,8 +2500,30 @@ function diseaseExportInfo(a,cid,disease){
 
 function diseaseForAnalysis(analysis){const t=(analysis||"").toLowerCase();if(t.includes("bvd"))return "BVD";if(t.includes("ibr"))return "IBR";if(t.includes("besno"))return "Besnoitiose";return db.templateRules.find(r=>r.libelle_analyse===analysis)?.maladie||"Autre"}
 function activeDemand(contestId,disease){return db.demands.find(d=>d.concours_id===contestId&&d.maladie===disease)}
+function contestExceptionRules(contestId,disease){
+  return db.rules.filter(r=>r.concours_id===contestId && diseaseForAnalysis(r.analyse_type)===disease);
+}
+function applicableContestExceptionRules(animal,contestId,disease){
+  const c=contest(contestId);if(!c)return[];
+  const age=ageMonths(animal.naissance,c.date_concours);
+  return contestExceptionRules(contestId,disease).filter(r=>
+    age!==null &&
+    age>=Number(r.age_min_mois||0) &&
+    (r.age_max_mois==null||age<=Number(r.age_max_mois))
+  );
+}
 function applicableTemplateRules(animal,contestId,disease){const c=contest(contestId);if(!c)return[];const age=ageMonths(animal.naissance,c.date_concours);return db.templateRules.filter(r=>r.maladie===disease&&age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)))}
-function needed(animal,analysis,contestId){const disease=diseaseForAnalysis(analysis);if(activeDemand(contestId,disease)){return applicableTemplateRules(animal,contestId,disease).filter(r=>r.recevable_validation).some(r=>r.libelle_analyse===analysis)}const c=contest(contestId);if(!c)return false;const age=ageMonths(animal.naissance,c.date_concours);return db.rules.filter(r=>r.concours_id===contestId&&r.analyse_type===analysis).some(r=>age!==null&&age>=Number(r.age_min_mois||0)&&(r.age_max_mois==null||age<=Number(r.age_max_mois)))}
+function needed(animal,analysis,contestId){
+  const disease=diseaseForAnalysis(analysis);
+  const exceptions=contestExceptionRules(contestId,disease);
+  if(exceptions.length){
+    return applicableContestExceptionRules(animal,contestId,disease).some(r=>r.analyse_type===analysis);
+  }
+  if(activeDemand(contestId,disease)){
+    return applicableTemplateRules(animal,contestId,disease).filter(r=>r.recevable_validation).some(r=>r.libelle_analyse===analysis);
+  }
+  return false;
+}
 function getResult(aid,analysis){
   db.results[aid]||={};
   return db.results[aid][analysis]||{animal_id:aid,analyse_type:analysis,statut:"attente",date_prelevement:"",commentaire:""};
@@ -2566,10 +2854,10 @@ async function addRule(){
 async function deleteRule(id){if(!confirm("Supprimer cette règle ?"))return;await sb("concours_regles?id=eq."+id,{method:"DELETE"});await loadAll()}
 function renderRules(){
   const cid=document.getElementById("ruleContest")?.value;
-  const rows=db.rules.filter(r=>r.concours_id===cid).map(r=>`<tr><td>${escapeHtml(r.analyse_type)}</td><td>${r.age_min_mois} mois</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" mois"}</td><td>${r.delai_max_jours} j</td><td><button class="danger" onclick="deleteRule('${r.id}')">Supprimer</button></td></tr>`).join("");
+  const rows=db.rules.filter(r=>r.concours_id===cid).map(r=>`<tr><td>${escapeHtml(r.analyse_type)}</td><td>${r.age_min_mois} mois</td><td>${r.age_max_mois==null?"—":r.age_max_mois+" mois"}</td><td>${r.delai_max_jours} j</td><td><span class="badge warn">Remplace la règle générale</span></td><td><button class="danger" onclick="deleteRule('${r.id}')">Supprimer</button></td></tr>`).join("");
   document.getElementById("ruleList").innerHTML=rows
-    ? `<div class="scroll"><table><thead><tr><th>Analyse</th><th>Âge mini</th><th>Âge maxi</th><th>Délai</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : `<div class="muted" style="padding:12px 4px">Aucune règle sanitaire enregistrée pour ce concours.</div>`;
+    ? `<div class="scroll"><table><thead><tr><th>Analyse</th><th>Âge mini</th><th>Âge maxi</th><th>Délai</th><th>Effet</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="muted" style="padding:12px 4px">Aucune exception sanitaire enregistrée pour ce concours : les règles générales s’appliquent.</div>`;
 }
 async function addAnimal(){
   const herdValue=document.getElementById("herdNo").value.trim();
@@ -3419,9 +3707,20 @@ function requestedDiseases(cid){
   return [...new Set(db.rules.filter(r=>r.concours_id===cid).map(r=>diseaseForAnalysis(r.analyse_type)))];
 }
 function acceptedRulesForDisease(animal,cid,disease){
-  if(activeDemand(cid,disease)) return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
-  const c=contest(cid),age=ageMonths(animal.naissance,c?.date_concours);
-  return db.rules.filter(r=>r.concours_id===cid && diseaseForAnalysis(r.analyse_type)===disease && age!==null && age>=Number(r.age_min_mois||0) && (r.age_max_mois==null||age<=Number(r.age_max_mois))).map(r=>({libelle_analyse:r.analyse_type,methode_reference_remboursement:true,technique:r.analyse_type,matrice:""}));
+  const exceptions=contestExceptionRules(cid,disease);
+  if(exceptions.length){
+    return applicableContestExceptionRules(animal,cid,disease).map(r=>({
+      libelle_analyse:r.analyse_type,
+      methode_reference_remboursement:true,
+      technique:r.analyse_type,
+      matrice:"",
+      _exception_concours:true
+    }));
+  }
+  if(activeDemand(cid,disease)){
+    return applicableTemplateRules(animal,cid,disease).filter(r=>r.recevable_validation);
+  }
+  return [];
 }
 function ruleRank(rule,animal,cid,disease){
   let score=rule.methode_reference_remboursement?0:100;
@@ -3461,16 +3760,15 @@ function demandedDiseases(cid){
   return db.demands.filter(d=>d.concours_id===cid).map(d=>d.maladie);
 }
 function analysisValidityDays(cid,disease,analysis=""){
-  const demand=db.demands.find(d=>d.concours_id===cid && d.maladie===disease);
-  if(demand && Number(demand.delai_max_jours)>0)return Number(demand.delai_max_jours);
-
-  const matching=db.rules.filter(r=>
-    r.concours_id===cid &&
+  const exceptions=contestExceptionRules(cid,disease).filter(r=>
     (!analysis || r.analyse_type===analysis) &&
-    diseaseForAnalysis(r.analyse_type)===disease &&
     Number(r.delai_max_jours)>0
   );
-  return matching.length?Number(matching[0].delai_max_jours):null;
+  if(exceptions.length)return Number(exceptions[0].delai_max_jours);
+
+  const demand=db.demands.find(d=>d.concours_id===cid && d.maladie===disease);
+  if(demand && Number(demand.delai_max_jours)>0)return Number(demand.delai_max_jours);
+  return null;
 }
 function subtractDaysISO(dateIso,days){
   const m=String(dateIso||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -6387,7 +6685,8 @@ function fullBackupTables(){
     concours_certificats:certificates,
     concours_acces_partenaires:(db.partnerAccess||[]).map(x=>({...x})),
     concours_validations_partenaires:(db.partnerValidations||[]).map(x=>({...x})),
-    concours_acces_eleveurs:(db.farmerAccess||[]).map(x=>({...x}))
+    concours_acces_eleveurs:(db.farmerAccess||[]).map(x=>({...x})),
+    concours_utilisateurs:(db.internalUsers||[]).map(x=>({...x}))
   };
 }
 
@@ -6467,7 +6766,8 @@ function makeFullBackupXlsx(tables){
     concours_certificats:"Certificats",
     concours_acces_partenaires:"Accès partenaires",
     concours_validations_partenaires:"Validations partenaires",
-    concours_acces_eleveurs:"Accès éleveurs"
+    concours_acces_eleveurs:"Accès éleveurs",
+    concours_utilisateurs:"Utilisateurs rôles"
   };
 
   Object.entries(tables).forEach(([tableName,rows])=>{
@@ -6990,10 +7290,11 @@ function exportEntryCsv(){
   ]));
   downloadCsv(`Controle_entree_${String(c?.nom||"concours").replaceAll(" ","_")}.csv`,rows);
 }
-function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderSupplementaryDefs();renderSupplementaryChecks();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview();if(fastCurrentHerd)renderFastValidation();if(APP_MODE==="partner")renderPartnerPortal();if(APP_MODE==="admin")renderFarmerManagement();if(APP_MODE==="farmer")renderFarmerPortal()}
+function renderAll(){renderSelectors();renderContestList();renderDepartmentSelectors();renderPartnerDepartmentScope();renderPartnerAccess();renderDepartments();renderTemplateRules();renderDemands();renderCheckDefs();renderRules();renderSupplementaryDefs();renderSupplementaryChecks();renderPartnerImportSummary();renderAnimals();renderAnalysis();renderQualificationGrid();renderCertificates();renderRefunds();renderDashboard();renderExport();renderEntry();renderFastOverview();renderInternalUsers();if(fastCurrentHerd)renderFastValidation();if(APP_MODE==="partner")renderPartnerPortal();if(APP_MODE==="admin"){renderFarmerManagement();applyInternalRoleUi()}if(APP_MODE==="farmer")renderFarmerPortal()}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   if(APP_MODE==="partner" && b.dataset.tab!=="partenaireportail")return;
   if(APP_MODE==="farmer" && b.dataset.tab!=="eleveurportail")return;
+  if(APP_MODE==="admin" && !internalTabAllowed(b.dataset.tab))return;
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   document.getElementById(b.dataset.tab)?.classList.add("active");
