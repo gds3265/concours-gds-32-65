@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.27</title>
-<link rel="manifest" href="manifest.json?v=1127">
+<title>Suivi des concours v0.11.28</title>
+<link rel="manifest" href="manifest.json?v=1128">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1127" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1127</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1128" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1128</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1080,7 +1080,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 
     <div class="info" id="certWorkflowHelp" style="margin-top:12px">
       <strong>Statut automatique :</strong> sans date = Non reçu · date de réception = Reçu / en attente · validation finale = Validé.
-      Les bovins sanitairement conformes sont proposés <strong>Validés par défaut</strong> : tu ne modifies que les exceptions.
+      Les bovins sanitairement conformes sont proposés <strong>Validation possible</strong>. Le mot <strong>Validé</strong> n’apparaît qu’après validation finale du certificat.
     </div>
 
     <div style="margin-top:18px;border-top:2px solid var(--line);padding-top:14px">
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.27";
+const APP_VERSION = "0.11.28";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.27");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.28");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1568,7 +1568,7 @@ function internalAllowedTabs(role){
     "certificats","entreeconcours","export"
   ]);
   return new Set([
-    "validationrapide","analyses","controles","certificats","entreeconcours"
+    "validationrapide","analyses","qualifications","controles","certificats","entreeconcours"
   ]);
 }
 function internalDefaultTab(role){
@@ -1987,7 +1987,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.27 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.28 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -4205,8 +4205,10 @@ function animalSanitaryOK(a){return requestedDiseases(a.concours_id).every(d=>di
 
 function effectiveCertificateStatus(c){
   if(!c)return "non_recu";
-  if(c.statut_certificat==="valide"||c.statut_certificat==="signe"||c.date_signature)return "valide";
-  if(c.statut_certificat==="recu_attente"||c.date_reception)return "recu_attente";
+  // Un certificat n'est Validé qu'après l'action de validation finale.
+  // Une date de signature renseignée seule ne suffit pas.
+  if(c.statut_certificat==="valide"||c.statut_certificat==="signe")return "valide";
+  if(c.statut_certificat==="recu_attente"||c.date_reception||c.date_signature)return "recu_attente";
   return "non_recu";
 }
 function farmerForHerd(cid,herd){
@@ -4222,8 +4224,8 @@ function confirmPostCertificateEdit(cid,farmer,what){
 }
 
 function certificateDraftStatus(){
-  if(normalizeDate(document.getElementById("signDate")?.value))return "valide";
-  if(normalizeDate(document.getElementById("receiveDate")?.value))return "recu_attente";
+  // Les dates peuvent être préparées avant validation, mais elles ne valident pas le dossier.
+  if(normalizeDate(document.getElementById("receiveDate")?.value)||normalizeDate(document.getElementById("signDate")?.value))return "recu_attente";
   return "non_recu";
 }
 function renderCertificateAutoStatus(){
@@ -4277,6 +4279,18 @@ function certificateAnimalSanitaryBadge(a){
     return '<span class="badge ok">Conforme</span>';
   }
   return '<span class="badge warn">À vérifier</span>';
+}
+function certificateAnimalDecisionLabel(a,status){
+  if(status==="refuse")return {label:"Refusé",cls:"bad"};
+  if(status==="non_present")return {label:"Pas sur certif",cls:"na"};
+  if(status==="a_verifier")return {label:"À décider",cls:"warn"};
+
+  // "Validé" est réservé à un certificat réellement finalisé.
+  const cert=db.certificates[a.concours_id+"|"+a.eleveur];
+  if(effectiveCertificateStatus(cert)==="valide"){
+    return {label:"Validé",cls:"ok"};
+  }
+  return {label:"Validation possible",cls:"ok"};
 }
 function certificateAbsentDetail(a){
   const diseases=requestedDiseases(a.concours_id);
@@ -4995,43 +5009,29 @@ function cancelCertificateAnimalEdit(){
   renderCertificates();
 }
 function certificateAnimalChoiceHtml(a){
-  const ast=defaultCertificateAnimalStatus(a);
-  const auto=(a.statut_certificat_animal||"a_verifier")==="a_verifier" && ast==="present";
-  const editing=certificateAnimalEditId===a.id;
-
-  if(ast==="present" && !editing){
-    return `<div class="cert-choice compact">
-      <span class="badge ok">Validé</span>
-      <button class="secondary mini" onclick="editCertificateAnimal('${a.id}')">Modifier</button>
-      ${auto?'<div class="cert-auto-note">Proposé automatiquement selon les contrôles</div>':""}
+  const st=defaultCertificateAnimalStatus(a);
+  if(certificateAnimalEditId===a.id){
+    return `<div class="certificate-choice-edit">
+      <button class="secondary mini ${st==="present"?"active-choice":""}" onclick="setCertificateAnimalChoice('${a.id}','present')">Validation possible</button>
+      <button class="secondary mini ${st==="non_present"?"active-choice":""}" onclick="setCertificateAnimalChoice('${a.id}','non_present')">Pas sur certif</button>
+      <button class="danger mini ${st==="refuse"?"active-choice":""}" onclick="setCertificateAnimalChoice('${a.id}','refuse')">Refusé</button>
+      <button class="secondary mini" onclick="setCertificateAnimalChoice('${a.id}','a_verifier')">À décider</button>
+      <button class="secondary mini" onclick="certificateAnimalEditId='';renderCertificates()">Fermer</button>
     </div>`;
   }
 
-  if((ast==="non_present"||ast==="refuse") && !editing){
-    if(ast==="non_present"){
-      const detail=certificateAbsentDetail(a);
-      return `<div class="cert-choice compact">
-        <span class="badge na">Pas sur certif</span>
-        <span class="badge ${detail.cls}">${detail.label}</span>
-        <button class="secondary mini" onclick="editCertificateAnimal('${a.id}')">Modifier</button>
-      </div>`;
-    }
-    return `<div class="cert-choice compact">
-      <span class="badge bad">Refusé</span>
-      <button class="secondary mini" onclick="editCertificateAnimal('${a.id}')">Modifier</button>
-    </div>`;
-  }
+  const d=certificateAnimalDecisionLabel(a,st);
+  const automatic=!(a.statut_certificat_animal) || a.statut_certificat_animal==="a_verifier";
+  const note=automatic && (st==="present"||st==="refuse")
+    ? `<span class="muted" style="margin-left:6px">Proposé automatiquement selon les contrôles</span>`
+    : "";
 
-  return `<div class="cert-choice">
-    <button class="${ast==="present"?"selected ok":""}" onclick="setCertificateAnimalStatus('${a.id}','present')">Validé</button>
-    <button class="${ast==="non_present"?"selected na":""}" onclick="setCertificateAnimalStatus('${a.id}','non_present')">Pas sur certif</button>
-    <button class="${ast==="refuse"?"selected bad":""}" onclick="setCertificateAnimalStatus('${a.id}','refuse')">Refusé</button>
-    ${ast==="a_verifier"?'<span class="badge warn">À décider</span>':""}
-    ${editing?'<button class="secondary mini" onclick="cancelCertificateAnimalEdit()">Annuler</button>':""}
-    ${auto?'<div class="cert-auto-note">Proposé automatiquement selon les contrôles</div>':""}
+  return `<div class="certificate-choice-read">
+    <span class="badge ${d.cls}">${d.label}</span>
+    <button class="secondary mini" onclick="certificateAnimalEditId='${a.id}';renderCertificates()">Modifier</button>
+    ${note}
   </div>`;
 }
-
 function certificateCheckStatusIsPending(status){
   const s=String(status||"").toLowerCase();
   return !s || ["attente","a_verifier","labo","recontrole"].includes(s);
@@ -5255,7 +5255,7 @@ function renderCertificates(){
             <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div><div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
             <span>${certificateAnimalSanitaryBadge(a)}</span>
             <span>${ast==="present"
-  ?'<span class="badge ok">Validé</span>'
+  ?(()=>{const d=certificateAnimalDecisionLabel(a,ast);return `<span class="badge ${d.cls}">${d.label}</span>`})()
   :ast==="non_present"
     ?(()=>{const d=certificateAbsentDetail(a);return `<span class="badge na">Pas sur certif</span> <span class="badge ${d.cls}">${d.label}</span>`})()
     :ast==="refuse"
@@ -5828,7 +5828,8 @@ async function saveCertificateDraft(silent=false){
   const body={
     concours_id:cid,
     eleveur:farmer,
-    statut_certificat:signature?"valide":(reception?"recu_attente":"non_recu"),
+    // Enregistrement d'un brouillon : seul le bouton de validation finale passe le certificat à "valide".
+    statut_certificat:(reception||signature)?"recu_attente":"non_recu",
     date_reception:reception,
     date_signature:signature,
     mode_transmission:document.getElementById("sendMode").value||null,
