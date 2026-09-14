@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.26</title>
-<link rel="manifest" href="manifest.json?v=1126">
+<title>Suivi des concours v0.11.27</title>
+<link rel="manifest" href="manifest.json?v=1127">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1126" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1126</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1127" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1127</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.26";
+const APP_VERSION = "0.11.27";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.26");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.27");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1987,7 +1987,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.26 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.27 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -4269,6 +4269,15 @@ function defaultCertificateAnimalStatus(a){
   // Sinon, il reste réellement à décider / vérifier.
   return "a_verifier";
 }
+function certificateAnimalSanitaryBadge(a){
+  if(animalMandatoryAnalysisFailure(a)){
+    return '<span class="badge bad">Non conforme</span>';
+  }
+  if(animalSanitaryOK(a)){
+    return '<span class="badge ok">Conforme</span>';
+  }
+  return '<span class="badge warn">À vérifier</span>';
+}
 function certificateAbsentDetail(a){
   const diseases=requestedDiseases(a.concours_id);
   if(!diseases.length)return {code:"non_preleve",label:"Non prélevé",cls:"na"};
@@ -5240,11 +5249,11 @@ function renderCertificates(){
       <div class="card ${herdBandClass(cid,h.herd)}" style="margin:8px 0">
         <h4 style="margin:0 0 8px">EDE ${escapeHtml(h.herd)} — ${escapeHtml(h.farmer)}</h4>
         ${h.animals.map(a=>{
-          const ast=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
+          const ast=defaultCertificateAnimalStatus(a);
           const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
           return `<div class="cert-animal-row ${rowClass}">
             <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div><div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
-            <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
+            <span>${certificateAnimalSanitaryBadge(a)}</span>
             <span>${ast==="present"
   ?'<span class="badge ok">Validé</span>'
   :ast==="non_present"
@@ -5262,7 +5271,7 @@ function renderCertificates(){
       const rowClass=ast==="refuse"?"cert-refused":ast==="non_present"?"cert-absent":"";
       return `<div class="cert-animal-row ${rowClass}">
         <div><div class="work-no">${escapeHtml(String(a.bovin||"").slice(-4))}</div><div class="animal-sub">${escapeHtml(a.bovin)}${a.nom_animal?" — "+escapeHtml(a.nom_animal):""}</div><div class="muted">${escapeHtml(animalBirthAgeText(a,cid))}</div></div>
-        <span>${animalSanitaryOK(a)?'<span class="badge ok">Conforme</span>':'<span class="badge warn">À vérifier</span>'}</span>
+        <span>${certificateAnimalSanitaryBadge(a)}</span>
         ${certificateAnimalChoiceHtml(a)}
       </div>`;
     }).join("")||"<span class='muted'>Aucun animal.</span>";
