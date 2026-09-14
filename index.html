@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.25</title>
-<link rel="manifest" href="manifest.json?v=1125">
+<title>Suivi des concours v0.11.26</title>
+<link rel="manifest" href="manifest.json?v=1126">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1125" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1125</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1126" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1126</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.25";
+const APP_VERSION = "0.11.26";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.25");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.26");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1987,7 +1987,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.25 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.26 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -4232,10 +4232,42 @@ function renderCertificateAutoStatus(){
   if(farmer==="__ALL__"){target.innerHTML='<span class="badge na">Vue globale</span>';return}
   target.innerHTML=certStatusBadge(certificateDraftStatus());
 }
+function animalMandatoryAnalysisFailure(a){
+  const diseases=requestedDiseases(a.concours_id);
+  for(const disease of diseases){
+    const accepted=acceptedRulesForDisease(a,a.concours_id,disease);
+    if(!accepted.length)continue; // maladie non applicable à cet animal
+
+    const results=accepted
+      .map(r=>getResult(a.id,r.libelle_analyse))
+      .filter(Boolean);
+
+    // Si une méthode recevable est conforme, la maladie est satisfaite.
+    if(results.some(r=>r.statut==="conforme"))continue;
+
+    // Refus automatique uniquement sur un résultat réellement défavorable.
+    // Une analyse absente / en attente / labo / recontrôle reste "à décider".
+    if(results.some(r=>["nonconforme","positif"].includes(r.statut))){
+      return {disease,results};
+    }
+  }
+  return null;
+}
 function defaultCertificateAnimalStatus(a){
   const raw=a.statut_certificat_animal || (a.sur_certificat?"present":"a_verifier");
-  if(raw==="a_verifier" && animalSanitaryOK(a))return "present";
-  return raw;
+
+  // Ne jamais écraser un choix manuel déjà fait.
+  if(raw!=="a_verifier")return raw;
+
+  // Une analyse obligatoire explicitement non conforme / positive
+  // propose automatiquement le bovin en Refusé.
+  if(animalMandatoryAnalysisFailure(a))return "refuse";
+
+  // Tout est conforme : proposition automatique Validé.
+  if(animalSanitaryOK(a))return "present";
+
+  // Sinon, il reste réellement à décider / vérifier.
+  return "a_verifier";
 }
 function certificateAbsentDetail(a){
   const diseases=requestedDiseases(a.concours_id);
@@ -4962,7 +4994,7 @@ function certificateAnimalChoiceHtml(a){
     return `<div class="cert-choice compact">
       <span class="badge ok">Validé</span>
       <button class="secondary mini" onclick="editCertificateAnimal('${a.id}')">Modifier</button>
-      ${auto?'<div class="cert-auto-note">Proposé automatiquement car conforme</div>':""}
+      ${auto?'<div class="cert-auto-note">Proposé automatiquement selon les contrôles</div>':""}
     </div>`;
   }
 
@@ -4987,7 +5019,7 @@ function certificateAnimalChoiceHtml(a){
     <button class="${ast==="refuse"?"selected bad":""}" onclick="setCertificateAnimalStatus('${a.id}','refuse')">Refusé</button>
     ${ast==="a_verifier"?'<span class="badge warn">À décider</span>':""}
     ${editing?'<button class="secondary mini" onclick="cancelCertificateAnimalEdit()">Annuler</button>':""}
-    ${auto?'<div class="cert-auto-note">Proposé automatiquement car conforme</div>':""}
+    ${auto?'<div class="cert-auto-note">Proposé automatiquement selon les contrôles</div>':""}
   </div>`;
 }
 
