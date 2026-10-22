@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.29</title>
-<link rel="manifest" href="manifest.json?v=1129">
+<title>Suivi des concours v0.11.30</title>
+<link rel="manifest" href="manifest.json?v=1130">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1129" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1129</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1130" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1130</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.29";
+const APP_VERSION = "0.11.30";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.29");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.30");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1906,7 +1906,14 @@ function togglePartnerAddAnimal(force){
     if(ede && ds.length===1 && !ede.value)ede.placeholder=`EDE du département ${ds[0]}`;
   }
 }
-function normalize10(v){return String(v||"").replace(/\D/g,"").slice(-10)}
+function normalize10(v){
+  const digits=String(v||"").replace(/\D/g,"");
+  if(!digits)return "";
+  const national=digits.length>10?digits.slice(-10):digits;
+  // Un n° bovin national est stocké sur 10 chiffres. Excel peut supprimer
+  // le zéro initial des bovins 09 : on le restitue automatiquement.
+  return national.length===9 ? national.padStart(10,"0") : national;
+}
 function normalize8(v){return String(v||"").replace(/\D/g,"").slice(-8)}
 async function partnerAddAnimal(){
   const access=portalAccess();
@@ -1987,7 +1994,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.29 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.30 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -2358,6 +2365,29 @@ async function loadAll(){
     sb("concours_admins?select=*").catch(()=>[])
   ]);
   db.contests=contests||[];db.departments=departments||[];db.rules=rules||[];db.templateRules=templateRules||[];db.demands=demands||[];db.checkDefs=checkDefs||[];db.checkResults=checkResults||[];db.tariffs=tariffs||[];db.refundLines=refundLines||[];db.animals=animals||[];db.partnerAccess=partnerAccess||[];db.partnerValidations=partnerValidations||[];db.farmerAccess=farmerAccess||[];db.internalUsers=internalUsers||[];db.admins=admins||[];db.certificates={};
+
+  // Répare les anciens n° bovins dont Excel/AGDS avait supprimé le zéro initial
+  // (cas fréquent des identifiants 09xxxxxxxx enregistrés sur 9 chiffres).
+  const bovinNumberRepairs=[];
+  const bovinKeys=new Set(db.animals.map(a=>a.concours_id+"|"+String(a.bovin||"")));
+  db.animals.forEach(a=>{
+    const rawDigits=String(a.bovin||"").replace(/\D/g,"");
+    if(rawDigits.length!==9)return;
+    const repaired=rawDigits.padStart(10,"0");
+    const oldKey=a.concours_id+"|"+String(a.bovin||"");
+    const newKey=a.concours_id+"|"+repaired;
+    if(newKey!==oldKey && !bovinKeys.has(newKey)){
+      a.bovin=repaired;
+      bovinKeys.add(newKey);
+      bovinNumberRepairs.push(
+        sb("concours_animaux?id=eq."+encodeURIComponent(a.id),{
+          method:"PATCH",body:{bovin:repaired},prefer:"return=minimal"
+        }).catch(()=>null)
+      );
+    }
+  });
+  if(bovinNumberRepairs.length)await Promise.allSettled(bovinNumberRepairs);
+
 
   // Le n° EDE est la clé métier : un même EDE ne doit jamais être séparé
   // parce que le nom éleveur a été saisi différemment.
@@ -2862,7 +2892,7 @@ function renderRules(){
 async function addAnimal(){
   const herdValue=document.getElementById("herdNo").value.trim();
   const body={concours_id:document.getElementById("animalContest").value,departement:departmentFromHerd(herdValue)||document.getElementById("manualDept").value.trim()||null,eleveur:uppercaseName(document.getElementById("farmerName").value),
-    cheptel:herdValue,bovin:document.getElementById("animalNo").value.trim(),
+    cheptel:herdValue,bovin:normalizeBovin(document.getElementById("animalNo").value),
     naissance:(()=>{const d=dateInputISO(document.getElementById("birthDate").value,"la date de naissance");return d==="__INVALID__"?null:d})(),sexe:document.getElementById("animalSex")?.value.trim()||null,nom_animal:document.getElementById("animalName")?.value.trim()||null,
     code_race:(document.getElementById("animalRaceCode")?.value||"")==="OTHER"?null:(document.getElementById("animalRaceCode")?.value||null),
     race_libelle:(document.getElementById("animalRaceCode")?.value||"")==="OTHER"?(document.getElementById("animalRaceOther")?.value.trim()||null):null,
@@ -2908,8 +2938,11 @@ function cleanExcelCell(v){
 function normalizeBovin(v){
   const raw=cleanExcelCell(v);
   const digits=String(raw||"").replace(/\D/g,"");
-  // Comparaison sur les 10 chiffres du n° national.
-  return digits.length>=10 ? digits.slice(-10) : digits;
+  if(!digits)return "";
+  // Comparaison et stockage sur les 10 chiffres du n° national.
+  // Excel/AGDS peut convertir 09xxxxxxxx en nombre et supprimer le premier 0.
+  const national=digits.length>10 ? digits.slice(-10) : digits;
+  return national.length===9 ? national.padStart(10,"0") : national;
 }
 function normalizeHerd(v){
   const raw=cleanExcelCell(v);
@@ -2922,13 +2955,25 @@ function departmentFromHerd(v){
   return digits.length>=2 ? digits.slice(0,2) : "";
 }
 function normalizeDate(v){
-  const s=cleanExcelCell(v);
+  let s=cleanExcelCell(v);
   if(!s)return null;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    const [y,m,d]=s.split("-").map(Number);
+    const test=new Date(y,m-1,d);
+    return test.getFullYear()===y&&test.getMonth()===m-1&&test.getDate()===d?s:null;
+  }
+
+  // Saisie rapide : 060626 => 06/06/26 ; 06062026 => 06/06/2026.
+  if(/^\d{6}$/.test(s))s=`${s.slice(0,2)}/${s.slice(2,4)}/${s.slice(4,6)}`;
+  else if(/^\d{8}$/.test(s))s=`${s.slice(0,2)}/${s.slice(2,4)}/${s.slice(4,8)}`;
+
   const m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
   if(m){
+    const d=Number(m[1]),mo=Number(m[2]);
     let y=m[3]; if(y.length===2)y=(Number(y)>50?"19":"20")+y;
-    return `${y}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+    const yn=Number(y),test=new Date(yn,mo-1,d);
+    if(test.getFullYear()!==yn||test.getMonth()!==mo-1||test.getDate()!==d)return null;
+    return `${y}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
   }
   return null;
 }
@@ -2944,7 +2989,7 @@ function dateInputISO(v,fieldLabel="date"){
   if(!raw)return null;
   const iso=normalizeDate(raw);
   if(!iso){
-    alert(`Format incorrect pour ${fieldLabel}. Utilise JJ/MM/AA ou JJ/MM/AAAA.`);
+    alert(`Format incorrect pour ${fieldLabel}. Utilise JJ/MM/AA, JJ/MM/AAAA ou la saisie rapide JJMMAA / JJMMAAAA.`);
     return "__INVALID__";
   }
   return iso;
@@ -2955,6 +3000,17 @@ function normalizeDateFieldElement(id,label){
   if(iso && iso!=="__INVALID__")el.value=dateInputShort(iso);
   return iso;
 }
+function autoFormatCompactDateInput(el){
+  if(!el || el.tagName!=="INPUT")return;
+  const placeholder=String(el.getAttribute("placeholder")||"").toUpperCase();
+  if(!placeholder.includes("JJ/MM"))return;
+  const raw=String(el.value||"").trim();
+  if(!raw)return;
+  const iso=normalizeDate(raw);
+  if(iso)el.value=dateInputShort(iso);
+}
+document.addEventListener("blur",e=>autoFormatCompactDateInput(e.target),true);
+
 function sameText(a,b){
   const clean=s=>normHeader(s).replace(/[^a-z0-9]/g,"");
   return !!clean(a) && clean(a)===clean(b);
