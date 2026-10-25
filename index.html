@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7b2f63">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<title>Suivi des concours v0.11.32</title>
-<link rel="manifest" href="manifest.json?v=1132">
+<title>Suivi des concours v0.11.33</title>
+<link rel="manifest" href="manifest.json?v=1133">
 <style>
 :root{
   --bg:#f7f3f6; --card:#fff; --ink:#2b2730; --muted:#746b77;
@@ -394,7 +394,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 <div id="app">
 <header>
   <div class="topline">
-    <div class="brand"><img src="logo-gds-32-65.png?v=1132" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1132</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
+    <div class="brand"><img src="logo-gds-32-65.png?v=1133" class="app-logo" alt="GDS 32-65"><h1>Suivi des concours <small>v<span class="version"></span> <span id="buildMarker">1133</span></small><span id="syncState" class="sync">● synchronisé</span></h1></div>
     <label class="closed-contest-toggle" title="Afficher aussi les concours clôturés dans les listes">
       <input id="showClosedContests" type="checkbox" onchange="toggleClosedContests(this.checked)">
       Afficher concours clos
@@ -1320,7 +1320,7 @@ body.farmer-mode .nav-legend,body.farmer-mode .global-search-label{display:none}
 </div>
 
 <script>
-const APP_VERSION = "0.11.32";
+const APP_VERSION = "0.11.33";
 const SUPABASE_URL = "https://ckylznynqsefqkmtjcjf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FfKPaOY2rK6PRw0zmJAIDA_uU4GrzkB";
 
@@ -1426,7 +1426,7 @@ let fastCurrentFarmer="";
 let certificateAnimalEditId="";
 let db={contests:[],departments:[],rules:[],templateRules:[],demands:[],checkDefs:[],checkResults:[],tariffs:[],refundLines:[],animals:[],results:{},certificates:{},farmerAccess:[],internalUsers:[],admins:[]}; let lastPartnerImport=null; let lastBusinessImport=null;
 
-document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.32");
+document.querySelectorAll(".version").forEach(x=>x.textContent=APP_VERSION || "0.11.33");
 initClosedContestToggle();
 ["animalRaceCode","quickRaceCode"].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=raceSelectOptions("")});
 
@@ -1994,7 +1994,7 @@ function partnerVisibleAnimals(access){
 function renderFarmerManagement(){
   if(!FARMER_PORTAL_AVAILABLE){
     const target=document.getElementById("farmerAccessList");
-    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.32 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
+    if(target)target.innerHTML='<div class="info">Portail éleveur non activé : exécuter le SQL v0.11.0/v0.11.33 quand tu voudras l’utiliser. Le reste de l’application est disponible.</div>';
     return;
   }
   const sel=document.getElementById("farmerMgmtContest");
@@ -3742,6 +3742,7 @@ function renderAnimals(){
 }
 function statusOptions(sel){return STATUS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("")}
 const NON_REFUND_MARKER="[NON_REMBOURSABLE: Ag suffisait]";
+const ANIPI_EXTRA_BVD_MARKER="[ANIPI_EXTRA_BVD_SELECTION]";
 function isConformeNonRemboursableResult(r){
   return !!r && r.statut==="conforme" && String(r.commentaire||"").includes(NON_REFUND_MARKER);
 }
@@ -3917,22 +3918,29 @@ function anipiExtraBvdMethods(animal){
 function anipiExtraBvdCurrent(animal){
   const methods=anipiExtraBvdMethods(animal);
 
-  // Priorité à une analyse réellement renseignée, surtout si elle porte le
-  // marqueur "non remboursable".
+  // 1) Priorité au choix explicite de l'utilisateur, même si le résultat
+  // est encore "En attente". Ce marqueur permet au menu Ag/PCR de rester
+  // sélectionné après rechargement.
+  const explicitlySelected=methods
+    .map(m=>({method:m.libelle_analyse,result:db.results?.[animal.id]?.[m.libelle_analyse]}))
+    .find(x=>x.result && String(x.result.commentaire||"").includes(ANIPI_EXTRA_BVD_MARKER));
+  if(explicitlySelected)return explicitlySelected;
+
+  // 2) Sinon, reprendre une analyse réellement importée / renseignée.
   const withData=methods
-    .map(m=>({method:m.libelle_analyse,result:getResult(animal.id,m.libelle_analyse)}))
+    .map(m=>({method:m.libelle_analyse,result:db.results?.[animal.id]?.[m.libelle_analyse]}))
     .filter(x=>{
       const r=x.result;
       return r && (
         r.statut!=="attente" ||
         !!r.date_prelevement ||
-        !!String(r.commentaire||"").trim()
+        !!String(r.commentaire||"").replace(ANIPI_EXTRA_BVD_MARKER,"").trim()
       );
     });
 
   if(withData.length){
-    const marked=withData.find(x=>isConformeNonRemboursableResult(x.result));
-    return marked||withData[0];
+    const nonRefundable=withData.find(x=>isConformeNonRemboursableResult(x.result));
+    return nonRefundable||withData[0];
   }
 
   return null;
@@ -3955,10 +3963,6 @@ function anipiExtraBvdBlock(animal){
       <select style="margin-top:5px" onchange="setResult('${animal.id}','${escapeHtml(selected)}',this.value)">
         ${analysisStatusOptions(result,"BVD")}
       </select>
-      <input style="margin-top:5px;width:100%" type="text" inputmode="numeric"
-        placeholder="Date prélèvement JJ/MM/AA"
-        value="${escapeHtml(dateInputShort(result.date_prelevement))}"
-        onchange="setAnalysisSamplingDate('${animal.id}','${escapeHtml(selected)}',this.value)">
     `:""}
   </div>`;
 }
@@ -3969,44 +3973,39 @@ async function setAnipiExtraBvdMethod(animalId,newMethod){
   const old=anipiExtraBvdCurrent(a);
   if(old?.method===newMethod)return;
 
-  // On ne touche jamais au statut ANIPI lui-même.
+  const ops=[];
+
+  // Retirer uniquement notre marqueur de sélection de l'ancienne méthode.
+  // On conserve son vrai résultat, sa date et ses autres commentaires.
   if(old?.method){
-    const oldResult=getResult(animalId,old.method);
-    if(
-      oldResult.statut==="attente" &&
-      !oldResult.date_prelevement &&
-      !String(oldResult.commentaire||"").trim()
-    ){
-      // Rien à nettoyer : l'ancienne ligne était vide.
+    const oldStored=db.results?.[animalId]?.[old.method];
+    if(oldStored){
+      const cleaned=String(oldStored.commentaire||"")
+        .replaceAll(ANIPI_EXTRA_BVD_MARKER,"")
+        .replace(/\s+/g," ")
+        .trim();
+      ops.push(upsertResult(animalId,old.method,{commentaire:cleaned||null}));
     }
   }
 
+  // Si l'utilisateur choisit Ag ou PCR, enregistrer explicitement ce choix,
+  // même si aucun résultat n'est encore renseigné.
   if(newMethod){
-    const target=getResult(animalId,newMethod);
-    if(!target || (!target.statut && !target.date_prelevement)){
-      await upsertResult(animalId,newMethod,{statut:"attente"});
+    const stored=db.results?.[animalId]?.[newMethod];
+    const current=stored||getResult(animalId,newMethod);
+    let comment=String(current.commentaire||"");
+    if(!comment.includes(ANIPI_EXTRA_BVD_MARKER)){
+      comment=(comment?comment+" ":"")+ANIPI_EXTRA_BVD_MARKER;
     }
+    ops.push(upsertResult(animalId,newMethod,{
+      statut:current.statut||"attente",
+      commentaire:comment
+    }));
   }
+
+  if(ops.length)await Promise.all(ops);
   await loadAll();
 }
-async function setAnalysisSamplingDate(animalId,analysis,value){
-  const a=db.animals.find(x=>x.id===animalId);if(!a)return;
-  if(!confirmPostCertificateEdit(a.concours_id,a.eleveur,`la date de prélèvement ${analysis}`))return;
-
-  const raw=String(value||"").trim();
-  let iso=null;
-  if(raw){
-    iso=normalizeDate(raw);
-    if(!iso){
-      alert("Date incorrecte. Utilise JJ/MM/AA, JJ/MM/AAAA ou JJMMAA.");
-      renderAnalysis();
-      return;
-    }
-  }
-  await upsertResult(animalId,analysis,{date_prelevement:iso});
-  await loadAll();
-}
-
 function getDiseaseResult(animal,disease){
   const cid=animal.concours_id;
   if(disease==="BVD"){
@@ -4298,6 +4297,8 @@ async function setResult(aid,analysis,status){
     const comment=(baseComment?baseComment+" ":"")+NON_REFUND_MARKER;
     await upsertResult(aid,analysis,{statut:"conforme",commentaire:comment});
   }else{
+    // Retirer uniquement le marqueur "non remboursable" : le marqueur
+    // de sélection ANIPI/Ag/PCR doit rester pour que le menu ne se réinitialise pas.
     const cleaned=String(current.commentaire||"").replace(NON_REFUND_MARKER,"").trim();
     await upsertResult(aid,analysis,{statut:status,commentaire:cleaned||null});
   }
